@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Configuración para aplicación dinámica
+  output: 'standalone',
+  
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -27,8 +30,24 @@ const nextConfig = {
     
     return config;
   },
-  pageExtensions: ['tsx', 'ts', 'jsx', 'js']
+  pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
   // NO serverExternalPackages
+  
+  // Configuración para deshabilitar prerenderizado de rutas problemáticas
+  async generateBuildId() {
+    return 'build-' + Date.now();
+  },
+  
+  // Deshabilitar prerenderizado estático para rutas dinámicas problemáticas
+  trailingSlash: false,
+  
+  async rewrites() {
+    return {
+      beforeFiles: [],
+      afterFiles: [],
+      fallback: []
+    };
+  }
 };
 
-module.exports = nextConfig; 
+module.exports = nextConfig;

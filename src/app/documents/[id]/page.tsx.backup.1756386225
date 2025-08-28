@@ -1,9 +1,5 @@
 'use client';
 
-// Deshabilitar prerenderizado estático para esta página dinámica
-export const dynamic = 'force-dynamic';
-export const dynamicParams = true;
-
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -161,8 +157,19 @@ export default function DocumentPage() {
   const [bloomLevels, setBloomLevels] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showDocQuestions, setShowDocQuestions] = useState(false);
-  const [showRightPanel, setShowRightPanel] = useState(true);
-  const [questionsViewMode, setQuestionsViewMode] = useState<'gift' | 'moodle'>('gift');
+  const [showRightPanel, setShowRightPanel] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('showRightPanel');
+      return stored === null ? true : stored === 'true';
+    }
+    return true;
+  });
+  const [questionsViewMode, setQuestionsViewMode] = useState<'gift' | 'moodle'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('questionsViewMode') as 'gift' | 'moodle') || 'gift';
+    }
+    return 'gift';
+  });
   const [deleteDocQuestionsConfirm, setDeleteDocQuestionsConfirm] = useState(false);
   const [deleteSectionId, setDeleteSectionId] = useState<string | null>(null);
   const [customTitle, setCustomTitle] = useState<string>(() => {
@@ -224,21 +231,6 @@ export default function DocumentPage() {
     console.log('[DEBUG] validatorQuestions.length:', validatorQuestions.length);
   }, [showAdvancedValidator, validatorQuestions]);
 
-  // Cargar configuraciones de localStorage después del montaje
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedRightPanel = localStorage.getItem('showRightPanel');
-      if (storedRightPanel !== null) {
-        setShowRightPanel(storedRightPanel === 'true');
-      }
-      
-      const storedViewMode = localStorage.getItem('questionsViewMode');
-      if (storedViewMode) {
-        setQuestionsViewMode(storedViewMode as 'gift' | 'moodle');
-      }
-    }
-  }, []);
-
   const loadDocument = async () => {
     if (!documentId) return;
     try {
@@ -278,7 +270,6 @@ export default function DocumentPage() {
       console.error('🔍 [DEBUG] Error al cargar documento:', err);
       setError('Error al cargar el documento: ' + err.message);
     } finally { setLoading(false); }
-  };
 
   useEffect(() => {
     AIService.initialize();
@@ -321,7 +312,6 @@ export default function DocumentPage() {
       console.error('Error al eliminar el documento:', err);
       setError('Error al eliminar el documento');
     }
-  };
 
   const handleDownloadQuestionsText = async () => {
     if (!currentDocument || !currentDocument.questions || currentDocument.questions.length === 0) {
@@ -338,7 +328,6 @@ export default function DocumentPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
 
   const handleCopyContent = async () => {
     if (!currentDocument) return;
@@ -351,7 +340,6 @@ export default function DocumentPage() {
       console.error('Error al copiar al portapapeles:', err);
       setError('Error al copiar al portapapeles');
     }
-  };
 
   const handleCopyQuestions = async () => {
     if (!currentDocument || !docQuestionsDB || docQuestionsDB.length === 0) {
@@ -368,7 +356,6 @@ export default function DocumentPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
 
   const handleGenerateQuestions = async (sectionId?: string, customTitleParam?: string, targetTable?: QuestionTableName): Promise<void> => {
     if (!documentId || !currentDocument) {
@@ -538,11 +525,10 @@ export default function DocumentPage() {
           }));
           
           // Actualizar sectionQuestionsDB con las preguntas temporales para mostrar en UI
-          const updateSectionQuestionsDB = (prev: any) => ({ 
+          setSectionQuestionsDB(prev => ({ 
             ...prev, 
             [sectionId]: tempQuestionsForUI 
-          });
-          setSectionQuestionsDB(updateSectionQuestionsDB);
+          }));
           
           console.log(`✅ [handleGenerateQuestions] ${createdQuestionsWithIds.length} preguntas guardadas en tabla personalizada: ${targetTable} y mostradas temporalmente en UI`);
         }
@@ -600,6 +586,7 @@ export default function DocumentPage() {
           questionsArray = [rawQuestions];
           console.log(`[handleGenerateQuestions - Doc] ⚠️ No se pudieron separar preguntas, tratando como una sola`);
         }
+      }
 
       // --- NUEVO: Validar y filtrar preguntas con parseGiftQuestion antes de guardar (Documento completo) ---
       const validDocQuestions: string[] = [];
@@ -675,17 +662,14 @@ export default function DocumentPage() {
       }
       
       setIsGenerating(false);
-    }
     } catch (err) {
       setIsGenerating(false);
       setError('Error al generar preguntas: ' + (err instanceof Error ? err.message : String(err)));
       return; // Ensure void return in catch block
     }
-  };
 
   const handleSectionSelect = (section: PrismaSection | null) => {
     setSelectedSection(section);
-  };
 
   const handleProcessingConfigChange = (newConfig: ProcessingConfig) => {
     if (!currentDocument?.id) return;
@@ -717,29 +701,16 @@ export default function DocumentPage() {
         loadDocument();
       }, 100);
     }
-  };
 
   const handleProgressModeChange = () => {
-    const toggleProgressMode = (prev: string) => prev === 'full' ? 'progressive' : 'full';
-    setProgressMode(toggleProgressMode);
-  };
+    setProgressMode(prev => prev === 'full' ? 'progressive' : 'full');
 
   // ✅ NUEVO: Función para alternar expansión de una sección específica
   const toggleSectionExpansion = (sectionId: string) => {
-    const updateExpandedSections = (prev: any) => ({
+    setExpandedSections(prev => ({
       ...prev,
       [sectionId]: !prev[sectionId]
-    });
-    setExpandedSections(updateExpandedSections);
-  };
-
-  const handleToggleExpansion = (sectionId?: string) => {
-    if (sectionId) {
-      toggleSectionExpansion(sectionId);
-    } else {
-      setIsContentExpanded(!isContentExpanded);
-    }
-  };
+    }));
 
   // ✅ MEJORADO: renderContentWithToggle ahora acepta sectionId para expansión individual
   const renderContentWithToggle = (content: string, type: string | null, sectionId?: string) => {
@@ -850,7 +821,6 @@ export default function DocumentPage() {
         </div>
       </div>
     );
-  };
 
   function normalizeText(text: string) {
     // Quita tildes, pasa a minúsculas y elimina puntuación
@@ -916,18 +886,15 @@ export default function DocumentPage() {
         } as PageDocument);
       setDeleteDocQuestionsConfirm(false);
     });
-  };
 
   // Función para eliminar preguntas por sección
   const deleteSectionQuestions = (sectionId: string) => {
-    const updateSectionQuestions = (prev: any) => {
+    setSectionQuestions(prev => {
       const updated = { ...prev };
       delete updated[sectionId];
       return updated;
-    };
-    setSectionQuestions(updateSectionQuestions);
+    });
     setDeleteSectionId(null);
-  };
 
   // Nueva función para eliminar una sola pregunta del documento completo
   const handleDeleteSingleQuestion = (questionid: string) => {
@@ -956,7 +923,6 @@ export default function DocumentPage() {
         trial745: savedDoc.trial745 || false
       } as PageDocument);
     });
-  };
 
   // Función para eliminar una sola pregunta de una sección (solo estado local)
   const handleDeleteSingleSectionQuestion = (sectionId: string, questionIndex: number) => {
@@ -972,13 +938,12 @@ export default function DocumentPage() {
     console.log('[DEBUG handleDeleteSingleSectionQuestion] Intentando eliminar:', { sectionId, questionIndex, questionContentToDelete });
     console.log('[DEBUG handleDeleteSingleSectionQuestion] currentDocument.questions ANTES de filtrar (primeras 5 para brevedad):', JSON.stringify(currentDocument.questions?.slice(0,5), null, 2));
 
-    const updateSectionQuestionsFilter = (prev: any) => {
+    setSectionQuestions(prev => {
       const updated = { ...prev };
       if (!updated[sectionId]) return updated;
       updated[sectionId] = updated[sectionId].filter((_, idx) => idx !== questionIndex);
       return updated;
-    };
-    setSectionQuestions(updateSectionQuestionsFilter);
+    });
 
     let questionFoundAndRemoved = false;
     const updatedDocumentQuestions = (currentDocument.questions ?? []).filter(q => {
@@ -1023,19 +988,12 @@ export default function DocumentPage() {
       setError('Error al guardar el documento tras eliminar pregunta de sección: ' + (err instanceof Error ? err.message : String(err)));
       console.error('[handleDeleteSingleSectionQuestion] Error al guardar:', err);
     });
-  };
 
   const fetchSectionQuestions = async (sectionId: string) => {
-    // Funciones auxiliares para evitar arrow functions inline
-    const setLoadingTrue = (prev: any) => ({ ...prev, [sectionId]: true });
-    const setLoadingFalse = (prev: any) => ({ ...prev, [sectionId]: false });
-    const setSectionQuestions = (prev: any) => ({ ...prev, [sectionId]: questions });
-    
-    setLoadingSectionQuestions(setLoadingTrue);
+    setLoadingSectionQuestions(prev => ({ ...prev, [sectionId]: true }));
     const questions = await StorageService.getQuestionsForSection(sectionId);
-    setSectionQuestionsDB(setSectionQuestions);
-    setLoadingSectionQuestions(setLoadingFalse);
-  };
+    setSectionQuestionsDB(prev => ({ ...prev, [sectionId]: questions }));
+    setLoadingSectionQuestions(prev => ({ ...prev, [sectionId]: false }));
 
   // Función actualizada para cargar preguntas con paginación
   const fetchDocQuestions = async (options?: { 
@@ -1065,8 +1023,7 @@ export default function DocumentPage() {
       if (reset || page === 1) {
         setDocQuestionsDB(response.questions);
       } else {
-        const appendQuestions = (prev: any[]) => [...prev, ...response.questions];
-        setDocQuestionsDB(appendQuestions);
+        setDocQuestionsDB(prev => [...prev, ...response.questions]);
       }
       
       setCurrentPage(page);
@@ -1079,14 +1036,12 @@ export default function DocumentPage() {
     } finally {
       setLoadingDocQuestions(false);
     }
-  };
 
   // Función para cargar más preguntas (scroll infinito)
   const loadMoreQuestions = () => {
     if (!loadingDocQuestions && questionsHasMore) {
       fetchDocQuestions({ page: currentPage + 1, showArchived: showArchivedQuestions });
     }
-  };
 
   // Función para archivar todas las preguntas activas
   const archiveAllDocQuestions = async () => {
@@ -1101,7 +1056,6 @@ export default function DocumentPage() {
       console.error("Error al archivar preguntas:", error);
       toast.error("Error al archivar las preguntas");
     }
-  };
 
   // Función para restaurar todas las preguntas archivadas
   const restoreAllDocQuestions = async () => {
@@ -1116,7 +1070,6 @@ export default function DocumentPage() {
       console.error("Error al restaurar preguntas:", error);
       toast.error("Error al restaurar las preguntas");
     }
-  };
 
   // Función para toggle de mostrar archivadas
   const toggleShowArchived = () => {
@@ -1124,14 +1077,12 @@ export default function DocumentPage() {
     setShowArchivedQuestions(newShowArchived);
     setCurrentPage(1);
     fetchDocQuestions({ page: 1, reset: true, showArchived: newShowArchived });
-  };
 
   // Función para buscar preguntas
   const handleSearchQuestions = (term: string) => {
     setSearchQuestionTerm(term);
     setCurrentPage(1);
     fetchDocQuestions({ page: 1, reset: true, search: term, showArchived: showArchivedQuestions });
-  };
 
   useEffect(() => {
     if (documentId) fetchDocQuestions({ showArchived: showArchivedQuestions });
@@ -1139,7 +1090,6 @@ export default function DocumentPage() {
 
   const handleGenerateDocQuestions = async () => {
     return handleGenerateQuestions("", customTitle);
-  };
 
   const handleSendAllDocQuestionsToTelegram = async () => {
     if (!currentDocument || !currentDocument.questions || currentDocument.questions.length === 0) {
@@ -1221,19 +1171,14 @@ export default function DocumentPage() {
         { id: toastId, duration: 5000 }
       );
     }
-  };
 
   const handleSendSingleQuestionToTelegram = async (questionObject: PrismaQuestion) => {
-    // Funciones auxiliares para evitar arrow functions inline
-    const setSendingTrue = (prev: any) => ({ ...prev, [questionObject.id]: true });
-    const setSendingFalse = (prev: any) => ({ ...prev, [questionObject.id]: false });
-    
-    setIsSendingToTelegram(setSendingTrue);
+    setIsSendingToTelegram(prev => ({ ...prev, [questionObject.id]: true }));
     try {
       const parsedQuestion = parseGiftQuestion(questionObject.content);
       if (!parsedQuestion || !parsedQuestion.enunciado) {
         toast.error('No se pudo parsear la pregunta GIFT o falta el enunciado.');
-        setIsSendingToTelegram(setSendingFalse);
+        setIsSendingToTelegram(prev => ({ ...prev, [questionObject.id]: false }));
         return;
       }
 
@@ -1249,7 +1194,7 @@ export default function DocumentPage() {
 
       if (optionsTexts.length === 0 || correctOptIndex === -1) {
         toast.error('Pregunta sin opciones válidas o sin respuesta correcta definida.');
-        setIsSendingToTelegram(setSendingFalse);
+        setIsSendingToTelegram(prev => ({ ...prev, [questionObject.id]: false }));
         return;
       }
 
@@ -1282,9 +1227,8 @@ export default function DocumentPage() {
       console.error('Error al enviar pregunta a Telegram:', err);
       toast.error(err.message || 'Error al enviar la pregunta.');
     } finally {
-      setIsSendingToTelegram(setSendingFalse);
+      setIsSendingToTelegram(prev => ({ ...prev, [questionObject.id]: false }));
     }
-  };
 
   // Firma corregida para coincidir con lo que pasa QuestionGenerator
   // y para resolver el error de linter en DocumentSectionSelector
@@ -1294,25 +1238,21 @@ export default function DocumentPage() {
     // Usaremos questionData.id para la unicidad del estado de carga.
     const questionKey = questionData.id; // Usar el ID de la pregunta para el estado de carga
 
-    // Funciones auxiliares para evitar arrow functions inline
-    const setSectionSendingTrue = (prev: any) => ({ ...prev, [questionKey]: true });
-    const setSectionSendingFalse = (prev: any) => ({ ...prev, [questionKey]: false });
-
-    setIsSendingSectionQuestionToTelegram(setSectionSendingTrue);
+    setIsSendingSectionQuestionToTelegram(prev => ({ ...prev, [questionKey]: true }));
     try {
       const sectionQuestionContent = questionData.content;
 
       if (typeof sectionQuestionContent !== 'string') {
         toast.error('El contenido de la pregunta de sección no es válido (no es un string).');
         console.error('Contenido de pregunta inválido:', sectionQuestionContent);
-        setIsSendingSectionQuestionToTelegram(setSectionSendingFalse);
+        setIsSendingSectionQuestionToTelegram(prev => ({ ...prev, [questionKey]: false }));
         return;
       }
 
       const parsedQuestion = parseGiftQuestion(sectionQuestionContent);
       if (!parsedQuestion || !parsedQuestion.enunciado) {
         toast.error('No se pudo parsear la pregunta GIFT de la sección o falta el enunciado.');
-        setIsSendingSectionQuestionToTelegram(setSectionSendingFalse);
+        setIsSendingSectionQuestionToTelegram(prev => ({ ...prev, [questionKey]: false }));
         return;
       }
 
@@ -1328,7 +1268,7 @@ export default function DocumentPage() {
 
       if (optionsTexts.length === 0 || correctOptIndex === -1) {
         toast.error('Pregunta de sección sin opciones válidas o sin respuesta correcta definida.');
-        setIsSendingSectionQuestionToTelegram(setSectionSendingFalse);
+        setIsSendingSectionQuestionToTelegram(prev => ({ ...prev, [questionKey]: false }));
         return;
       }
 
@@ -1361,9 +1301,8 @@ export default function DocumentPage() {
       console.error('Error al enviar pregunta de sección a Telegram:', err);
       toast.error(err.message || 'Error al enviar la pregunta de sección.');
     } finally {
-      setIsSendingSectionQuestionToTelegram(setSectionSendingFalse);
+      setIsSendingSectionQuestionToTelegram(prev => ({ ...prev, [questionKey]: false }));
     }
-  };
 
   // Función de validación de secciones removida - ahora se maneja con AdvancedSectionQuestionValidator
 
@@ -1443,10 +1382,6 @@ export default function DocumentPage() {
     );
   }
 
-  // (Declaración duplicada de questionsTextForCopy eliminada)
-
-  // (Código duplicado eliminado - ya declarado arriba)
-
   if (processingConfig === undefined) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 text-foreground">
@@ -1456,10 +1391,28 @@ export default function DocumentPage() {
     );
   }
 
-  // (Segundo bloque duplicado eliminado)
-
   const questionsTextForCopy = currentDocument.questions?.map(q => q.content).join('\n\n') || '';
 
+  // Filtrar preguntas del documento completo (sin sección)
+  // Primero, creamos un conjunto (Set) con el contenido de todas las preguntas de sección para una búsqueda eficiente.
+  const sectionQuestionContents = new Set<string>();
+  Object.values(sectionQuestions).forEach(questionsInSection => {
+    questionsInSection.forEach(content => {
+      sectionQuestionContents.add(content);
+    });
+  });
+
+  // Luego, filtramos las preguntas del documento completo
+  const docQuestions = (currentDocument.questions ?? [])
+    .filter(q => !q.sectionid) // Solo preguntas globales (sin sectionId)
+    .filter(globalQ => !sectionQuestionContents.has(globalQ.content)); // Y que no estén ya en las preguntas de sección
+
+  // --- Al cargar preguntas, filtrarlas según los IDs ocultos ---
+  console.log("[DEBUG DocumentPage Render] docQuestionsDB ANTES de calcular visibleDocQuestions:", docQuestionsDB);
+  const visibleDocQuestions = docQuestionsDB.filter(q => !getHiddenQuestionIdsForDoc(documentId).includes(q.id));
+  console.log("[DEBUG DocumentPage Render] visibleDocQuestions CALCULADO:", visibleDocQuestions);
+
+  // Función para renderizar contenido de sección (evita función inline)
   const renderSectionContent = (section: PrismaSection) => {
     return (
     <div className="space-y-2">
@@ -1484,28 +1437,18 @@ export default function DocumentPage() {
     setDifficultyLevels(newDifficultyLevels);
     setBloomLevels(newBloomLevels || []);
     setOptionLength(newOptionLength || 'media');
-    
-    // Función auxiliar para evitar arrow function inline
-    const createQuestionTypeCounts = (types: any[]) => {
-      const counts: Record<string, number> = {};
-      types.forEach(t => {
-        counts[t.id] = t.percentage;
-      });
-      return counts;
-    };
-    
-    setQuestionTypeCounts(createQuestionTypeCounts(newQuestionTypes));
+    setQuestionTypeCounts(
+      newQuestionTypes.reduce((acc: Record<string, number>, t: any) => ({ ...acc, [t.id]: t.percentage }), {})
+    );
   };
 
   // Funciones para manejar cambios en número de preguntas (evita funciones inline)
   const handleDecreaseQuestions = () => {
-    const decreaseNumber = (prev: number) => Math.max(1, prev - 1);
-    setNumberOfQuestions(decreaseNumber);
+    setNumberOfQuestions(prev => Math.max(1, prev - 1));
   };
 
   const handleIncreaseQuestions = () => {
-    const increaseNumber = (prev: number) => Math.min(50, prev + 1);
-    setNumberOfQuestions(increaseNumber);
+    setNumberOfQuestions(prev => Math.min(50, prev + 1));
   };
 
   const handleNumberOfQuestionsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1530,7 +1473,13 @@ export default function DocumentPage() {
     handleGenerateQuestions();
   };
 
-
+  const handleToggleExpansion = (sectionId?: string) => {
+    if (sectionId) {
+      toggleSectionExpansion(sectionId);
+    } else {
+      setIsContentExpanded(!isContentExpanded);
+    }
+  };
 
   // Funciones para manejar onClose de modales (evita funciones inline)
   const handleCloseDeleteConfirm = () => {
@@ -1546,26 +1495,6 @@ export default function DocumentPage() {
   const handleCloseDeletingQuestion = () => {
     setDeletingDocQuestionId(null);
   };
-
-  if (!currentDocument) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 text-muted-foreground">
-        <p>No se encontró el documento.</p>
-        <Link href="/documents" className="btn-primary mt-4">
-          Volver a documentos
-        </Link>
-      </div>
-    );
-  }
-
-  if (processingConfig === undefined) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 text-foreground">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p>Cargando configuración...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-background text-foreground">
@@ -1789,7 +1718,6 @@ export default function DocumentPage() {
         onConfirm={handleConfirmDeleteQuestion}
         title={deletingDocQuestionId ? `¿Seguro que quieres eliminar esta pregunta?` : ''}
       />
-     </div>
-   );
- }
+    </div>
+  );
 }
