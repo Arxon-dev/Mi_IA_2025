@@ -12,14 +12,21 @@ export function middleware(request: NextRequest) {
     response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     response.headers.set('Pragma', 'no-cache');
     response.headers.set('Expires', '0');
+    response.headers.set('X-Prerender', 'false');
+    response.headers.set('X-Middleware-Override-Headers', 'true');
     return response;
   }
   
-  return NextResponse.next();
+  // Configuración global para evitar prerenderizado
+  const response = NextResponse.next();
+  response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+  
+  return response;
 }
 
 export const config = {
   matcher: [
     '/documents/:path*',
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 };

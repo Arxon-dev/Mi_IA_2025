@@ -16,6 +16,8 @@ const nextConfig = {
     missingSuspenseWithCSRBailout: false,
     // Optimizar para Railway
     optimizePackageImports: ['lucide-react', 'react-markdown'],
+    // Forzar renderizado dinámico para todas las rutas
+    forceSwcTransforms: true,
   },
   
   // Configuración para evitar prerenderizado de rutas problemáticas
@@ -32,6 +34,15 @@ const nextConfig = {
   // Configuración para ignorar errores de export
   trailingSlash: false,
   skipTrailingSlashRedirect: true,
+  
+  // Configuración para manejar errores de build
+  async rewrites() {
+    return {
+      beforeFiles: [],
+      afterFiles: [],
+      fallback: []
+    };
+  },
   webpack: (config, { isServer }) => {
     config.watchOptions = {
       poll: 1000,
