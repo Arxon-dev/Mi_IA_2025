@@ -1442,6 +1442,34 @@ export default function DocumentPage() {
   const visibleDocQuestions = docQuestionsDB.filter(q => !getHiddenQuestionIdsForDoc(documentId).includes(q.id));
   console.log("[DEBUG DocumentPage Render] visibleDocQuestions CALCULADO:", visibleDocQuestions);
 
+  // Función para renderizar contenido de sección (evita función inline)
+  const renderSectionContent = (section: PrismaSection) => (
+    <div className="space-y-2">
+      {renderContentWithToggle(section.content, currentDocument?.type || null, section.id)}
+    </div>
+  );
+
+  // Función para generar preguntas de sección (evita función inline)
+  const handleSectionGenerateQuestions = (sectionId: string, customTitle?: string) => {
+    return handleGenerateQuestions(sectionId, customTitle, selectedQuestionTable);
+  };
+
+  // Función para manejar cambios de configuración (evita función inline)
+  const handleQuestionConfigChange = (
+    newQuestionTypes: any[],
+    newDifficultyLevels: any[],
+    newBloomLevels?: any[],
+    newOptionLength?: OptionLengthType
+  ) => {
+    setQuestionTypes(newQuestionTypes);
+    setDifficultyLevels(newDifficultyLevels);
+    setBloomLevels(newBloomLevels || []);
+    setOptionLength(newOptionLength || 'media');
+    setQuestionTypeCounts(
+      newQuestionTypes.reduce((acc: Record<string, number>, t: any) => ({ ...acc, [t.id]: t.percentage }), {})
+    );
+  };
+
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-background text-foreground">
       {/* OPCIÓN A: Solo barra del navegador (actual) */}
@@ -1522,16 +1550,10 @@ export default function DocumentPage() {
               documentName={currentDocument?.title || 'Documento sin nombre'}
               documentContent={currentDocument?.content || ''}
               onSectionSelect={handleSectionSelect}
-              renderContent={(section) => (
-                <div className="space-y-2">
-                  {renderContentWithToggle(section.content, currentDocument?.type || null, section.id)}
-                </div>
-              )}
+              renderContent={renderSectionContent}
               selectedSection={selectedSection}
               isGenerating={isGenerating}
-              onGenerateQuestions={(sectionId, customTitle) => 
-              handleGenerateQuestions(sectionId, customTitle, selectedQuestionTable)
-            }
+              onGenerateQuestions={handleSectionGenerateQuestions}
               sectionQuestions={sectionQuestions}
               progressMode={progressMode}
               onProgressModeChange={handleProgressModeChange}
@@ -1590,20 +1612,7 @@ export default function DocumentPage() {
       {showRightPanel && (
         <div className="border-l border-border bg-card min-w-[220px] max-w-[340px] w-auto p-2">
           <QuestionConfig
-            onConfigChange={(
-              newQuestionTypes: any[],
-              newDifficultyLevels: any[],
-              newBloomLevels?: any[],
-              newOptionLength?: OptionLengthType
-            ) => {
-              setQuestionTypes(newQuestionTypes);
-              setDifficultyLevels(newDifficultyLevels);
-              setBloomLevels(newBloomLevels || []);
-              setOptionLength(newOptionLength || 'media');
-              setQuestionTypeCounts(
-                newQuestionTypes.reduce((acc: Record<string, number>, t: any) => ({ ...acc, [t.id]: t.percentage }), {})
-              );
-            }}
+            onConfigChange={handleQuestionConfigChange}
           />
           <div className="bg-muted p-4 rounded-lg shadow flex flex-col gap-2 mt-4">
             <label htmlFor="num-questions" className="sr-only">Cantidad de preguntas</label>

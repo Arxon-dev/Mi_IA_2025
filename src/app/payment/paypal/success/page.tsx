@@ -1,8 +1,8 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-export default function PayPalSuccessPage() {
+function PayPalSuccessContent() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const searchParams = useSearchParams();
@@ -86,5 +86,21 @@ export default function PayPalSuccessPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PayPalSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-lg shadow-md text-center">
+          <div className="text-blue-600 text-5xl mb-4">⏳</div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Cargando...</h2>
+          <p className="text-gray-600">Procesando información del pago...</p>
+        </div>
+      </div>
+    }>
+      <PayPalSuccessContent />
+    </Suspense>
   );
 }
