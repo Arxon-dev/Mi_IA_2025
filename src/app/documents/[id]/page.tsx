@@ -1470,12 +1470,57 @@ export default function DocumentPage() {
     );
   };
 
+  // Funciones para manejar cambios en número de preguntas (evita funciones inline)
+  const handleDecreaseQuestions = () => {
+    setNumberOfQuestions(n => Math.max(1, n - 1));
+  };
+
+  const handleIncreaseQuestions = () => {
+    setNumberOfQuestions(n => Math.min(50, n + 1));
+  };
+
+  const handleNumberOfQuestionsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNumberOfQuestions(Number(e.target.value));
+  };
+
+  // Funciones para manejar otros onClick (evita funciones inline)
+  const handleToggleRightPanel = () => {
+    setShowRightPanel(v => !v);
+  };
+
+  const handleCopyContent = () => {
+    navigator.clipboard.writeText(currentDocument.content);
+    setCopiedContent(true);
+    setTimeout(() => setCopiedContent(false), 2000);
+  };
+
+  const handleShowDeleteConfirm = () => {
+    setDeleteConfirm(true);
+  };
+
+  const handleToggleContentExpanded = () => {
+    setIsContentExpanded(!isContentExpanded);
+  };
+
+  const handleGenerateQuestionsClick = () => {
+    handleGenerateQuestions();
+  };
+
+  // Funciones para manejar onClose de modales (evita funciones inline)
+  const handleCloseDeleteConfirm = () => {
+    setDeleteConfirm(false);
+  };
+
+  const handleCloseDeletingQuestion = () => {
+    setDeletingDocQuestionId(null);
+  };
+
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-background text-foreground">
       {/* OPCIÓN A: Solo barra del navegador (actual) */}
       <div className="flex-1 min-w-0 flex flex-col bg-background relative">
         <button
-          onClick={() => setShowRightPanel(v => !v)}
+          onClick={handleToggleRightPanel}
           className="absolute top-4 right-2 z-40 border border-border rounded-full shadow-lg p-2 hover:bg-muted/80 transition-all flex items-center gap-1 bg-card"
           title={showRightPanel ? 'Ocultar configuración' : 'Mostrar configuración'}
         >
@@ -1493,11 +1538,7 @@ export default function DocumentPage() {
             </Link>
             <div className="flex items-center gap-2 mr-16">
               <button
-                onClick={() => {
-                  navigator.clipboard.writeText(currentDocument.content);
-                  setCopiedContent(true);
-                  setTimeout(() => setCopiedContent(false), 2000);
-                }}
+                onClick={handleCopyContent}
                 className={`btn-secondary h-9 px-4 rounded-lg font-semibold text-sm flex items-center gap-2 transition-colors ${!currentDocument.content ? 'bg-muted text-muted-foreground border-muted cursor-not-allowed' : ''}`}
                 disabled={!currentDocument.content}
               >
@@ -1514,7 +1555,7 @@ export default function DocumentPage() {
                 )}
               </button>
               <button
-                onClick={() => setDeleteConfirm(true)}
+                onClick={handleShowDeleteConfirm}
                 className="btn-danger-secondary text-sm flex items-center"
                 title="Eliminar documento"
               >
@@ -1528,7 +1569,7 @@ export default function DocumentPage() {
 
         <div className="min-h-screen">
           <button
-            onClick={() => setIsContentExpanded(!isContentExpanded)}
+            onClick={handleToggleContentExpanded}
             className="w-full text-left p-3 sm:p-4 border-b border-border hover:bg-muted/50 focus:outline-none transition-colors flex justify-between items-center"
           >
             <h2 className="text-base sm:text-lg font-semibold text-foreground flex items-center">
@@ -1621,7 +1662,7 @@ export default function DocumentPage() {
                 <button
                   type="button"
                   className="w-8 h-10 flex items-center justify-center text-base font-bold text-primary hover:bg-muted transition disabled:opacity-50"
-                  onClick={() => setNumberOfQuestions(n => Math.max(1, n - 1))}
+                  onClick={handleDecreaseQuestions}
                   disabled={isGenerating || numberOfQuestions <= 1}
                   aria-label="Disminuir cantidad"
                 >
@@ -1633,7 +1674,7 @@ export default function DocumentPage() {
                   min={1}
                   max={50}
                   value={numberOfQuestions}
-                  onChange={e => setNumberOfQuestions(Number(e.target.value))}
+                  onChange={handleNumberOfQuestionsChange}
                   className="w-10 h-10 px-0 text-center border-0 bg-transparent text-base text-foreground focus:ring-2 focus:ring-primary"
                   aria-label="Cantidad de preguntas"
                   disabled={isGenerating}
@@ -1641,7 +1682,7 @@ export default function DocumentPage() {
                 <button
                   type="button"
                   className="w-8 h-10 flex items-center justify-center text-base font-bold text-primary hover:bg-muted transition disabled:opacity-50"
-                  onClick={() => setNumberOfQuestions(n => Math.min(50, n + 1))}
+                  onClick={handleIncreaseQuestions}
                   disabled={isGenerating || numberOfQuestions >= 50}
                   aria-label="Aumentar cantidad"
                 >
@@ -1656,7 +1697,7 @@ export default function DocumentPage() {
               <button
                 className="h-10 px-4 rounded-md border border-orange-400 text-orange-400 bg-transparent font-semibold text-sm flex items-center gap-2 transition-colors
                   hover:bg-orange-400 hover:text-white active:bg-orange-500 active:text-white disabled:opacity-50"
-                onClick={() => handleGenerateQuestions()}
+                onClick={handleGenerateQuestionsClick}
                 disabled={isGenerating}
               >
                 {isGenerating ? (
@@ -1692,13 +1733,13 @@ export default function DocumentPage() {
       )}
       <DeleteConfirmDialog
         isOpen={deleteConfirm}
-        onClose={() => setDeleteConfirm(false)}
+        onClose={handleCloseDeleteConfirm}
         onConfirm={handleDelete}
         title={currentDocument?.title || 'este documento'}
       />
       <DeleteConfirmDialog
         isOpen={deletingDocQuestionId !== null}
-        onClose={() => setDeletingDocQuestionId(null)}
+        onClose={handleCloseDeletingQuestion}
         onConfirm={async () => {
           if (deletingDocQuestionId && documentId) {
             await handleDeleteSingleQuestion(deletingDocQuestionId);
