@@ -27,12 +27,7 @@ export default function ValidatorChatPage() {
     return 'claude-3-5-sonnet-v2';
   });
   const [models, setModels] = useState<any[]>([]);
-  const [sourceText, setSourceText] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('validator-source-text') || '';
-    }
-    return '';
-  });
+  const [sourceText, setSourceText] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   // Estado para mostrar el botón solo cuando se ha hecho scroll
@@ -57,6 +52,14 @@ export default function ValidatorChatPage() {
       localStorage.setItem('validator-model', selectedModel);
     }
   }, [selectedModel]);
+
+  // Inicializar sourceText desde localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedText = localStorage.getItem('validator-source-text') || '';
+      setSourceText(savedText);
+    }
+  }, []);
 
   // Sincronizar con la base de datos al cambiar proveedor o modelo
   useEffect(() => {
@@ -301,4 +304,4 @@ function highlightInvalidOptions(content: string): string {
     });
   }
   return highlighted;
-} 
+}

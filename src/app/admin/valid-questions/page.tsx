@@ -976,13 +976,21 @@ function QuestionEditModal({
   onCancel: () => void;
 }) {
   // 🔥 GENERAR CONTENIDO GIFT INICIAL (solo una vez)
-  const [formData, setFormData] = useState(() => ({
-    giftContent: generateInitialGift(question),
+  const [formData, setFormData] = useState({
+    giftContent: '',
     type: question.type,
     difficulty: question.difficulty,
     bloomLevel: question.bloomLevel || '',
     isActive: question.isActive
-  }));
+  });
+
+  // Inicializar giftContent después del montaje
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      giftContent: generateInitialGift(question)
+    }));
+  }, []);
 
   // 🔥 NUEVO: Estado para los campos parseados del GIFT (inicialización diferida)
   const [parsedData, setParsedData] = useState({

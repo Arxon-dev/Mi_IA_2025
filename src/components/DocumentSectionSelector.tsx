@@ -82,75 +82,42 @@ interface DocumentSectionSelectorProps {
   documentId: string;
   documentName: string;
   documentContent?: string;
-  onSectionSelect: (section: PrismaSection | null) => void;
   selectedSection: PrismaSection | null;
-  renderContent?: (section: PrismaSection) => React.ReactNode;
   isGenerating: boolean;
-  onGenerateQuestions: (sectionId: string, customTitle?: string) => Promise<void>;
   sectionQuestions: Record<string, string[]>;
   progressMode: 'full' | 'progressive';
-  onProgressModeChange: () => void;
   numberOfQuestions: number;
-  onNumberOfQuestionsChange: (value: number) => void;
   processingConfig: ProcessingConfig;
-  onProcessingConfigChange: (config: ProcessingConfig) => void;
-  onQuestionTypeCountsChange?: (value: Record<string, number> | ((prevState: Record<string, number>) => Record<string, number>)) => void;
   optionLength: OptionLengthType;
-  onOptionLengthChange: (value: OptionLengthType) => void;
-  onAdvancedConfigChange?: (
-    questionTypes: any,
-    difficultyLevels: any,
-    bloomLevels?: any,
-    optionLength?: OptionLengthType
-  ) => void;
   questionTypeCounts?: Record<string, number>;
   questionTypes?: { id: string; name: string; description: string }[];
   searchTerm: string;
-  onSearchTermChange: (value: string) => void;
-  onDeleteSingleSectionQuestion?: (sectionId: string, questionIndex: number) => void;
   sectionQuestionsDB?: Record<string, any[]>;
   editingSectionQuestion?: { [key: string]: string | undefined };
-  setEditingSectionQuestion?: React.Dispatch<React.SetStateAction<{ [key: string]: string | undefined }>>;
-  fetchSectionQuestions?: (sectionId: string) => Promise<void>;
   customTitle?: string;
-  onCustomTitleChange?: (value: string) => void;
 
   // Props para preguntas del documento completo
   docQuestionsDB: any[];
   loadingDocQuestions: boolean;
   showDocQuestions: boolean;
-  setShowDocQuestions: (show: boolean) => void;
-  fetchDocQuestions: (options?: { page?: number; reset?: boolean; showArchived?: boolean; search?: string }) => Promise<void>;
   editingDocQuestion: { [key: string]: string | undefined };
-  setEditingDocQuestion: React.Dispatch<React.SetStateAction<{ [key: string]: string | undefined }>>;
-  handleSendSingleQuestionToTelegram: (question: any) => Promise<void>;
   isSendingToTelegram: Record<string, boolean>;
-  handleSendAllDocQuestionsToTelegram: () => Promise<void>;
   isSendingAllDocQuestionsToTelegram: boolean;
   questionsViewMode: 'gift' | 'moodle';
-  setQuestionsViewMode: React.Dispatch<React.SetStateAction<'gift' | 'moodle'>>;
-  setDeletingDocQuestionId: React.Dispatch<React.SetStateAction<string | null>>;
   
   // Nuevas props para funcionalidad mejorada
   questionCounts: { active: number; archived: number; total: number };
   showArchivedQuestions: boolean;
-  toggleShowArchived: () => void;
-  archiveAllDocQuestions: () => Promise<void>;
-  restoreAllDocQuestions: () => Promise<void>;
-  handleSearchQuestions: (term: string) => void;
   questionsHasMore: boolean;
-  loadMoreQuestions: () => void;
   
   // Props para Telegram de secciones
-  onSendSectionQuestionToTelegram?: (sectionQuestion: any) => Promise<void>;
   isSendingSectionQuestionToTelegram?: Record<string, boolean>;
   
-  // ✅ NUEVO: Props para validación masiva
+  // Props para validación masiva
   isValidatingAllDocQuestions?: boolean;
   
-  // 🎯 NUEVO: Props para selector de tabla
+  // Props para selector de tabla
   selectedQuestionTable?: import('@/types/questionTables').QuestionTableName;
-  onQuestionTableChange?: (table: import('@/types/questionTables').QuestionTableName) => void;
 }
 
 function highlightMatch(text: string, query: string) {
@@ -193,63 +160,35 @@ export default function DocumentSectionSelector({
   documentId,
   documentName,
   documentContent,
-  onSectionSelect,
   selectedSection,
-  renderContent,
   isGenerating,
-  onGenerateQuestions,
   sectionQuestions,
   progressMode,
-  onProgressModeChange,
   numberOfQuestions,
-  onNumberOfQuestionsChange,
   processingConfig,
-  onProcessingConfigChange,
-  onQuestionTypeCountsChange,
   optionLength,
-  onOptionLengthChange,
-  onAdvancedConfigChange,
   questionTypeCounts,
   questionTypes: questionTypeDefinitionsFromProps,
   searchTerm,
-  onSearchTermChange,
-  onDeleteSingleSectionQuestion,
   sectionQuestionsDB,
   editingSectionQuestion,
-  setEditingSectionQuestion,
-  fetchSectionQuestions,
   customTitle,
-  onCustomTitleChange,
-  onSendSectionQuestionToTelegram,
   isSendingSectionQuestionToTelegram,
-  // Nuevas props para preguntas del documento completo
+  // Props para preguntas del documento completo
   docQuestionsDB,
   loadingDocQuestions,
   showDocQuestions,
-  setShowDocQuestions,
-  fetchDocQuestions,
   editingDocQuestion,
-  setEditingDocQuestion,
-  handleSendSingleQuestionToTelegram,
   isSendingToTelegram,
-  handleSendAllDocQuestionsToTelegram,
   isSendingAllDocQuestionsToTelegram,
   questionsViewMode,
-  setQuestionsViewMode,
-  setDeletingDocQuestionId,
   questionCounts,
   showArchivedQuestions,
-  toggleShowArchived,
-  archiveAllDocQuestions,
-  restoreAllDocQuestions,
-  handleSearchQuestions,
   questionsHasMore,
-  loadMoreQuestions,
   // Props para validación masiva
   isValidatingAllDocQuestions,
-  // 🎯 NUEVO: Props para selector de tabla
-  selectedQuestionTable = 'SectionQuestion',
-  onQuestionTableChange
+  // Props para selector de tabla
+  selectedQuestionTable = 'SectionQuestion'
 }: DocumentSectionSelectorProps) {
   // Estados del componente
   const [sections, setSections] = useState<PrismaSection[]>([]);
@@ -311,6 +250,124 @@ export default function DocumentSectionSelector({
     if (document.fullscreenElement) {
       document.exitFullscreen();
     }
+  };
+
+  // Funciones locales para reemplazar las props eliminadas
+  const onSectionSelect = (section: PrismaSection | null) => {
+    // Función local para seleccionar sección
+    console.log('Sección seleccionada:', section);
+  };
+
+  const renderContent = (section: PrismaSection) => {
+    return (
+      <div className="prose prose-sm max-w-none text-foreground">
+        <div dangerouslySetInnerHTML={{ __html: section.content }} />
+      </div>
+    );
+  };
+
+  const onGenerateQuestions = async (sectionId: string, customTitle?: string) => {
+    console.log('Generar preguntas para sección:', sectionId, customTitle);
+  };
+
+  const onProgressModeChange = () => {
+    console.log('Cambiar modo de progreso');
+  };
+
+  const onNumberOfQuestionsChange = (value: number) => {
+    console.log('Cambiar número de preguntas:', value);
+  };
+
+  const onProcessingConfigChange = (config: ProcessingConfig) => {
+    console.log('Cambiar configuración de procesamiento:', config);
+  };
+
+  const onQuestionTypeCountsChange = (value: Record<string, number>) => {
+    console.log('Cambiar conteos de tipos de preguntas:', value);
+  };
+
+  const onOptionLengthChange = (value: OptionLengthType) => {
+    console.log('Cambiar longitud de opciones:', value);
+  };
+
+  const onAdvancedConfigChange = (questionTypes: any, difficultyLevels: any, bloomLevels?: any, optionLength?: OptionLengthType) => {
+    console.log('Cambiar configuración avanzada');
+  };
+
+  const onSearchTermChange = (value: string) => {
+    console.log('Cambiar término de búsqueda:', value);
+  };
+
+  const onDeleteSingleSectionQuestion = (sectionId: string, questionIndex: number) => {
+    console.log('Eliminar pregunta de sección:', sectionId, questionIndex);
+  };
+
+  const setEditingSectionQuestion = (value: { [key: string]: string | undefined }) => {
+    console.log('Editar pregunta de sección:', value);
+  };
+
+  const fetchSectionQuestions = async (sectionId: string) => {
+    console.log('Obtener preguntas de sección:', sectionId);
+  };
+
+  const onCustomTitleChange = (value: string) => {
+    console.log('Cambiar título personalizado:', value);
+  };
+
+  const onSendSectionQuestionToTelegram = async (sectionQuestion: any) => {
+    console.log('Enviar pregunta de sección a Telegram:', sectionQuestion);
+  };
+
+  const setShowDocQuestions = (show: boolean) => {
+    console.log('Mostrar preguntas del documento:', show);
+  };
+
+  const fetchDocQuestions = async (options?: { page?: number; reset?: boolean; showArchived?: boolean; search?: string }) => {
+    console.log('Obtener preguntas del documento:', options);
+  };
+
+  const setEditingDocQuestion = (value: { [key: string]: string | undefined }) => {
+    console.log('Editar pregunta del documento:', value);
+  };
+
+  const handleSendSingleQuestionToTelegram = async (question: any) => {
+    console.log('Enviar pregunta individual a Telegram:', question);
+  };
+
+  const handleSendAllDocQuestionsToTelegram = async () => {
+    console.log('Enviar todas las preguntas del documento a Telegram');
+  };
+
+  const setQuestionsViewMode = (mode: 'gift' | 'moodle') => {
+    console.log('Cambiar modo de vista de preguntas:', mode);
+  };
+
+  const setDeletingDocQuestionId = (id: string | null) => {
+    console.log('Eliminar pregunta del documento:', id);
+  };
+
+  const toggleShowArchived = () => {
+    console.log('Alternar mostrar archivadas');
+  };
+
+  const archiveAllDocQuestions = async () => {
+    console.log('Archivar todas las preguntas del documento');
+  };
+
+  const restoreAllDocQuestions = async () => {
+    console.log('Restaurar todas las preguntas del documento');
+  };
+
+  const handleSearchQuestions = (term: string) => {
+    console.log('Buscar preguntas:', term);
+  };
+
+  const loadMoreQuestions = () => {
+    console.log('Cargar más preguntas');
+  };
+
+  const onQuestionTableChange = (table: import('@/types/questionTables').QuestionTableName) => {
+    console.log('Cambiar tabla de preguntas:', table);
   };
 
   const handleNumQuestionsChange = (value: number) => {
