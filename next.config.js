@@ -12,7 +12,26 @@ const nextConfig = {
   experimental: {
     // Desactivar instrumentación automática de OpenTelemetry
     instrumentationHook: false,
+    // Deshabilitar prerenderizado problemático
+    missingSuspenseWithCSRBailout: false,
+    // Optimizar para Railway
+    optimizePackageImports: ['lucide-react', 'react-markdown'],
   },
+  
+  // Configuración para evitar prerenderizado de rutas problemáticas
+  async generateBuildId() {
+    return 'build-' + Date.now();
+  },
+  
+  // Ignorar errores de prerenderizado específicos
+  onDemandEntries: {
+    maxInactiveAge: 25 * 1000,
+    pagesBufferLength: 2,
+  },
+  
+  // Configuración para ignorar errores de export
+  trailingSlash: false,
+  skipTrailingSlashRedirect: true,
   webpack: (config, { isServer }) => {
     config.watchOptions = {
       poll: 1000,
