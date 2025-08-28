@@ -1,0 +1,161 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import mysql from 'mysql2/promise';
+
+// ==========================================
+// 🔄 API PARA SINCRONIZACIÓN MANUAL MOODLE
+// ==========================================
+
+export async function POST(request: NextRequest) {
+  try {
+    console.log('🔄 ======== SINCRONIZACIÓN MANUAL MOODLE ========');
+    
+    const body = await request.json();
+    const { telegramUserId, forceSync } = body;
+
+    if (!telegramUserId) {
+      return NextResponse.json({
+        success: false,
+        message: 'telegramUserId es requerido'
+      }, { status: 400 });
+    }
+
+    console.log(`🔄 Iniciando sincronización manual para usuario: ${telegramUserId}`);
+
+    // 1. Obtener datos de vinculación
+    const linkRecords = await prisma.$queryRaw<any[]>`
+      SELECT * FROM "MoodleUserLink" 
+      WHERE "telegramUserId" = ${telegramUserId}
+      AND "isActive" = true
+      LIMIT 1
+    `;
+
+    if (linkRecords.length === 0) {
+      return NextResponse.json({
+        success: false,
+        message: 'Usuario no está vinculado con Moodle'
+      }, { status: 400 });
+    }
+
+    const userLink = linkRecords[0];
+    console.log(`✅ Usuario vinculado encontrado: ${userLink.moodleUsername}`);
+
+    // 2. Obtener última actividad sincronizada
+    let lastSyncDate = new Date('2025-06-30'); // Fecha por defecto
+    
+    if (!forceSync) {
+      const lastActivityRecords = await prisma.$queryRaw<any[]>`
+        SELECT MAX("processedAt") as "lastActivity"
+        FROM "MoodleActivity" 
+        WHERE "telegramUserId" = ${telegramUserId}
+      `;
+      
+      if (lastActivityRecords[0]?.lastActivity) {
+        lastSyncDate = new Date(lastActivityRecords[0].lastActivity);
+      }
+    }
+
+    console.log(`📅 Sincronizando desde: ${lastSyncDate.toISOString()}`);
+
+    // 3. Conectar a MySQL de Moodle
+    const connection = await mysql.createConnection({
+      host: process.env.MOODLE_DB_HOST || 'localhost',
+      user: process.env.MOODLE_DB_USER || 'root',
+      password: process.env.MOODLE_DB_PASSWORD || '',
+      database: process.env.MOODLE_DB_NAME || 'moodle',
+      port: parseInt(process.env.MOODLE_DB_PORT || '3306')
+    });
+
+    try {
+      // 4. Obtener actividades recientes de Moodle
+      const [moodleActivities] = await connection.execute(`
+        SELECT 
+          qa.id as attempt_id,
+          qa.quiz,
+          qa.userid,
+          qa.timestart,
+          qa.timefinish,
+          qa.sumgrades,
+          q.grade as maxgrade,
+          q.name as quiz_name,
+          (SELECT COUNT(DISTINCT slot) FROM mdl_question_attempts qatt 
+           WHERE qatt.questionusageid = qa.uniqueid) as question_count,
+          (SELECT COUNT(*) FROM mdl_question_attempts qatt 
+           JOIN mdl_question_attempt_steps qas ON qatt.id = qas.questionattemptid 
+           WHERE qatt.questionusageid = qa.uniqueid 
+           AND qas.state LIKE '%right%') as correct_answers
+        FROM mdl_quiz_attempts qa
+        JOIN mdl_quiz q ON qa.quiz = q.id
+        WHERE qa.userid = ? 
+        AND qa.state = 'finished'
+        AND FROM_UNIXTIME(qa.timefinish) > ?
+        ORDER BY qa.timefinish DESC
+        LIMIT 50
+      `, [userLink.moodleUserId, lastSyncDate]);
+
+      const activities = moodleActivities as any[];
+      console.log(`📊 Encontradas ${activities.length} actividades nuevas en Moodle`);
+
+      if (activities.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: 'No hay actividades nuevas para sincronizar',
+          syncedActivities: 0,
+          lastSyncDate: lastSyncDate
+        });
+      }
+
+      // 5. Procesar cada actividad
+      let syncedCount = 0;
+      let totalQuestionsProcessed = 0;
+
+      for (const activity of activities) {
+        const questionsInQuiz = parseInt(activity.question_count) || 10;
+        const correctAnswers = parseInt(activity.correct_answers) || 0;
+        const incorrectAnswers = questionsInQuiz - correctAnswers;
+        
+        // Simular preguntas individuales basadas en el resultado del quiz
+        for (let i = 0; i < questionsInQuiz; i++) {
+          const isCorrect = i < correctAnswers; // Las primeras N son correctas
+          const activityId = crypto.randomUUID();
+          
+          await prisma.$executeRaw`
+            INSERT INTO "MoodleActivity" (
+              "id", "moodleUserId", "telegramUserId", "questionCorrect",
+              "responseTime", "subject", "difficulty", "processedAt"
+            ) VALUES (
+              ${activityId}, ${userLink.moodleUserId}, ${telegramUserId},
+              ${isCorrect}, ${30}, ${'general'}, ${'medium'}, ${new Date(activity.timefinish * 1000)}
+            )
+          `;
+          
+          totalQuestionsProcessed++;
+        }
+        
+        syncedCount++;
+        console.log(`✅ Quiz sincronizado: ${activity.quiz_name} (${questionsInQuiz} preguntas)`);
+      }
+
+      console.log(`🎉 Sincronización completada: ${syncedCount} quizzes, ${totalQuestionsProcessed} preguntas`);
+
+      return NextResponse.json({
+        success: true,
+        message: `Sincronización exitosa: ${totalQuestionsProcessed} preguntas procesadas`,
+        syncedActivities: syncedCount,
+        totalQuestions: totalQuestionsProcessed,
+        lastSyncDate: new Date()
+      });
+
+    } finally {
+      await connection.end();
+    }
+
+  } catch (error) {
+    console.error('❌ Error en sincronización manual:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'Error en sincronización manual',
+      error: error instanceof Error ? error.message : 'Error desconocido'
+    }, { status: 500 });
+  }
+} 

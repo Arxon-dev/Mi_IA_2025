@@ -1,0 +1,69 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function verificarOpcionesLargas() {
+  console.log('🔍 VERIFICANDO OPCIONES LARGAS EN EXAMEN 2024...\n');
+  
+  try {
+    const allQuestions = await (prisma as any).examenOficial2024.findMany({
+      orderBy: { questionNumber: 'asc' }
+    });
+    
+    console.log(`📋 Total de preguntas: ${allQuestions.length}\n`);
+    
+    const preguntasProblematicas = [];
+    
+    allQuestions.forEach((question: any) => {
+      const longOptions = [];
+      
+      question.options.forEach((option: string, index: number) => {
+        if (option.length > 100) {
+          longOptions.push({
+            index,
+            length: option.length,
+            option: option,
+            letter: ['A', 'B', 'C', 'D'][index]
+          });
+        }
+      });
+      
+      if (longOptions.length > 0) {
+        preguntasProblematicas.push({
+          questionNumber: question.questionNumber,
+          question: question.question.substring(0, 80) + '...',
+          longOptions
+        });
+      }
+    });
+    
+    console.log('❌ PREGUNTAS CON OPCIONES LARGAS (>100 caracteres):');
+    console.log('═══════════════════════════════════════════════════');
+    
+    if (preguntasProblematicas.length > 0) {
+      preguntasProblematicas.forEach((p: any) => {
+        console.log(`\n🔴 Pregunta ${p.questionNumber}: "${p.question}"`);
+        p.longOptions.forEach((opt: any) => {
+          console.log(`   ${opt.letter}) [${opt.length} chars] "${opt.option}"`);
+        });
+      });
+      
+      console.log('\n📊 RESUMEN:');
+      console.log(`❌ Preguntas con opciones largas: ${preguntasProblematicas.length}`);
+      console.log(`✅ Preguntas sin problemas: ${allQuestions.length - preguntasProblematicas.length}`);
+      
+      console.log('\n🛠️ SIGUIENTE PASO:');
+      console.log('Ejecutar script para truncar opciones largas');
+      
+    } else {
+      console.log('✅ No se encontraron opciones que excedan los 100 caracteres');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error verificando opciones:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+verificarOpcionesLargas(); 

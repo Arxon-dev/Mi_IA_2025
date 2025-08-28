@@ -1,0 +1,434 @@
+/* ==========================================
+   🧠 ML ANALYTICS PAGE STYLES
+   ========================================== */
+
+.ml-analytics-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* ==========================================
+   📊 CARDS AND CONTAINERS
+   ========================================== */
+
+.card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    margin-bottom: 20px;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.card-title {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 15px;
+}
+
+/* ==========================================
+   🎯 SUCCESS PROBABILITY DISPLAY
+   ========================================== */
+
+.success-probability-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.success-probability-card .card-title {
+    color: white;
+}
+
+.probability-display {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 200px;
+}
+
+.probability-circle {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    font-weight: bold;
+    position: relative;
+    overflow: hidden;
+}
+
+.probability-circle::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: conic-gradient(
+        from 0deg,
+        #4CAF50 0deg,
+        #4CAF50 var(--percentage, 85deg),
+        rgba(255, 255, 255, 0.2) var(--percentage, 85deg),
+        rgba(255, 255, 255, 0.2) 360deg
+    );
+    border-radius: 50%;
+    mask: radial-gradient(circle, transparent 60px, black 60px);
+}
+
+.probability-value {
+    position: relative;
+    z-index: 1;
+}
+
+/* ==========================================
+   ⚠️ WEAK AREAS DISPLAY
+   ========================================== */
+
+.weak-areas-card {
+    background: linear-gradient(135deg, #ffeaa7 0%, #fab1a0 100%);
+}
+
+.weak-areas-list {
+    min-height: 200px;
+}
+
+.weak-area-item {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.risk-level {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.risk-level.high {
+    background: #e74c3c;
+    color: white;
+}
+
+.risk-level.medium {
+    background: #f39c12;
+    color: white;
+}
+
+.risk-level.low {
+    background: #27ae60;
+    color: white;
+}
+
+/* ==========================================
+   💡 RECOMMENDATIONS DISPLAY
+   ========================================== */
+
+.recommendations-card {
+    background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+}
+
+.recommendation-item {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-left: 4px solid #3498db;
+}
+
+.recommendation-item::before {
+    content: "💡";
+    margin-right: 10px;
+    font-size: 1.2rem;
+}
+
+/* ==========================================
+   📈 CHARTS AND VISUALIZATIONS
+   ========================================== */
+
+.learning-curves-card {
+    background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+    color: white;
+}
+
+.learning-curves-card .card-title {
+    color: white;
+}
+
+.retention-card {
+    background: linear-gradient(135deg, #fd79a8 0%, #e84393 100%);
+    color: white;
+}
+
+.retention-card .card-title {
+    color: white;
+}
+
+.forgetting-patterns-card {
+    background: linear-gradient(135deg, #fdcb6e 0%, #e17055 100%);
+}
+
+/* ==========================================
+   ⚡ OPTIMIZATION STYLES
+   ========================================== */
+
+.optimal-schedule-card {
+    background: linear-gradient(135deg, #55a3ff 0%, #003d82 100%);
+    color: white;
+}
+
+.optimal-schedule-card .card-title {
+    color: white;
+}
+
+.subject-sequence-card {
+    background: linear-gradient(135deg, #ff7675 0%, #d63031 100%);
+    color: white;
+}
+
+.subject-sequence-card .card-title {
+    color: white;
+}
+
+.fatigue-detection-card {
+    background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%);
+    color: white;
+}
+
+.fatigue-detection-card .card-title {
+    color: white;
+}
+
+/* ==========================================
+   👥 SOCIAL ANALYSIS STYLES
+   ========================================== */
+
+.benchmarking-card {
+    background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+    color: white;
+}
+
+.benchmarking-card .card-title {
+    color: white;
+}
+
+.success-strategies-card {
+    background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+}
+
+.study-groups-card {
+    background: linear-gradient(135deg, #fd79a8 0%, #fdcb6e 100%);
+}
+
+.strategy-item {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+    border-left: 4px solid #00b894;
+}
+
+.strategy-item::before {
+    content: "🏆";
+    margin-right: 8px;
+}
+
+.study-group-item {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.compatibility-score {
+    background: #00b894;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+/* ==========================================
+   🔄 LOADING AND ANIMATIONS
+   ========================================== */
+
+.loading-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100px;
+    font-style: italic;
+    color: #666;
+}
+
+.loading-message::before {
+    content: "";
+    width: 20px;
+    height: 20px;
+    border: 2px solid #ddd;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ==========================================
+   📱 RESPONSIVE DESIGN
+   ========================================== */
+
+@media (max-width: 768px) {
+    .ml-analytics-container {
+        padding: 10px;
+    }
+    
+    .probability-circle {
+        width: 120px;
+        height: 120px;
+        font-size: 2rem;
+    }
+    
+    .card {
+        margin-bottom: 15px;
+    }
+    
+    .weak-area-item,
+    .recommendation-item,
+    .strategy-item,
+    .study-group-item {
+        flex-direction: column;
+        text-align: center;
+    }
+}
+
+/* ==========================================
+   🎨 TABS STYLING
+   ========================================== */
+
+.analytics-tabs {
+    margin-bottom: 30px;
+}
+
+.nav-tabs {
+    border-bottom: 2px solid #e9ecef;
+}
+
+.nav-tabs .nav-link {
+    border: none;
+    color: #6c757d;
+    font-weight: 500;
+    padding: 12px 20px;
+    margin-right: 5px;
+    border-radius: 8px 8px 0 0;
+    transition: all 0.3s ease;
+}
+
+.nav-tabs .nav-link:hover {
+    background: #f8f9fa;
+    color: #495057;
+}
+
+.nav-tabs .nav-link.active {
+    background: #3498db;
+    color: white;
+    border-bottom: 2px solid #3498db;
+}
+
+.tab-content {
+    padding-top: 20px;
+}
+
+/* ==========================================
+   🔢 COUNTER ANIMATIONS
+   ========================================== */
+
+.counter {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #3498db;
+}
+
+.metric-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.metric-label {
+    font-size: 0.9rem;
+    color: #7f8c8d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ==========================================
+   🎯 PROGRESS BARS
+   ========================================== */
+
+.progress-bar-custom {
+    height: 8px;
+    background: #ecf0f1;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3498db 0%, #2ecc71 100%);
+    border-radius: 4px;
+    transition: width 1s ease;
+}
+
+/* ==========================================
+   📊 CHART CONTAINERS
+   ========================================== */
+
+.chart-container {
+    position: relative;
+    height: 300px;
+    margin: 20px 0;
+}
+
+canvas {
+    max-width: 100%;
+    height: auto;
+}
+
+/* ==========================================
+   🎨 THEME VARIATIONS
+   ========================================== */
+
+.theme-dark .card {
+    background: #2c3e50;
+    color: white;
+}
+
+.theme-dark .card-title {
+    color: #ecf0f1;
+}
+
+.theme-dark .loading-message {
+    color: #bdc3c7;
+} 

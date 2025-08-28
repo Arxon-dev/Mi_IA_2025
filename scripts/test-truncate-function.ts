@@ -1,0 +1,120 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// Copiar la función truncatePollQuestion del webhook
+function truncatePollQuestion(header: string, question: string, maxLength: number = 300): string {
+  const fullText = `${header}${question}`;
+  
+  if (fullText.length <= maxLength) {
+    return fullText;
+  }
+  
+  // Calculate how much space we have for the question after the header
+  const availableSpace = maxLength - header.length - 3; // -3 for "..."
+  
+  if (availableSpace < 50) {
+    // If header is too long, truncate it too
+    const shortHeader = header.substring(0, Math.floor(maxLength * 0.3));
+    const questionSpace = maxLength - shortHeader.length - 3;
+    return `${shortHeader}${question.substring(0, questionSpace)}...`;
+  }
+  
+  // Truncate question and add ellipsis
+  return `${header}${question.substring(0, availableSpace)}...`;
+}
+
+async function testTruncateFunction() {
+  try {
+    console.log('🧪 PROBANDO FUNCIÓN DE TRUNCADO AUTOMÁTICO');
+    console.log('==========================================');
+
+    // 1. Probar con pregunta 34 (ya solucionada)
+    const pregunta34 = await prisma.examenOficial2018.findFirst({
+      where: { questionnumber: 34 }
+    });
+
+    if (pregunta34) {
+      const header34 = `🎯 SIMULACRO 34/100 ⏱️2h30m\n\n`;
+      const result34 = truncatePollQuestion(header34, pregunta34.question);
+      console.log(`\n✅ PREGUNTA 34 (ya solucionada):`);
+      console.log(`   Original: ${header34.length + pregunta34.question.length} chars`);
+      console.log(`   Truncado: ${result34.length} chars`);
+      console.log(`   ¿Válido?: ${result34.length <= 300 ? '✅ SÍ' : '❌ NO'}`);
+      console.log(`   Resultado: "${result34.substring(0, 100)}..."`);
+    }
+
+    // 2. Probar con pregunta 57 (problemática)
+    const pregunta57 = await prisma.examenOficial2018.findFirst({
+      where: { questionnumber: 57 }
+    });
+
+    if (pregunta57) {
+      const header57 = `🎯 SIMULACRO 57/100 ⏱️2h10m\n\n`;
+      const result57 = truncatePollQuestion(header57, pregunta57.question);
+      console.log(`\n🚨 PREGUNTA 57 (muy larga):`);
+      console.log(`   Original: ${header57.length + pregunta57.question.length} chars`);
+      console.log(`   Truncado: ${result57.length} chars`);
+      console.log(`   ¿Válido?: ${result57.length <= 300 ? '✅ SÍ' : '❌ NO'}`);
+      console.log(`   Resultado: "${result57.substring(0, 150)}..."`);
+      console.log(`   Pregunta original: "${pregunta57.question.substring(0, 100)}..."`);
+    }
+
+    // 3. Probar con algunas preguntas aleatorias
+    const randomQuestions = await prisma.examenOficial2018.findMany({
+      where: { questionnumber: { in: [1, 25, 50, 75, 100] } }
+    });
+
+    console.log(`\n🎲 PRUEBAS CON PREGUNTAS ALEATORIAS:`);
+    for (const question of randomQuestions) {
+      const header = `🎯 SIMULACRO ${question.questionnumber}/100 ⏱️2h15m\n\n`;
+      const result = truncatePollQuestion(header, question.question);
+      const originalLength = header.length + question.question.length;
+      const wasTruncated = result.length < originalLength;
+      
+      console.log(`   Pregunta ${question.questionnumber}: ${originalLength} → ${result.length} chars ${wasTruncated ? '(TRUNCADA)' : '(ÍNTEGRA)'} ${result.length <= 300 ? '✅' : '❌'}`);
+    }
+
+    // 4. Verificar que todas las preguntas funcionarán
+    const allQuestions = await prisma.examenOficial2018.findMany({
+      orderBy: { questionnumber: 'asc' }
+    });
+
+    console.log(`\n🔍 VERIFICACIÓN COMPLETA:`);
+    let allValid = true;
+    let truncatedCount = 0;
+    
+    for (const question of allQuestions) {
+      const header = `🎯 SIMULACRO ${question.questionnumber}/100 ⏱️2h15m\n\n`;
+      const result = truncatePollQuestion(header, question.question);
+      const originalLength = header.length + question.question.length;
+      
+      if (result.length > 300) {
+        console.log(`   ❌ PREGUNTA ${question.questionnumber}: ${result.length} chars (SIGUE SIENDO MUY LARGA)`);
+        allValid = false;
+      }
+      
+      if (result.length < originalLength) {
+        truncatedCount++;
+      }
+    }
+
+    console.log(`\n📊 RESUMEN FINAL:`);
+    console.log(`   Total preguntas: ${allQuestions.length}`);
+    console.log(`   Preguntas truncadas: ${truncatedCount}`);
+    console.log(`   ¿Todas válidas?: ${allValid ? '✅ SÍ' : '❌ NO'}`);
+    
+    if (allValid) {
+      console.log(`\n🎉 ¡SOLUCIÓN COMPLETA! Todas las preguntas del simulacro funcionarán correctamente.`);
+    } else {
+      console.log(`\n🚨 Aún hay problemas que resolver.`);
+    }
+
+  } catch (error) {
+    console.error('❌ Error en test:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+testTruncateFunction().catch(console.error); 

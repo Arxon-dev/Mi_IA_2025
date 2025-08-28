@@ -1,0 +1,150 @@
+// Script para limpiar registros problemáticos de TournamentResponse
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function fixTournamentResponses() {
+  try {
+    console.log('🔧 LIMPIEZA DE REGISTROS PROBLEMÁTICOS EN TournamentResponse');
+    console.log('===========================================================');
+    
+    // 1. Encontrar respuestas sin pollId
+    console.log('🔍 1. IDENTIFICANDO REGISTROS PROBLEMÁTICOS:');
+    console.log('=============================================');
+    
+    const responsesSinPollId = await prisma.tournamentResponse.findMany({
+      where: {
+        OR: [
+          { pollId: null },
+          { pollId: '' }
+        ]
+      },
+      include: {
+        participant: {
+          include: {
+            user: { select: { firstName: true, telegramUserId: true } },
+            tournament: { select: { name: true, status: true } }
+          }
+        }
+      }
+    });
+    
+    console.log(`📊 Encontradas ${responsesSinPollId.length} respuestas problemáticas:`);
+    
+    responsesSinPollId.forEach((resp, i) => {
+      console.log(`   ${i + 1}. Usuario: ${resp.participant.user.firstName}`);
+      console.log(`      Torneo: ${resp.participant.tournament.name}`);
+      console.log(`      Status torneo: ${resp.participant.tournament.status}`);
+      console.log(`      Pregunta #: ${resp.questionNumber}`);
+      console.log(`      Poll ID: ${resp.pollId || 'NULL'}`);
+      console.log(`      Respondido: ${resp.answeredAt ? 'Sí' : 'No'}`);
+      console.log('');
+    });
+    
+    if (responsesSinPollId.length === 0) {
+      console.log('✅ No se encontraron registros problemáticos. El problema puede estar en otro lado.');
+      return { cleaned: 0, message: 'No hay registros para limpiar' };
+    }
+    
+    // 2. Decidir qué hacer con cada tipo
+    console.log('🎯 2. ESTRATEGIA DE LIMPIEZA:');
+    console.log('=============================');
+    
+    const sinResponder = responsesSinPollId.filter(r => !r.answeredAt);
+    const respondidas = responsesSinPollId.filter(r => r.answeredAt);
+    
+    console.log(`📋 Respuestas sin responder: ${sinResponder.length}`);
+    console.log(`✅ Respuestas ya respondidas: ${respondidas.length}`);
+    
+    // 3. Limpiar respuestas sin responder (son registros "fantasma")
+    let cleaned = 0;
+    
+    if (sinResponder.length > 0) {
+      console.log('\\n🗑️ ELIMINANDO RESPUESTAS SIN RESPONDER (registros fantasma):');
+      console.log('==============================================================');
+      
+      for (const resp of sinResponder) {
+        console.log(`   🗑️ Eliminando: ${resp.participant.user.firstName} - Torneo "${resp.participant.tournament.name}" - Pregunta ${resp.questionNumber}`);
+        
+        await prisma.tournamentResponse.delete({
+          where: { id: resp.id }
+        });
+        
+        cleaned++;
+      }
+      
+      console.log(`✅ ${cleaned} registros fantasma eliminados.`);
+    }
+    
+    // 4. Para respuestas ya respondidas, generar pollIds únicos
+    if (respondidas.length > 0) {
+      console.log('\\n🔧 REPARANDO RESPUESTAS YA RESPONDIDAS:');
+      console.log('=======================================');
+      
+      for (const resp of respondidas) {
+        // Generar un pollId único basado en timestamp
+        const fakePollId = `tournament_${resp.participant.tournament.name.replace(/\\s+/g, '_')}_${resp.questionNumber}_${Date.now()}`;
+        
+        console.log(`   🔧 Reparando: ${resp.participant.user.firstName} - Pregunta ${resp.questionNumber}`);
+        console.log(`      Nuevo Poll ID: ${fakePollId}`);
+        
+        await prisma.tournamentResponse.update({
+          where: { id: resp.id },
+          data: { pollId: fakePollId }
+        });
+        
+        cleaned++;
+      }
+      
+      console.log(`✅ ${respondidas.length} respuestas reparadas con pollIds únicos.`);
+    }
+    
+    // 5. Verificación final
+    console.log('\\n🔍 3. VERIFICACIÓN FINAL:');
+    console.log('==========================');
+    
+    const remaining = await prisma.tournamentResponse.count({
+      where: {
+        OR: [
+          { pollId: null },
+          { pollId: '' }
+        ]
+      }
+    });
+    
+    console.log(`📊 Registros problemáticos restantes: ${remaining}`);
+    
+    return { 
+      cleaned, 
+      message: cleaned > 0 ? `${cleaned} registros limpiados exitosamente` : 'No había registros para limpiar'
+    };
+    
+  } catch (error) {
+    console.error('❌ Error durante la limpieza:', error);
+    return { cleaned: 0, message: 'Error durante la limpieza' };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+async function main() {
+  console.log('🚀 INICIANDO LIMPIEZA DE TournamentResponse...');
+  console.log('===============================================');
+  
+  const result = await fixTournamentResponses();
+  
+  console.log('\\n📋 RESULTADO FINAL:');
+  console.log('===================');
+  console.log(`🎯 ${result.message}`);
+  
+  if (result.cleaned > 0) {
+    console.log('\\n✅ PROBLEMA SOLUCIONADO!');
+    console.log('🎉 Los usuarios ahora deberían recibir puntos por preguntas regulares.');
+    console.log('🧪 Puedes probar enviando /test al grupo para verificar.');
+  } else {
+    console.log('\\n🤔 Si el problema persiste, puede estar en la lógica de handleTournamentPollAnswer.');
+    console.log('🔍 Revisa los logs del webhook cuando llegue una respuesta de poll.');
+  }
+}
+
+main(); 

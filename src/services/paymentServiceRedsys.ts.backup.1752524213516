@@ -1,0 +1,289 @@
+import { PrismaClient } from '@prisma/client';
+import { SubscriptionPlanService } from './subscriptionPlanService';
+
+const prisma = new PrismaClient();
+
+export interface InvoiceData {
+  title: string;
+  description: string;
+  payload: string;
+  provider_token: string;
+  currency: string;
+  prices: Array<{ label: string; amount: number; }>;
+  need_name?: boolean;
+  need_email?: boolean;
+  need_phone_number?: boolean;
+  send_email_to_provider?: boolean;
+  is_flexible?: boolean;
+  photo_url?: string;
+}
+
+export class PaymentServiceRedsys {
+  
+  /**
+   * Crear datos de invoice para Telegram Payments con Redsys
+   */
+  static createInvoiceData(planName: 'basic' | 'premium', userId: string): InvoiceData {
+    const plans = {
+      basic: {
+        name: 'Básico',
+        price: 4.99,
+        description: '100 preguntas/día, sistema de preguntas falladas, estadísticas básicas'
+      },
+      premium: {
+        name: 'Premium', 
+        price: 9.99,
+        description: 'Preguntas ilimitadas, integración Moodle, estadísticas avanzadas, simulacros personalizados, análisis IA'
+      }
+    };
+
+    const plan = plans[planName];
+    const priceInCents = Math.round(plan.price * 100); // Convertir a centavos
+
+    // Crear payload único para tracking
+    const payload = `subscription_${planName}_${userId}_${Date.now()}`;
+
+    return {
+      title: `Plan ${plan.name} - OpoMelilla`,
+      description: `Suscripción mensual a ${plan.name}. ${plan.description}. IVA (21%) incluido. Pago seguro con Redsys.`,
+      payload,
+      provider_token: '2051251535:TEST:OTk5MDA4ODgxLTAwNQ', // Token Redsys de prueba directo
+      currency: 'EUR',
+      prices: [
+        {
+          label: `Plan ${plan.name} (1 mes)`,
+          amount: priceInCents
+        }
+      ],
+      need_name: true,
+      need_email: true,
+      need_phone_number: false, // Redsys no necesita teléfono obligatorio
+      send_email_to_provider: true,
+      is_flexible: false,
+      photo_url: 'https://i.imgur.com/YourLogo.png' // Logo de tu app
+    };
+  }
+
+  /**
+   * Validar pre-checkout query para Redsys
+   */
+  static async validatePreCheckout(preCheckout: any): Promise<boolean> {
+    try {
+      console.log('🏦 Validando pre-checkout con Redsys:', preCheckout);
+
+      // Extraer información del payload
+      const payloadParts = preCheckout.invoice_payload.split('_');
+      if (payloadParts.length < 4 || payloadParts[0] !== 'subscription') {
+        console.error('Payload inválido:', preCheckout.invoice_payload);
+        return false;
+      }
+
+      const planName = payloadParts[1];
+      const userId = payloadParts[2];
+
+      // Verificar plan válido
+      if (!['basic', 'premium'].includes(planName)) {
+        console.error('Plan inválido:', planName);
+        return false;
+      }
+
+      // Verificar cantidad (en centavos)
+      const expectedPrice = planName === 'basic' ? 4.99 : 9.99;
+      const expectedAmount = Math.round(expectedPrice * 100);
+      
+      if (preCheckout.total_amount !== expectedAmount) {
+        console.error('Cantidad no coincide:', {
+          esperado: expectedAmount,
+          recibido: preCheckout.total_amount
+        });
+        return false;
+      }
+
+      // Verificar que sea EUR (Redsys solo maneja euros)
+      if (preCheckout.currency !== 'EUR') {
+        console.error('Moneda incorrecta para Redsys:', preCheckout.currency);
+        return false;
+      }
+
+      console.log('✅ Pre-checkout validado correctamente con Redsys');
+      return true;
+
+    } catch (error) {
+      console.error('❌ Error validando pre-checkout con Redsys:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Procesar pago exitoso con Redsys
+   */
+  static async processSuccessfulPayment(userId: string, payment: any): Promise<boolean> {
+    try {
+      console.log('🏦 Procesando pago exitoso con Redsys:', payment);
+
+      // Extraer información del payload
+      const payloadParts = payment.invoice_payload.split('_');
+      if (payloadParts.length < 4 || payloadParts[0] !== 'subscription') {
+        console.error('Payload inválido en pago exitoso:', payment.invoice_payload);
+        return false;
+      }
+
+      const planName = payloadParts[1];
+      const userIdFromPayload = payloadParts[2];
+      
+      // Calcular el monto en euros (payment viene en centavos)
+      const amount = payment.total_amount / 100;
+
+      // Verificar que el userId coincide
+      if (userId !== userIdFromPayload) {
+        console.error('Usuario no coincide:', { userId, userIdFromPayload });
+        return false;
+      }
+
+      // Buscar o crear usuario
+      let user = await prisma.telegramUser.findUnique({
+        where: { telegramUserId: userId }
+      });
+
+      if (!user) {
+        console.log('👤 Usuario no encontrado, creando...');
+        user = await prisma.telegramUser.create({
+          data: {
+            telegramUserId: userId,
+            username: `user_${userId}`,
+            firstName: 'Usuario',
+            totalPoints: 0
+          }
+        });
+      }
+
+      // 🎯 CREAR LA SUSCRIPCIÓN EN LA BASE DE DATOS
+      console.log(`✅ Pago procesado con Redsys: Usuario ${userId} -> Plan ${planName}`);
+      console.log(`💳 Telegram Payment ID: ${payment.telegram_payment_charge_id}`);
+      console.log(`🏦 Redsys Transaction ID: ${payment.provider_payment_charge_id}`);
+      console.log(`💰 Cantidad: €${amount.toFixed(2)}`);
+
+      // Buscar el plan en la base de datos
+      const subscriptionPlan = await SubscriptionPlanService.getOrCreatePlan(planName);
+
+      if (!subscriptionPlan) {
+        console.error('❌ Plan de suscripción no encontrado:', planName);
+        return false;
+      }
+
+      // Calcular fechas de suscripción (1 mes)
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setMonth(endDate.getMonth() + 1);
+
+      // Usar UPSERT para crear o actualizar la suscripción (PostgreSQL)
+      const subscriptionResult = await prisma.$queryRaw`
+        INSERT INTO "UserSubscription" (
+          "id", "userId", "planId", "status", "startDate", "endDate", "autoRenew", 
+          "telegramPaymentId", "paymentMethod", "createdAt", "updatedAt"
+        ) VALUES (
+          gen_random_uuid(), ${user.id}, ${subscriptionPlan.id}, 'active', 
+          ${startDate}, ${endDate}, true, ${payment.telegram_payment_charge_id}, 'redsys', NOW(), NOW()
+        )
+        ON CONFLICT ("userId") 
+        DO UPDATE SET 
+          "planId" = ${subscriptionPlan.id},
+          "status" = 'active',
+          "startDate" = ${startDate},
+          "endDate" = ${endDate},
+          "autoRenew" = true,
+          "telegramPaymentId" = ${payment.telegram_payment_charge_id},
+          "paymentMethod" = 'redsys',
+          "updatedAt" = NOW()
+        RETURNING "id"
+      ` as any[];
+
+      const subscriptionId = subscriptionResult[0]?.id;
+
+      // Crear el registro de transacción usando SQL directo con las columnas correctas
+      await prisma.$executeRaw`
+        INSERT INTO "PaymentTransaction" (
+          "id", "userId", "subscriptionId", "amount", "currency", "paymentMethod",
+          "status", "telegramPaymentId", "redsysTransactionId", "transactionType", 
+          "customerName", "customerEmail", "description", "completedAt", "createdAt", "updatedAt"
+        ) VALUES (
+          gen_random_uuid(), ${user.id}, ${subscriptionId}, ${amount}, 'EUR', 
+          'redsys', 'completed', ${payment.telegram_payment_charge_id}, ${payment.provider_payment_charge_id},
+          'subscription', ${payment.order_info?.name || 'N/A'}, ${payment.order_info?.email || 'N/A'},
+          ${'Suscripción ' + planName + ' procesada con Redsys'}, NOW(), NOW(), NOW()
+        )
+      `;
+
+      console.log('🎉 Suscripción creada exitosamente:', {
+        userId: user.id,
+        planName: subscriptionPlan.displayName,
+        planId: subscriptionPlan.id,
+        subscriptionId: subscriptionId,
+        validUntil: endDate.toISOString()
+      });
+
+      return true;
+
+    } catch (error) {
+      console.error('❌ Error procesando pago exitoso con Redsys:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Generar mensaje de confirmación de pago con Redsys
+   */
+  static generatePaymentConfirmation(planName: string, amount: number): string {
+    const planDisplayName = planName === 'basic' ? 'Básico' : 'Premium';
+    
+    return `🎉 <b>¡PAGO CONFIRMADO CON REDSYS!</b>
+
+✅ <b>Tu suscripción al plan ${planDisplayName} está ahora activa</b>
+
+📋 <b>Detalles del pago:</b>
+💰 Cantidad: €${(amount / 100).toFixed(2)}
+🏦 Método: Redsys (Sistema bancario español)
+🆔 Suscripción: Plan ${planDisplayName}
+
+🔒 <b>Pago 100% seguro:</b>
+• Procesado por Redsys (bancos españoles)
+• Protección completa del comprador
+• Cumple normativas europeas PSD2
+
+🚀 <b>Ahora puedes disfrutar de:</b>
+${planName === 'basic' ? 
+  '• 100 preguntas diarias en privado\n• Sistema de preguntas falladas\n• Estadísticas básicas' :
+  '• Preguntas ilimitadas en privado\n• Sistema de preguntas falladas\n• Estadísticas avanzadas\n• Simulacros personalizados\n• Análisis con IA\n• Integración con Moodle'
+}
+
+¡Disfruta de tu suscripción Premium! 💎
+
+💡 Usa /mi_plan para ver tu estado de suscripción.
+
+📞 <b>Soporte:</b> @Carlos_esp`;
+  }
+
+  /**
+   * Información sobre Redsys para el usuario
+   */
+  static getRedsysInfo(): string {
+    return `🏦 <b>PAGOS CON REDSYS</b>
+
+🇪🇸 <b>Sistema bancario oficial español</b>
+✅ Visa, Mastercard, Maestro
+✅ Transferencias bancarias
+✅ Próximamente: Bizum
+
+🔒 <b>Máxima seguridad:</b>
+• Cumple PSD2 europeo
+• Protección 3D Secure
+• Garantía bancaria española
+
+💰 <b>Sin costes ocultos:</b>
+• Lo que ves es lo que pagas
+• IVA (21%) ya incluido
+• Sin comisiones adicionales`;
+  }
+}
+
+export { PaymentServiceRedsys as PaymentService }; 

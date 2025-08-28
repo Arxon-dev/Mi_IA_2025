@@ -1,0 +1,643 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+interface Simulacro2024Question {
+  id: string;
+  questionNumber: number;
+  question: string;
+  options: string[];
+  correctAnswerIndex: number;
+  category: string | null;
+  difficulty: string | null;
+}
+
+interface Simulacro2024Result {
+  id: string;
+  status: string;
+  examType: string;
+  startedAt: Date;
+  completedAt: Date | null;
+  timeElapsed: number;
+  currentQuestionIndex: number;
+  finalScore: number;
+  finalPercentage: number;
+  passed: boolean;
+  totalQuestions: number;
+  timeLimit: number;
+  averageResponseTime: number | null;
+}
+
+export class Simulacro2024Service {
+  
+  /**
+   * Verificar si el usuario puede iniciar un simulacro 2024
+   */
+  static async canStartSimulacro(telegramUserId: string): Promise<{ canStart: boolean; reason?: string }> {
+    try {
+      // Buscar usuario
+      const user = await prisma.telegramUser.findUnique({
+        where: { telegramUserId }
+      });
+      
+      if (!user) {
+        return { canStart: false, reason: 'Usuario no registrado' };
+      }
+      
+      // Verificar si tiene un simulacro activo (cualquier tipo)
+      const activeSimulacro = await prisma.simulacro.findFirst({
+        where: {
+          userId: user.id,
+          status: 'in_progress'
+        }
+      });
+      
+      if (activeSimulacro) {
+        return { canStart: false, reason: 'Ya tienes un simulacro en progreso' };
+      }
+      
+      // Verificar que hay suficientes preguntas del examen 2024
+      const questionCount = await prisma.examenOficial2024.count({
+        where: { isActive: true }
+      });
+      
+      if (questionCount < 100) {
+        return { canStart: false, reason: 'No hay suficientes preguntas del Examen 2024 disponibles' };
+      }
+      
+      return { canStart: true };
+      
+    } catch (error) {
+      console.error('Error verificando si puede iniciar simulacro 2024:', error);
+      return { canStart: false, reason: 'Error interno' };
+    }
+  }
+  
+  /**
+   * Iniciar un nuevo simulacro del examen 2024
+   */
+  static async startSimulacro(telegramUserId: string): Promise<{ simulacro: any; firstQuestion: Simulacro2024Question } | null> {
+    try {
+      // Verificar si puede iniciar
+      const canStart = await this.canStartSimulacro(telegramUserId);
+      if (!canStart.canStart) {
+        throw new Error(canStart.reason);
+      }
+      
+      // Buscar usuario
+      const user = await prisma.telegramUser.findUnique({
+        where: { telegramUserId }
+      });
+      
+      if (!user) {
+        throw new Error('Usuario no encontrado');
+      }
+      
+      // Obtener 100 preguntas del examen 2024 en orden
+      const allQuestions = await prisma.examenOficial2024.findMany({
+        where: { isActive: true },
+        orderBy: { questionNumber: 'asc' },
+        take: 100
+      });
+      
+      if (allQuestions.length < 100) {
+        throw new Error('No hay suficientes preguntas del Examen 2024 disponibles');
+      }
+      
+      // Crear el simulacro con tipo específico
+      const simulacro = await prisma.simulacro.create({
+        data: {
+          userId: user.id,
+          status: 'in_progress',
+          timeLimit: 10800, // 180 minutos
+          totalQuestions: 100,
+          currentQuestionIndex: 0,
+          examType: 'EXAMEN_2024' // Identificador del tipo de examen
+        }
+      });
+      
+      // Crear todas las respuestas del simulacro con las preguntas en orden
+      for (let i = 0; i < 100; i++) {
+        const question = allQuestions[i];
+        await prisma.simulacroResponse.create({
+          data: {
+            simulacroId: simulacro.id,
+            questionId: question.id,
+            questionNumber: i + 1,
+            questionCategory: question.category,
+            questionDifficulty: question.difficulty,
+            answeredAt: null,
+            selectedOption: null,
+            isCorrect: null,
+            responseTime: null,
+            skipped: false,
+            examType: 'EXAMEN_2024' // Para diferenciarlo en las consultas
+          }
+        });
+      }
+      
+      // Obtener la primera pregunta
+      const firstQuestion = allQuestions[0];
+      
+      return {
+        simulacro,
+        firstQuestion: {
+          id: firstQuestion.id,
+          questionNumber: firstQuestion.questionNumber,
+          question: firstQuestion.question,
+          options: firstQuestion.options,
+          correctAnswerIndex: firstQuestion.correctAnswerIndex,
+          category: firstQuestion.category,
+          difficulty: firstQuestion.difficulty
+        }
+      };
+      
+    } catch (error) {
+      console.error('Error iniciando simulacro 2024:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Obtener simulacro activo del usuario (del tipo 2024)
+   */
+  static async getActiveSimulacro(telegramUserId: string): Promise<any | null> {
+    try {
+      const user = await prisma.telegramUser.findUnique({
+        where: { telegramUserId }
+      });
+      
+      if (!user) return null;
+      
+      const simulacro = await prisma.simulacro.findFirst({
+        where: {
+          userId: user.id,
+          status: 'in_progress',
+          examType: 'EXAMEN_2024'
+        },
+        include: {
+          responses: {
+            where: { examType: 'EXAMEN_2024' },
+            orderBy: { questionNumber: 'asc' }
+          }
+        }
+      });
+      
+      return simulacro;
+      
+    } catch (error) {
+      console.error('Error obteniendo simulacro 2024 activo:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Obtener la pregunta actual del simulacro 2024
+   */
+  static async getCurrentQuestion(simulacroId: string): Promise<Simulacro2024Question | null> {
+    try {
+      const simulacro = await prisma.simulacro.findUnique({
+        where: { id: simulacroId }
+      });
+      
+      if (!simulacro || simulacro.status !== 'in_progress' || simulacro.examType !== 'EXAMEN_2024') {
+        return null;
+      }
+      
+      // Obtener la respuesta sin contestar con menor número de pregunta
+      const nextResponse = await prisma.simulacroResponse.findFirst({
+        where: {
+          simulacroId,
+          examType: 'EXAMEN_2024',
+          answeredAt: null,
+          skipped: false
+        },
+        include: {
+          // Relacionar con ExamenOficial2024 en lugar de ExamenOficial2018
+          questionExamen2024: {
+            select: {
+              id: true,
+              questionNumber: true,
+              question: true,
+              options: true,
+              correctAnswerIndex: true,
+              category: true,
+              difficulty: true
+            }
+          }
+        },
+        orderBy: {
+          questionNumber: 'asc'
+        }
+      });
+      
+      if (!nextResponse || !nextResponse.questionExamen2024) {
+        return null;
+      }
+      
+      const question = nextResponse.questionExamen2024;
+      
+      return {
+        id: question.id,
+        questionNumber: nextResponse.questionNumber,
+        question: question.question,
+        options: question.options,
+        correctAnswerIndex: question.correctAnswerIndex,
+        category: nextResponse.questionCategory,
+        difficulty: nextResponse.questionDifficulty
+      };
+      
+    } catch (error) {
+      console.error('Error obteniendo pregunta actual del simulacro 2024:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Procesar respuesta de una pregunta del simulacro 2024
+   */
+  static async processAnswer(
+    simulacroId: string, 
+    questionNumber: number, 
+    selectedOption: number,
+    responseTime: number
+  ): Promise<{ isCorrect: boolean; nextQuestion: Simulacro2024Question | null; isCompleted: boolean }> {
+    try {
+      console.log('🔄 SIMULACRO2024 - Procesando respuesta:', {
+        simulacroId,
+        questionNumber,
+        selectedOption,
+        responseTime
+      });
+      
+      // Buscar la respuesta del simulacro
+      const simulacroResponse = await prisma.simulacroResponse.findFirst({
+        where: {
+          simulacroId,
+          questionNumber,
+          examType: 'EXAMEN_2024'
+        },
+        include: {
+          questionExamen2024: true,
+          simulacro: true
+        }
+      });
+      
+      if (!simulacroResponse || !simulacroResponse.questionExamen2024) {
+        console.error('❌ SIMULACRO2024 - Respuesta no encontrada para:', { simulacroId, questionNumber });
+        throw new Error('Respuesta del simulacro 2024 no encontrada');
+      }
+      
+      const isCorrect = selectedOption === simulacroResponse.questionExamen2024.correctAnswerIndex;
+      
+      console.log('📊 SIMULACRO2024 - Evaluación:', {
+        selectedOption,
+        correctOption: simulacroResponse.questionExamen2024.correctAnswerIndex,
+        isCorrect
+      });
+      
+      // Actualizar la respuesta
+      await prisma.simulacroResponse.update({
+        where: { id: simulacroResponse.id },
+        data: {
+          selectedOption,
+          isCorrect,
+          responseTime,
+          answeredAt: new Date()
+        }
+      });
+      
+      console.log('✅ SIMULACRO2024 - Respuesta actualizada');
+      
+      // Actualizar estadísticas del simulacro
+      await this.updateSimulacroStats(simulacroId);
+      
+      // Verificar si está completado
+      const remainingQuestions = await prisma.simulacroResponse.count({
+        where: {
+          simulacroId,
+          examType: 'EXAMEN_2024',
+          answeredAt: null,
+          skipped: false
+        }
+      });
+      
+      console.log('🎯 SIMULACRO2024 - Estado:', {
+        remainingQuestions,
+        isCompleted: remainingQuestions === 0
+      });
+      
+      let nextQuestion: Simulacro2024Question | null = null;
+      let isCompleted = false;
+      
+      if (remainingQuestions === 0) {
+        // Completar simulacro
+        console.log('🏁 SIMULACRO2024 - Completando simulacro');
+        await this.completeSimulacro(simulacroId);
+        isCompleted = true;
+      } else {
+        // Obtener siguiente pregunta
+        console.log('➡️ SIMULACRO2024 - Obteniendo siguiente pregunta');
+        nextQuestion = await this.getCurrentQuestion(simulacroId);
+      }
+      
+      return {
+        isCorrect,
+        nextQuestion,
+        isCompleted
+      };
+      
+    } catch (error) {
+      console.error('❌ SIMULACRO2024 - Error procesando respuesta:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Actualizar estadísticas del simulacro 2024
+   */
+  static async updateSimulacroStats(simulacroId: string): Promise<void> {
+    try {
+      const responses = await prisma.simulacroResponse.findMany({
+        where: {
+          simulacroId,
+          examType: 'EXAMEN_2024',
+          answeredAt: { not: null }
+        }
+      });
+      
+      const correctAnswers = responses.filter(r => r.isCorrect).length;
+      const totalAnswered = responses.length;
+      const responsesWithTime = responses.filter(r => r.responseTime !== null);
+      
+      const averageResponseTime = responsesWithTime.length > 0
+        ? responsesWithTime.reduce((sum, r) => sum + (r.responseTime || 0), 0) / responsesWithTime.length
+        : null;
+      
+      const simulacro = await prisma.simulacro.findUnique({
+        where: { id: simulacroId }
+      });
+      
+      if (simulacro) {
+        const timeElapsed = Math.floor((Date.now() - simulacro.startedAt.getTime()) / 1000);
+        
+        await prisma.simulacro.update({
+          where: { id: simulacroId },
+          data: {
+            timeElapsed,
+            currentQuestionIndex: totalAnswered,
+            finalScore: correctAnswers,
+            finalPercentage: totalAnswered > 0 ? (correctAnswers / totalAnswered) * 100 : 0,
+            averageResponseTime
+          }
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error actualizando estadísticas del simulacro 2024:', error);
+    }
+  }
+  
+  /**
+   * Completar simulacro 2024
+   */
+  static async completeSimulacro(simulacroId: string): Promise<Simulacro2024Result | null> {
+    try {
+      const simulacro = await prisma.simulacro.findUnique({
+        where: { id: simulacroId },
+        include: {
+          responses: {
+            where: { examType: 'EXAMEN_2024' }
+          }
+        }
+      });
+      
+      if (!simulacro) return null;
+      
+      const responses = simulacro.responses.filter(r => r.answeredAt !== null);
+      const correctAnswers = responses.filter(r => r.isCorrect).length;
+      const totalQuestions = simulacro.totalQuestions;
+      const finalPercentage = (correctAnswers / totalQuestions) * 100;
+      const passed = finalPercentage >= 50;
+      
+      const responsesWithTime = responses.filter(r => r.responseTime !== null);
+      const averageResponseTime = responsesWithTime.length > 0
+        ? responsesWithTime.reduce((sum, r) => sum + (r.responseTime || 0), 0) / responsesWithTime.length
+        : null;
+      
+      const timeElapsed = Math.floor((Date.now() - simulacro.startedAt.getTime()) / 1000);
+      
+      const completedSimulacro = await prisma.simulacro.update({
+        where: { id: simulacroId },
+        data: {
+          status: 'completed',
+          completedAt: new Date(),
+          timeElapsed,
+          finalScore: correctAnswers,
+          finalPercentage,
+          passed,
+          averageResponseTime
+        }
+      });
+      
+      return {
+        id: completedSimulacro.id,
+        status: completedSimulacro.status,
+        examType: completedSimulacro.examType || 'EXAMEN_2024',
+        startedAt: completedSimulacro.startedAt,
+        completedAt: completedSimulacro.completedAt,
+        timeElapsed: completedSimulacro.timeElapsed,
+        currentQuestionIndex: completedSimulacro.currentQuestionIndex,
+        finalScore: completedSimulacro.finalScore,
+        finalPercentage: completedSimulacro.finalPercentage,
+        passed: completedSimulacro.passed,
+        totalQuestions: completedSimulacro.totalQuestions,
+        timeLimit: completedSimulacro.timeLimit,
+        averageResponseTime: completedSimulacro.averageResponseTime
+      };
+      
+    } catch (error) {
+      console.error('Error completando simulacro 2024:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Obtener historial de simulacros 2024 del usuario
+   */
+  static async getSimulacroHistory(telegramUserId: string, limit: number = 10): Promise<Simulacro2024Result[]> {
+    try {
+      const user = await prisma.telegramUser.findUnique({
+        where: { telegramUserId }
+      });
+      
+      if (!user) return [];
+      
+      const simulacros = await prisma.simulacro.findMany({
+        where: {
+          userId: user.id,
+          examType: 'EXAMEN_2024',
+          status: { in: ['completed', 'abandoned'] }
+        },
+        orderBy: { startedAt: 'desc' },
+        take: limit
+      });
+      
+      return simulacros.map(s => ({
+        id: s.id,
+        status: s.status,
+        examType: s.examType || 'EXAMEN_2024',
+        startedAt: s.startedAt,
+        completedAt: s.completedAt,
+        timeElapsed: s.timeElapsed,
+        currentQuestionIndex: s.currentQuestionIndex,
+        finalScore: s.finalScore,
+        finalPercentage: s.finalPercentage,
+        passed: s.passed,
+        totalQuestions: s.totalQuestions,
+        timeLimit: s.timeLimit,
+        averageResponseTime: s.averageResponseTime
+      }));
+      
+    } catch (error) {
+      console.error('Error obteniendo historial de simulacros 2024:', error);
+      return [];
+    }
+  }
+  
+  /**
+   * Procesar respuesta de simulacro 2024 usando questionId
+   */
+  static async processAnswerByQuestionId(
+    telegramUserId: string, 
+    questionId: string, 
+    selectedOption: number,
+    responseTime: number
+  ): Promise<{ 
+    isCorrect: boolean; 
+    nextQuestion: Simulacro2024Question | null; 
+    isCompleted: boolean;
+    questionNumber: number;
+    timeRemaining: string;
+  } | null> {
+    try {
+      // Buscar usuario
+      const user = await prisma.telegramUser.findUnique({
+        where: { telegramUserId }
+      });
+      
+      if (!user) {
+        console.error('Usuario no encontrado');
+        return null;
+      }
+      
+      // Buscar simulacro activo del usuario
+      const activeSimulacro = await this.getActiveSimulacro(telegramUserId);
+      if (!activeSimulacro) {
+        console.error('No hay simulacro 2024 activo');
+        return null;
+      }
+      
+      // Buscar la respuesta del simulacro correspondiente a esta pregunta
+      const simulacroResponse = await prisma.simulacroResponse.findFirst({
+        where: {
+          simulacroId: activeSimulacro.id,
+          questionId: questionId,
+          examType: 'EXAMEN_2024'
+        }
+      });
+      
+      if (!simulacroResponse) {
+        console.error('Respuesta del simulacro no encontrada');
+        return null;
+      }
+      
+      // Buscar la pregunta para obtener la respuesta correcta
+      const question = await prisma.examenOficial2024.findUnique({
+        where: { id: questionId }
+      });
+      
+      if (!question) {
+        console.error('Pregunta del examen 2024 no encontrada');
+        return null;
+      }
+      
+      // Verificar si es correcta
+      const isCorrect = selectedOption === question.correctAnswerIndex;
+      
+      // Actualizar la respuesta
+      await prisma.simulacroResponse.update({
+        where: { id: simulacroResponse.id },
+        data: {
+          selectedOption,
+          isCorrect,
+          responseTime,
+          answeredAt: new Date()
+        }
+      });
+      
+      // Calcular tiempo restante
+      const timeElapsed = Math.floor((Date.now() - activeSimulacro.startedAt.getTime()) / 1000);
+      const timeRemaining = Math.max(0, 10800 - timeElapsed);
+      const hoursRemaining = Math.floor(timeRemaining / 3600);
+      const minutesRemaining = Math.floor((timeRemaining % 3600) / 60);
+      const timeRemainingFormatted = `${hoursRemaining}h ${minutesRemaining}m`;
+      
+      // Buscar siguiente pregunta sin responder
+      const nextResponse = await prisma.simulacroResponse.findFirst({
+        where: {
+          simulacroId: activeSimulacro.id,
+          answeredAt: null,
+          examType: 'EXAMEN_2024'
+        },
+        orderBy: { questionNumber: 'asc' }
+      });
+      
+      let nextQuestion: Simulacro2024Question | null = null;
+      let isCompleted = false;
+      
+      if (nextResponse) {
+        // Hay más preguntas
+        const nextQuestionData = await prisma.examenOficial2024.findUnique({
+          where: { id: nextResponse.questionId }
+        });
+        
+        if (nextQuestionData) {
+          nextQuestion = {
+            id: nextQuestionData.id,
+            questionNumber: nextQuestionData.questionNumber,
+            question: nextQuestionData.question,
+            options: nextQuestionData.options,
+            correctAnswerIndex: nextQuestionData.correctAnswerIndex,
+            category: nextQuestionData.category,
+            difficulty: nextQuestionData.difficulty
+          };
+          
+          // Actualizar índice de pregunta actual
+          await prisma.simulacro.update({
+            where: { id: activeSimulacro.id },
+            data: { currentQuestionIndex: nextResponse.questionNumber }
+          });
+        }
+      } else {
+        // Simulacro completado
+        isCompleted = true;
+        await this.completeSimulacro(activeSimulacro.id);
+      }
+      
+      return {
+        isCorrect,
+        nextQuestion,
+        isCompleted,
+        questionNumber: simulacroResponse.questionNumber,
+        timeRemaining: timeRemainingFormatted
+      };
+      
+    } catch (error) {
+      console.error('Error procesando respuesta del simulacro 2024:', error);
+      return null;
+    }
+  }
+}
+
+export default Simulacro2024Service; 

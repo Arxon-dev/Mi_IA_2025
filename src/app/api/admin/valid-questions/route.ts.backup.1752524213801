@@ -1,0 +1,629 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// GET - Listar preguntas con paginación y búsqueda desde múltiples tablas
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '20');
+    const search = searchParams.get('search') || '';
+    const sortBy = searchParams.get('sortBy') || 'createdAt';
+    const sortOrder = searchParams.get('sortOrder') || 'desc';
+    const showInactive = searchParams.get('showInactive') === 'true';
+    const source = searchParams.get('source') || 'ValidQuestion'; // Nuevo parámetro
+
+    const skip = (page - 1) * limit;
+
+    // Función helper para obtener preguntas según la fuente
+    const getQuestionsFromSource = async (source: string) => {
+      switch (source) {
+        case 'ValidQuestion':
+          return getValidQuestions();
+        case 'Question':
+          return getRegularQuestions();
+        case 'SectionQuestion':
+          return getSectionQuestions();
+        case 'Constitucion':
+          return getConstitucionQuestions();
+        case 'DefensaNacional':
+          return getDefensaNacionalQuestions();
+        case 'Rio':
+          return getRioQuestions();
+        case 'Minsdef':
+          return getMinsdefQuestions();
+        case 'OrganizacionFas':
+          return getOrganizacionFasQuestions();
+        case 'Emad':
+          return getEmadQuestions();
+        case 'Et':
+          return getEtQuestions();
+        case 'Armada':
+          return getArmadaQuestions();
+        case 'Aire':
+          return getAireQuestions();
+        case 'Carrera':
+          return getCarreraQuestions();
+        case 'Tropa':
+          return getTropaQuestions();
+        case 'Rroo':
+          return getRrooQuestions();
+        case 'DerechosYDeberes':
+          return getDerechosYDeberesQuestions();
+        case 'RegimenDisciplinario':
+          return getRegimenDisciplinarioQuestions();
+        case 'IniciativasQuejas':
+          return getIniciativasQuejasQuestions();
+        case 'Igualdad':
+          return getIgualdadQuestions();
+        case 'Omi':
+          return getOmiQuestions();
+        case 'Pac':
+          return getPacQuestions();
+        case 'SeguridadNacional':
+          return getSeguridadNacionalQuestions();
+        case 'Pdc':
+          return getPdcQuestions();
+        case 'Onu':
+          return getOnuQuestions();
+        case 'Otan':
+          return getOtanQuestions();
+        case 'Osce':
+          return getOsceQuestions();
+        case 'Ue':
+          return getUeQuestions();
+        case 'MisionesInternacionales':
+          return getMisionesInternacionalesQuestions();
+        case 'All':
+          return getAllQuestionsCombined();
+        default:
+          return getValidQuestions();
+      }
+    };
+
+    // Función para ValidQuestion (lógica original)
+    const getValidQuestions = async () => {
+      const where: any = {};
+      
+      if (!showInactive) {
+        where.isActive = true;
+      }
+
+      if (search) {
+        where.OR = [
+          { parsedQuestion: { contains: search, mode: 'insensitive' } },
+          { id: { contains: search, mode: 'insensitive' } },
+          { type: { contains: search, mode: 'insensitive' } },
+          { difficulty: { contains: search, mode: 'insensitive' } }
+        ];
+      }
+
+      const orderBy: any = {};
+      if (sortBy === 'sendCount') {
+        orderBy.sendCount = sortOrder;
+      } else if (sortBy === 'lastSent') {
+        orderBy.lastSuccessfulSendAt = { sort: sortOrder, nulls: 'last' };
+      } else {
+        orderBy[sortBy] = sortOrder;
+      }
+
+      const [questions, totalCount] = await Promise.all([
+        prisma.validQuestion.findMany({
+          where,
+          orderBy,
+          skip,
+          take: limit,
+          select: {
+            id: true,
+            originalQuestionId: true,
+            parsedQuestion: true,
+            parsedOptions: true,
+            correctAnswerIndex: true,
+            parsedExplanation: true,
+            parseMethod: true,
+            type: true,
+            difficulty: true,
+            bloomLevel: true,
+            sendCount: true,
+            lastSuccessfulSendAt: true,
+            isActive: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        }),
+        prisma.validQuestion.count({ where })
+      ]);
+
+      // Procesar para formato uniforme
+      const processedQuestions = questions.map(q => ({
+        ...q,
+        questionText: q.parsedQuestion,
+        questionPreview: q.parsedQuestion.length > 100 ? q.parsedQuestion.substring(0, 100) + '...' : q.parsedQuestion,
+        parsedOptions: Array.isArray(q.parsedOptions) ? q.parsedOptions : JSON.parse(q.parsedOptions as string),
+        source: 'ValidQuestion',
+        status: q.isActive ? 'active' : 'inactive'
+      }));
+
+      return { questions: processedQuestions, totalCount };
+    };
+
+    // Función para Question
+    const getRegularQuestions = async () => {
+      const where: any = {};
+      
+      if (!showInactive) {
+        where.archived = false;
+      }
+
+      if (search) {
+        where.OR = [
+          { content: { contains: search, mode: 'insensitive' } },
+          { id: { contains: search, mode: 'insensitive' } },
+          { type: { contains: search, mode: 'insensitive' } },
+          { difficulty: { contains: search, mode: 'insensitive' } }
+        ];
+      }
+
+      const orderBy: any = {};
+      if (sortBy === 'sendCount') {
+        orderBy.sendCount = sortOrder;
+      } else if (sortBy === 'lastSent') {
+        orderBy.lastSuccessfulSendAt = { sort: sortOrder, nulls: 'last' };
+      } else {
+        orderBy[sortBy] = sortOrder;
+      }
+
+      // Consulta sin include para evitar el error de relación
+      const [questions, totalCount] = await Promise.all([
+        prisma.question.findMany({
+          where,
+          orderBy,
+          skip,
+          take: limit
+        }),
+        prisma.question.count({ where })
+      ]);
+
+      // Obtener los documentos por separado para las preguntas encontradas
+      const documentIds = Array.from(new Set(questions.map(q => q.documentId)));
+      const documents = await prisma.document.findMany({
+        where: {
+          id: {
+            in: documentIds
+          }
+        },
+        select: {
+          id: true,
+          title: true
+        }
+      });
+
+      // Crear un mapa de documentos para acceso rápido
+      const documentMap = new Map(documents.map(doc => [doc.id, doc]));
+
+      // Procesar para formato uniforme
+      const processedQuestions = questions.map(q => ({
+        id: q.id,
+        originalQuestionId: q.id,
+        questionText: q.content,
+        questionPreview: q.content.length > 100 ? q.content.substring(0, 100) + '...' : q.content,
+        parsedOptions: [], // Las preguntas regulares no tienen opciones parseadas
+        correctAnswerIndex: null,
+        parsedExplanation: null,
+        parseMethod: 'original',
+        type: q.type,
+        difficulty: q.difficulty,
+        bloomLevel: q.bloomLevel,
+        sendCount: q.sendCount,
+        lastSuccessfulSendAt: q.lastSuccessfulSendAt,
+        isActive: !q.archived,
+        createdAt: q.createdAt,
+        updatedAt: q.createdAt, // Question no tiene updatedAt
+        source: 'Question',
+        status: q.archived ? 'archived' : 'active',
+        documentTitle: documentMap.get(q.documentId)?.title || 'Documento eliminado' // Usar el mapa de documentos
+      }));
+
+      return { questions: processedQuestions, totalCount };
+    };
+
+    // Función para SectionQuestion
+    const getSectionQuestions = async () => {
+      const where: any = {};
+
+      if (search) {
+        where.OR = [
+          { content: { contains: search, mode: 'insensitive' } },
+          { id: { contains: search, mode: 'insensitive' } },
+          { type: { contains: search, mode: 'insensitive' } },
+          { difficulty: { contains: search, mode: 'insensitive' } }
+        ];
+      }
+
+      const orderBy: any = {};
+      if (sortBy === 'sendCount') {
+        orderBy.sendCount = sortOrder;
+      } else if (sortBy === 'lastSent') {
+        orderBy.lastSuccessfulSendAt = { sort: sortOrder, nulls: 'last' };
+      } else {
+        orderBy[sortBy] = sortOrder;
+      }
+
+      // Primero obtener las preguntas sin include
+      const [questions, totalCount] = await Promise.all([
+        prisma.sectionQuestion.findMany({
+          where,
+          orderBy,
+          skip,
+          take: limit
+        }),
+        prisma.sectionQuestion.count({ where })
+      ]);
+
+      // Obtener las secciones por separado
+      const sectionIds = Array.from(new Set(questions.map(q => q.sectionId)));
+      const sections = await prisma.section.findMany({
+        where: {
+          id: {
+            in: sectionIds
+          }
+        },
+        include: {
+          document: {
+            select: {
+              title: true
+            }
+          }
+        }
+      });
+
+      // Crear un mapa de secciones para acceso rápido
+      const sectionMap = new Map(sections.map(section => [section.id, section]));
+
+      // Procesar para formato uniforme
+      const processedQuestions = questions.map(q => {
+        const section = sectionMap.get(q.sectionId);
+        return {
+          id: q.id,
+          originalQuestionId: q.id,
+          questionText: q.content,
+          questionPreview: q.content.length > 100 ? q.content.substring(0, 100) + '...' : q.content,
+          parsedOptions: [], // Las preguntas de sección no tienen opciones parseadas
+          correctAnswerIndex: null,
+          parsedExplanation: null,
+          parseMethod: 'section',
+          type: q.type,
+          difficulty: q.difficulty,
+          bloomLevel: q.bloomLevel,
+          sendCount: q.sendCount,
+          lastSuccessfulSendAt: q.lastSuccessfulSendAt,
+          isActive: true,
+          createdAt: q.createdAt,
+          updatedAt: q.updatedAt,
+          source: 'SectionQuestion',
+          status: 'active',
+          sectionTitle: section?.title || 'Sección eliminada', // Usar el mapa de secciones
+          documentTitle: section?.document?.title || 'Documento eliminado' // Usar el mapa de secciones
+        };
+      });
+
+      return { questions: processedQuestions, totalCount };
+    };
+
+    // 🔥 FUNCIONES PARA LAS NUEVAS TABLAS CATEGORIZADAS
+    // Función helper genérica para tablas categorizadas
+    const getCategorizedQuestions = async (tableName: string, displayName: string) => {
+      const where: any = {};
+      
+      if (!showInactive) {
+        where.isActive = true;
+      }
+
+      if (search) {
+        where.OR = [
+          { question: { contains: search, mode: 'insensitive' } },
+          { title: { contains: search, mode: 'insensitive' } }, // 🔥 AGREGADO: Buscar en el campo title
+          { feedback: { contains: search, mode: 'insensitive' } }, // 🔥 AGREGADO: Buscar en el feedback
+          { sourceSection: { contains: search, mode: 'insensitive' } }, // 🔥 AGREGADO: Buscar en sourceSection
+          { id: { contains: search, mode: 'insensitive' } },
+          { type: { contains: search, mode: 'insensitive' } },
+          { difficulty: { contains: search, mode: 'insensitive' } },
+          { category: { contains: search, mode: 'insensitive' } }
+        ];
+      }
+
+      const orderBy: any = {};
+      if (sortBy === 'sendCount') {
+        orderBy.sendCount = sortOrder;
+      } else if (sortBy === 'lastSent') {
+        orderBy.lastSuccessfulSendAt = { sort: sortOrder, nulls: 'last' };
+      } else {
+        orderBy[sortBy] = sortOrder;
+      }
+
+      // Usar Prisma dinámicamente según la tabla
+      const model = (prisma as any)[tableName.toLowerCase()];
+      
+      const [questions, totalCount] = await Promise.all([
+        model.findMany({
+          where,
+          orderBy,
+          skip,
+          take: limit
+        }),
+        model.count({ where })
+      ]);
+
+      // Procesar para formato uniforme
+      const processedQuestions = questions.map((q: any) => {
+        // 🔥 GENERAR FORMATO GIFT COMPLETO DINÁMICAMENTE
+        const generateGiftContent = (question: any, displayName: string) => {
+          const title = question.title || `${displayName} (Texto Provisto)`;
+          const questionText = question.question || '';
+
+          // Construir contenido GIFT directamente sin comentarios
+          let giftContent = `<b>${title}</b><br><br>\n${questionText} {\n`;
+
+          // Agregar opciones con porcentajes
+          const options = Array.isArray(question.options) ? question.options : [];
+          options.forEach((option: string, index: number) => {
+            const prefix = index === question.correctAnswerIndex ? '=' : '~%-33.33333%';
+            giftContent += `${prefix}${option}\n`;
+          });
+
+          // Añadir retroalimentación
+          if (question.feedback) {
+            giftContent += `#### RETROALIMENTACIÓN:\n${question.feedback}\n`;
+          }
+
+          giftContent += '}';
+          return giftContent;
+        };
+
+        return {
+          id: q.id,
+          originalQuestionId: q.id,
+          questionText: generateGiftContent(q, displayName), // 🔥 GENERAR CONTENIDO GIFT COMPLETO DINÁMICAMENTE
+          questionTitle: q.title, // 🔥 MAPEAR EL TÍTULO PARA EL FRONTEND
+          questionPreview: q.question.length > 200 ? q.question.substring(0, 200) + '...' : q.question, // 🔥 PREVIEW DE LA PREGUNTA SIMPLE
+          parsedOptions: Array.isArray(q.options) ? q.options : [],
+          correctAnswerIndex: q.correctAnswerIndex,
+          parsedExplanation: null,
+          parseMethod: 'categorized',
+          type: q.type || 'gift',
+          difficulty: q.difficulty || 'OFICIAL',
+          bloomLevel: q.bloomLevel,
+          sendCount: q.sendCount,
+          lastSuccessfulSendAt: q.lastSuccessfulSendAt,
+          isActive: q.isActive,
+          createdAt: q.createdAt,
+          updatedAt: q.updatedAt,
+          source: tableName,
+          status: q.isActive ? 'active' : 'inactive',
+          category: q.category || displayName.toLowerCase()
+        };
+      });
+
+      return { questions: processedQuestions, totalCount };
+    };
+
+    // Funciones específicas para cada tabla
+    const getConstitucionQuestions = () => getCategorizedQuestions('Constitucion', 'Constitución');
+    const getDefensaNacionalQuestions = () => getCategorizedQuestions('DefensaNacional', 'Defensa Nacional');
+    const getRioQuestions = () => getCategorizedQuestions('Rio', 'RIO');
+    const getMinsdefQuestions = () => getCategorizedQuestions('Minsdef', 'MINSDEF');
+    const getOrganizacionFasQuestions = () => getCategorizedQuestions('OrganizacionFas', 'Organización FAS');
+    const getEmadQuestions = () => getCategorizedQuestions('Emad', 'EMAD');
+    const getEtQuestions = () => getCategorizedQuestions('Et', 'ET');
+    const getArmadaQuestions = () => getCategorizedQuestions('Armada', 'Armada');
+    const getAireQuestions = () => getCategorizedQuestions('Aire', 'Aire');
+    const getCarreraQuestions = () => getCategorizedQuestions('Carrera', 'Carrera');
+    const getTropaQuestions = () => getCategorizedQuestions('Tropa', 'Tropa');
+    const getRrooQuestions = () => getCategorizedQuestions('Rroo', 'RROO');
+    const getDerechosYDeberesQuestions = () => getCategorizedQuestions('DerechosYDeberes', 'Derechos y Deberes');
+    const getRegimenDisciplinarioQuestions = () => getCategorizedQuestions('RegimenDisciplinario', 'Régimen Disciplinario');
+    const getIniciativasQuejasQuestions = () => getCategorizedQuestions('IniciativasQuejas', 'Iniciativas y Quejas');
+    const getIgualdadQuestions = () => getCategorizedQuestions('Igualdad', 'Igualdad');
+    const getOmiQuestions = () => getCategorizedQuestions('Omi', 'OMI');
+    const getPacQuestions = () => getCategorizedQuestions('Pac', 'PAC');
+    const getSeguridadNacionalQuestions = () => getCategorizedQuestions('SeguridadNacional', 'Seguridad Nacional');
+    const getPdcQuestions = () => getCategorizedQuestions('Pdc', 'PDC');
+    const getOnuQuestions = () => getCategorizedQuestions('Onu', 'ONU');
+    const getOtanQuestions = () => getCategorizedQuestions('Otan', 'OTAN');
+    const getOsceQuestions = () => getCategorizedQuestions('Osce', 'OSCE');
+    const getUeQuestions = () => getCategorizedQuestions('Ue', 'UE');
+    const getMisionesInternacionalesQuestions = () => getCategorizedQuestions('MisionesInternacionales', 'Misiones Internacionales');
+
+    // Función para obtener todas las preguntas combinadas
+    const getAllQuestionsCombined = async () => {
+      // Para "All", obtenemos de cada tabla por separado y las combinamos
+      const validQuestionsResult = await getValidQuestions();
+      const regularQuestionsResult = await getRegularQuestions();
+      const sectionQuestionsResult = await getSectionQuestions();
+      
+      // 🔥 INCLUIR TODAS LAS NUEVAS TABLAS CATEGORIZADAS
+      const categorizedResults = await Promise.all([
+        getConstitucionQuestions(),
+        getDefensaNacionalQuestions(),
+        getRioQuestions(),
+        getMinsdefQuestions(),
+        getOrganizacionFasQuestions(),
+        getEmadQuestions(),
+        getEtQuestions(),
+        getArmadaQuestions(),
+        getAireQuestions(),
+        getCarreraQuestions(),
+        getTropaQuestions(),
+        getRrooQuestions(),
+        getDerechosYDeberesQuestions(),
+        getRegimenDisciplinarioQuestions(),
+        getIniciativasQuejasQuestions(),
+        getIgualdadQuestions(),
+        getOmiQuestions(),
+        getPacQuestions(),
+        getSeguridadNacionalQuestions(),
+        getPdcQuestions(),
+        getOnuQuestions(),
+        getOtanQuestions(),
+        getOsceQuestions(),
+        getUeQuestions(),
+        getMisionesInternacionalesQuestions()
+      ]);
+
+      const allQuestions = [
+        ...validQuestionsResult.questions,
+        ...regularQuestionsResult.questions,
+        ...sectionQuestionsResult.questions,
+        ...categorizedResults.flatMap(result => result.questions)
+      ];
+
+      // Ordenar todas las preguntas combinadas
+      allQuestions.sort((a, b) => {
+        if (sortBy === 'createdAt') {
+          return sortOrder === 'desc' 
+            ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        }
+        if (sortBy === 'sendCount') {
+          return sortOrder === 'desc' ? b.sendCount - a.sendCount : a.sendCount - b.sendCount;
+        }
+        return 0;
+      });
+
+      // Aplicar paginación manual
+      const paginatedQuestions = allQuestions.slice(skip, skip + limit);
+      const totalCount = allQuestions.length;
+
+      return { questions: paginatedQuestions, totalCount };
+    };
+
+    // Obtener preguntas según la fuente seleccionada
+    const result = await getQuestionsFromSource(source);
+    const totalPages = Math.ceil(result.totalCount / limit);
+
+    // Calcular estadísticas según la fuente
+    const getStats = async () => {
+      switch (source) {
+        case 'ValidQuestion':
+          return {
+            total: result.totalCount,
+            active: await prisma.validQuestion.count({ where: { isActive: true } }),
+            inactive: await prisma.validQuestion.count({ where: { isActive: false } }),
+            neverSent: await prisma.validQuestion.count({ where: { sendCount: 0 } }),
+            sentOnce: await prisma.validQuestion.count({ where: { sendCount: 1 } }),
+            sentMultiple: await prisma.validQuestion.count({ where: { sendCount: { gt: 1 } } })
+          };
+        case 'Question':
+          return {
+            total: result.totalCount,
+            active: await prisma.question.count({ where: { archived: false } }),
+            inactive: await prisma.question.count({ where: { archived: true } }),
+            neverSent: await prisma.question.count({ where: { sendCount: 0 } }),
+            sentOnce: await prisma.question.count({ where: { sendCount: 1 } }),
+            sentMultiple: await prisma.question.count({ where: { sendCount: { gt: 1 } } })
+          };
+        case 'SectionQuestion':
+          return {
+            total: result.totalCount,
+            active: await prisma.sectionQuestion.count(),
+            inactive: 0,
+            neverSent: await prisma.sectionQuestion.count({ where: { sendCount: 0 } }),
+            sentOnce: await prisma.sectionQuestion.count({ where: { sendCount: 1 } }),
+            sentMultiple: await prisma.sectionQuestion.count({ where: { sendCount: { gt: 1 } } })
+          };
+        // 🔥 ESTADÍSTICAS PARA TABLAS CATEGORIZADAS
+        case 'Constitucion':
+        case 'DefensaNacional':
+        case 'Rio':
+        case 'Minsdef':
+        case 'OrganizacionFas':
+        case 'Emad':
+        case 'Et':
+        case 'Armada':
+        case 'Aire':
+        case 'Carrera':
+        case 'Tropa':
+        case 'Rroo':
+        case 'DerechosYDeberes':
+        case 'RegimenDisciplinario':
+        case 'IniciativasQuejas':
+        case 'Igualdad':
+        case 'Omi':
+        case 'Pac':
+        case 'SeguridadNacional':
+        case 'Pdc':
+        case 'Onu':
+        case 'Otan':
+        case 'Osce':
+        case 'Ue':
+        case 'MisionesInternacionales':
+          const model = (prisma as any)[source.toLowerCase()];
+          return {
+            total: result.totalCount,
+            active: await model.count({ where: { isActive: true } }),
+            inactive: await model.count({ where: { isActive: false } }),
+            neverSent: await model.count({ where: { sendCount: 0 } }),
+            sentOnce: await model.count({ where: { sendCount: 1 } }),
+            sentMultiple: await model.count({ where: { sendCount: { gt: 1 } } })
+          };
+        case 'All':
+          const validStats = await prisma.validQuestion.aggregate({
+            _count: true,
+            _sum: { sendCount: true }
+          });
+          const questionStats = await prisma.question.aggregate({
+            _count: true,
+            _sum: { sendCount: true }
+          });
+          const sectionStats = await prisma.sectionQuestion.aggregate({
+            _count: true,
+            _sum: { sendCount: true }
+          });
+          
+          return {
+            total: result.totalCount,
+            active: result.totalCount,
+            inactive: 0,
+            neverSent: 0, // Sería complejo calcular esto para todas las tablas
+            sentOnce: 0,
+            sentMultiple: 0
+          };
+        default:
+          return {
+            total: 0,
+            active: 0,
+            inactive: 0,
+            neverSent: 0,
+            sentOnce: 0,
+            sentMultiple: 0
+          };
+      }
+    };
+
+    const stats = await getStats();
+
+    return NextResponse.json({
+      questions: result.questions,
+      pagination: {
+        page,
+        limit,
+        totalCount: result.totalCount,
+        totalPages,
+        hasMore: page < totalPages
+      },
+      stats,
+      source: source // Incluir información sobre la fuente
+    });
+
+  } catch (error) {
+    console.error('Error fetching questions:', error);
+    return NextResponse.json(
+      { error: 'Error interno del servidor' },
+      { status: 500 }
+    );
+  } finally {
+    await prisma.$disconnect();
+  }
+}

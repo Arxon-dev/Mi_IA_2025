@@ -1,0 +1,103 @@
+{
+  "fecha": "2025-06-10T14:13:35.914Z",
+  "cumplimiento": 35,
+  "resumen": {
+    "problemasEncontrados": 13,
+    "configuracionesVerificadas": 20
+  },
+  "detalles": {
+    "prompts": {
+      "total": 9,
+      "esperados": 6,
+      "detalles": {
+        "expertPrompt": {
+          "existe": false
+        },
+        "formatPrompt": {
+          "existe": false
+        },
+        "difficultyPrompt": {
+          "existe": false
+        },
+        "distractorsPrompt": {
+          "existe": false
+        },
+        "documentationPrompt": {
+          "existe": false
+        },
+        "qualityPrompt": {
+          "existe": false
+        }
+      }
+    },
+    "taxonomiaBloom": {
+      "total": 6,
+      "esperados": 6,
+      "niveles": {
+        "recordar": {
+          "existe": false
+        },
+        "comprender": {
+          "existe": false
+        },
+        "aplicar": {
+          "existe": false
+        },
+        "analizar": {
+          "existe": false
+        },
+        "evaluar": {
+          "existe": false
+        },
+        "crear": {
+          "existe": false
+        }
+      }
+    },
+    "limitesCaracteres": {
+      "preguntasLargas": 0,
+      "opcionesLargas": 0,
+      "explicacionesLargas": 0
+    },
+    "validaciones": {},
+    "apis": {},
+    "problemas": [
+      "Prompt faltante: expertPrompt",
+      "Prompt faltante: formatPrompt",
+      "Prompt faltante: difficultyPrompt",
+      "Prompt faltante: distractorsPrompt",
+      "Prompt faltante: documentationPrompt",
+      "Prompt faltante: qualityPrompt",
+      "Nivel Bloom faltante: recordar",
+      "Nivel Bloom faltante: comprender",
+      "Nivel Bloom faltante: aplicar",
+      "Nivel Bloom faltante: analizar",
+      "Nivel Bloom faltante: evaluar",
+      "Nivel Bloom faltante: crear",
+      "Suma de porcentajes Bloom: 0% (debe ser 100%)"
+    ],
+    "cumplimiento": 35,
+    "configuracionPreguntas": {
+      "existe": true,
+      "tipos": 4,
+      "dificultades": 3,
+      "longitudOpciones": "telegram"
+    },
+    "archivosPrompts": {
+      "expertPrompt.ts": true,
+      "formatPrompt.ts": true,
+      "difficultyPrompt.ts": true,
+      "distractorsPrompt.ts": true,
+      "documentationPrompt.ts": true,
+      "qualityPrompt.ts": true,
+      "telegramPrompt.ts": true
+    },
+    "archivosServicios": {
+      "bloomTaxonomyService.ts": true,
+      "promptService.ts": true,
+      "promptValidationService.ts": true,
+      "aiService.ts": true,
+      "questionGeneratorService.ts": true
+    }
+  }
+}

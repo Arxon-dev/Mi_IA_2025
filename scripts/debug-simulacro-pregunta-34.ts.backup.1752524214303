@@ -1,0 +1,129 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function debugSimulacroPregunta34() {
+  try {
+    console.log('🔍 DEBUGGING PROBLEMA PREGUNTA 34 DEL SIMULACRO');
+    console.log('==============================================');
+
+    const CARLOS_TELEGRAM_ID = '5793286375';
+
+    // 1. Buscar usuario Carlos
+    const user = await prisma.telegramUser.findUnique({
+      where: { telegramUserId: CARLOS_TELEGRAM_ID }
+    });
+
+    if (!user) {
+      console.error('❌ Usuario no encontrado');
+      return;
+    }
+
+    console.log('✅ Usuario encontrado:', user.firstName);
+
+    // 2. Buscar simulacro activo actual
+    const activeSimulacro = await prisma.simulacro.findFirst({
+      where: {
+        userId: user.id,
+        status: 'in_progress'
+      },
+      orderBy: { startedAt: 'desc' }
+    });
+
+    if (!activeSimulacro) {
+      console.log('❌ No hay simulacro activo');
+      return;
+    }
+
+    console.log('✅ Simulacro activo encontrado:', {
+      id: activeSimulacro.id,
+      startedAt: activeSimulacro.startedAt,
+      status: activeSimulacro.status
+    });
+
+    // 3. Verificar respuestas hasta la pregunta 33
+    const respuestas = await prisma.simulacroResponse.findMany({
+      where: { simulacroId: activeSimulacro.id },
+      orderBy: { questionNumber: 'asc' },
+      include: {
+        question: true
+      }
+    });
+
+    console.log(`\n📊 RESPUESTAS DEL SIMULACRO (Total: ${respuestas.length}):`);
+    
+    // Verificar estado de las primeras 35 preguntas
+    for (let i = 1; i <= 35; i++) {
+      const respuesta = respuestas.find(r => r.questionNumber === i);
+      if (respuesta) {
+        const estado = respuesta.answeredAt ? '✅ RESPONDIDA' : '⏳ PENDIENTE';
+        console.log(`   Pregunta ${i}: ${estado} - ${respuesta.answeredAt ? respuesta.answeredAt.toISOString() : 'Sin responder'}`);
+        
+        if (i === 34) {
+          console.log(`\n🔍 ANÁLISIS DETALLADO DE LA PREGUNTA 34:`);
+          console.log(`   Question ID: ${respuesta.questionId}`);
+          console.log(`   Categoría: ${respuesta.questionCategory}`);
+          console.log(`   Dificultad: ${respuesta.questionDifficulty}`);
+          console.log(`   Estado: ${respuesta.answeredAt ? 'RESPONDIDA' : 'PENDIENTE'}`);
+          
+          if (respuesta.question) {
+            const pregunta = respuesta.question.question;
+            console.log(`   Contenido: ${pregunta.substring(0, 100)}...`);
+            console.log(`   Longitud total: ${pregunta.length} caracteres`);
+            
+            // Simular el header que se va a usar
+            const header = `🎯 <b>SIMULACRO</b> ⏰ 34/100\n⏱️ 2h 30m\n\n`;
+            const totalLength = header.length + pregunta.length;
+            console.log(`   Header: "${header.replace('\n', '\\n').replace('<b>', '').replace('</b>', '')}"`);
+            console.log(`   Header length: ${header.length} caracteres`);
+            console.log(`   Total con pregunta: ${totalLength} caracteres`);
+            console.log(`   ¿Excede 300 chars?: ${totalLength > 300 ? '❌ SÍ' : '✅ NO'}`);
+          }
+        }
+      } else {
+        console.log(`   Pregunta ${i}: ❌ NO EXISTE EN RESPUESTAS`);
+      }
+    }
+
+    // 4. Verificar pregunta actual usando getCurrentQuestion logic
+    const respondidas = respuestas.filter(r => r.answeredAt !== null);
+    const siguientePregunta = respuestas.find(r => r.answeredAt === null);
+    
+    console.log(`\n🎯 ESTADO ACTUAL:`);
+    console.log(`   Respondidas: ${respondidas.length}`);
+    console.log(`   Siguiente pregunta: ${siguientePregunta ? siguientePregunta.questionNumber : 'NINGUNA'}`);
+    
+    if (siguientePregunta) {
+      console.log(`\n🔍 SIGUIENTE PREGUNTA A ENVIAR (${siguientePregunta.questionNumber}):`);
+      if (siguientePregunta.question) {
+        const content = siguientePregunta.question.question;
+        console.log(`   Contenido: ${content.substring(0, 200)}...`);
+        console.log(`   Longitud: ${content.length} caracteres`);
+        
+        // Verificar si es formato GIFT y contiene opciones
+        const isGift = content.includes('{') && content.includes('}');
+        console.log(`   ¿Es formato GIFT?: ${isGift ? '✅ SÍ' : '❌ NO'}`);
+        
+        if (isGift) {
+          // Extraer opciones del formato GIFT
+          const optionsMatch = content.match(/\{([^}]+)\}/);
+          if (optionsMatch) {
+            const optionsText = optionsMatch[1];
+            const options = optionsText.split(/[~=]/).filter(opt => opt.trim());
+            console.log(`   Opciones encontradas: ${options.length}`);
+            options.forEach((opt: string, idx: number) => {
+              console.log(`     ${idx + 1}. ${opt.trim().substring(0, 50)}...`);
+            });
+          }
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error('❌ Error en debug:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+debugSimulacroPregunta34().catch(console.error); 

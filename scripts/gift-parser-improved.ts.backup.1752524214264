@@ -1,0 +1,550 @@
+#!/usr/bin/env tsx
+
+/**
+ * PARSER GIFT MEJORADO PARA TABLA QUESTION
+ * 
+ * Parsea preguntas en formato GIFT de Moodle con estructura específica:
+ * - Título/contexto inicial
+ * - Pregunta principal + opciones entre llaves {}
+ * - Opciones marcadas con = (correcta) y ~ (incorrecta)
+ * 
+ * Características:
+ * - Manejo robusto de saltos de línea
+ * - Truncamiento inteligente para límites de Telegram
+ * - Preservación de calidad del contenido
+ * - Detección de respuesta correcta
+ */
+
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// Límites de Telegram
+const TELEGRAM_LIMITS = {
+  QUESTION_MAX_LENGTH: 200,
+  OPTION_MAX_LENGTH: 100,
+  EXPLANATION_MAX_LENGTH: 200
+};
+
+interface ParsedQuestion {
+  id: string;
+  title?: string;
+  question: string;
+  options: string[];
+  correctAnswerIndex: number;
+  explanation?: string;
+  originalLength: {
+    question: number;
+    longestOption: number;
+  };
+  truncated: {
+    question: boolean;
+    options: boolean[];
+  };
+  isValid: boolean;
+  errors: string[];
+}
+
+/**
+ * Truncar texto de manera inteligente preservando palabras completas
+ */
+function smartTruncate(text: string, maxLength: number): { text: string; wasTruncated: boolean } {
+  if (text.length <= maxLength) {
+    return { text, wasTruncated: false };
+  }
+  
+  // Buscar el último espacio antes del límite
+  let truncateAt = maxLength;
+  for (let i = maxLength - 1; i >= maxLength - 20 && i >= 0; i--) {
+    if (text[i] === ' ') {
+      truncateAt = i;
+      break;
+    }
+  }
+  
+  return {
+    text: text.substring(0, truncateAt).trim() + '...',
+    wasTruncated: true
+  };
+}
+
+/**
+ * Limpiar texto removiendo caracteres de control y espacios extras
+ */
+function cleanText(text: string): string {
+  return text
+    .replace(/[\r\n\t]+/g, ' ')  // Reemplazar saltos de línea y tabs con espacios
+    .replace(/\s+/g, ' ')        // Múltiples espacios en uno solo
+    .trim();                     // Remover espacios al inicio y final
+}
+
+/**
+ * Parser GIFT mejorado
+ */
+function parseGIFTImproved(content: string, questionId: string): ParsedQuestion | null {
+  try {
+    const result: ParsedQuestion = {
+      id: questionId,
+      question: '',
+      options: [],
+      correctAnswerIndex: -1,
+      originalLength: { question: 0, longestOption: 0 },
+      truncated: { question: false, options: [] },
+      isValid: false,
+      errors: []
+    };
+    
+    // Dividir el contenido por líneas para análisis
+    const lines = content.split('\n').map(line => line.trim()).filter(line => line);
+    
+    if (lines.length === 0) {
+      result.errors.push('Contenido vacío');
+      return result;
+    }
+    
+    // Buscar el patrón GIFT: título\npregunta{opciones}
+    // Primero intentar encontrar la línea con llaves
+    let questionText = '';
+    let optionsContent = '';
+    let foundStructure = false;
+    
+    // Método 1: Buscar línea que contiene tanto pregunta como llaves
+    for (const line of lines) {
+      if (line.includes('{') && line.includes('}')) {
+        const bracketStart = line.indexOf('{');
+        const bracketEnd = line.lastIndexOf('}');
+        
+        if (bracketStart !== -1 && bracketEnd !== -1 && bracketEnd > bracketStart) {
+          questionText = line.substring(0, bracketStart).trim();
+          optionsContent = line.substring(bracketStart + 1, bracketEnd).trim();
+          foundStructure = true;
+          break;
+        }
+      }
+    }
+    
+    // Método 2: Buscar estructura multi-línea
+    if (!foundStructure) {
+      let currentText = '';
+      let insideOptions = false;
+      let optionLines: string[] = [];
+      
+      for (const line of lines) {
+        if (line.includes('{') && !insideOptions) {
+          // Inicio de la sección de opciones
+          const bracketPos = line.indexOf('{');
+          const beforeBracket = line.substring(0, bracketPos).trim();
+          const afterBracket = line.substring(bracketPos + 1).trim();
+          
+          if (beforeBracket) {
+            currentText += ' ' + beforeBracket;
+          }
+          if (afterBracket) {
+            optionLines.push(afterBracket);
+          }
+          insideOptions = true;
+        } else if (line.includes('}') && insideOptions) {
+          // Final de la sección de opciones
+          const bracketPos = line.indexOf('}');
+          const beforeBracket = line.substring(0, bracketPos).trim();
+          
+          if (beforeBracket) {
+            optionLines.push(beforeBracket);
+          }
+          insideOptions = false;
+          foundStructure = true;
+          break;
+        } else if (insideOptions) {
+          // Dentro de la sección de opciones
+          optionLines.push(line);
+        } else {
+          // Antes de las opciones (parte de la pregunta)
+          currentText += ' ' + line;
+        }
+      }
+      
+      if (foundStructure) {
+        questionText = currentText.trim();
+        optionsContent = optionLines.join('\n');
+      }
+    }
+    
+    // Método 3: Si no encontramos llaves, intentar buscar estructura más flexible
+    if (!foundStructure && content.includes('=') && content.includes('~')) {
+      // Buscar donde empiezan las opciones (primera línea con = o ~)
+      let questionLines: string[] = [];
+      let optionLines: string[] = [];
+      let foundFirstOption = false;
+      
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if ((trimmed.startsWith('=') || trimmed.startsWith('~')) && !foundFirstOption) {
+          foundFirstOption = true;
+          optionLines.push(trimmed);
+        } else if (foundFirstOption) {
+          if (trimmed.startsWith('=') || trimmed.startsWith('~')) {
+            optionLines.push(trimmed);
+          } else if (trimmed.includes('RETROALIMENTACIÓN') || trimmed.includes('####')) {
+            // Final de opciones
+            break;
+          }
+        } else {
+          questionLines.push(trimmed);
+        }
+      }
+      
+      if (questionLines.length > 0 && optionLines.length > 0) {
+        questionText = questionLines.join(' ');
+        optionsContent = optionLines.join('\n');
+        foundStructure = true;
+      }
+    }
+    
+    if (!foundStructure) {
+      result.errors.push('No se encontró estructura GIFT válida');
+      return result;
+    }
+    
+    // Limpiar y validar la pregunta
+    if (!questionText) {
+      result.errors.push('Pregunta vacía');
+      return result;
+    }
+    
+    const cleanQuestion = cleanText(questionText);
+    result.originalLength.question = cleanQuestion.length;
+    
+    // Truncar pregunta si es necesario
+    const questionResult = smartTruncate(cleanQuestion, TELEGRAM_LIMITS.QUESTION_MAX_LENGTH);
+    result.question = questionResult.text;
+    result.truncated.question = questionResult.wasTruncated;
+    
+    // Parsear opciones con métodos múltiples
+    const options: string[] = [];
+    let correctIndex = -1;
+    
+    // Dividir el contenido de opciones por líneas
+    const optionLines = optionsContent.split(/[\n\r]+/);
+    
+    // Buscar opciones marcadas con = o ~
+    for (const optionLine of optionLines) {
+      const trimmed = optionLine.trim();
+      if (!trimmed) continue;
+      
+      let isCorrect = false;
+      let optionText = '';
+      
+      // Detectar si es opción correcta (=) o incorrecta (~)
+      if (trimmed.startsWith('=')) {
+        isCorrect = true;
+        optionText = trimmed.substring(1).trim();
+      } else if (trimmed.startsWith('~')) {
+        isCorrect = false;
+        optionText = trimmed.substring(1).trim();
+      } else {
+        // Línea que no es opción, saltar
+        continue;
+      }
+      
+      if (optionText && !optionText.includes('RETROALIMENTACIÓN') && !optionText.includes('####')) {
+        const cleanOption = cleanText(optionText);
+        
+        if (isCorrect) {
+          correctIndex = options.length;
+        }
+        
+        // Truncar opción si es necesario
+        const optionResult = smartTruncate(cleanOption, TELEGRAM_LIMITS.OPTION_MAX_LENGTH);
+        options.push(optionResult.text);
+        result.truncated.options.push(optionResult.wasTruncated);
+        
+        // Actualizar longitud máxima de opción
+        if (cleanOption.length > result.originalLength.longestOption) {
+          result.originalLength.longestOption = cleanOption.length;
+        }
+      }
+    }
+    
+    // Si no se encontraron opciones con el método anterior, usar regex
+    if (options.length === 0) {
+      const giftPatterns = optionsContent.match(/[=~]\s*([^=~\n\r]+)/g);
+      if (giftPatterns) {
+        for (const pattern of giftPatterns) {
+          const isCorrect = pattern.startsWith('=');
+          const optionText = pattern.substring(1).trim();
+          
+          if (optionText && !optionText.includes('RETROALIMENTACIÓN') && !optionText.includes('####')) {
+            const cleanOption = cleanText(optionText);
+            
+            if (isCorrect) {
+              correctIndex = options.length;
+            }
+            
+            const optionResult = smartTruncate(cleanOption, TELEGRAM_LIMITS.OPTION_MAX_LENGTH);
+            options.push(optionResult.text);
+            result.truncated.options.push(optionResult.wasTruncated);
+            
+            if (cleanOption.length > result.originalLength.longestOption) {
+              result.originalLength.longestOption = cleanOption.length;
+            }
+          }
+        }
+      }
+    }
+    
+    // Validaciones finales
+    if (options.length === 0) {
+      result.errors.push('No se encontraron opciones válidas');
+      return result;
+    }
+    
+    if (options.length < 2) {
+      result.errors.push('Se necesitan al menos 2 opciones');
+      return result;
+    }
+    
+    if (options.length > 10) {
+      result.errors.push('Máximo 10 opciones permitidas en Telegram');
+      return result;
+    }
+    
+    if (correctIndex === -1) {
+      result.errors.push('No se encontró respuesta correcta marcada con =');
+      return result;
+    }
+    
+    // Verificar si alguna opción está vacía
+    for (let i = 0; i < options.length; i++) {
+      if (!options[i] || options[i].trim() === '') {
+        result.errors.push(`Opción ${i + 1} está vacía`);
+        return result;
+      }
+    }
+    
+    // Asignar resultados finales
+    result.options = options;
+    result.correctAnswerIndex = correctIndex;
+    result.isValid = result.errors.length === 0;
+    
+    return result;
+    
+  } catch (error) {
+    return {
+      id: questionId,
+      question: '',
+      options: [],
+      correctAnswerIndex: -1,
+      originalLength: { question: 0, longestOption: 0 },
+      truncated: { question: false, options: [] },
+      isValid: false,
+      errors: [`Error de parsing: ${error instanceof Error ? error.message : 'Unknown error'}`]
+    };
+  }
+}
+
+/**
+ * Probar el parser con ejemplos reales de la base de datos
+ */
+async function testParserWithRealData() {
+  console.log('🧪 Probando parser GIFT mejorado con datos reales...\n');
+  
+  const samples = await prisma.question.findMany({
+    take: 10,
+    select: {
+      id: true,
+      content: true,
+      type: true,
+      difficulty: true
+    },
+    where: {
+      archived: false
+    }
+  });
+  
+  let validCount = 0;
+  let invalidCount = 0;
+  
+  for (let i = 0; i < samples.length; i++) {
+    const sample = samples[i];
+    console.log(`--- Probando Pregunta ${i + 1} ---`);
+    console.log(`ID: ${sample.id}`);
+    console.log(`Longitud original: ${sample.content.length} caracteres\n`);
+    
+    const parsed = parseGIFTImproved(sample.content, sample.id);
+    
+    if (parsed?.isValid) {
+      validCount++;
+      console.log('✅ PARSEADO EXITOSAMENTE');
+      console.log(`Pregunta: ${parsed.question}`);
+      console.log(`Opciones (${parsed.options.length}):`);
+      parsed.options.forEach((option, idx) => {
+        const marker = idx === parsed.correctAnswerIndex ? '✓' : ' ';
+        const truncated = parsed.truncated.options[idx] ? ' (truncada)' : '';
+        console.log(`  ${marker} ${idx + 1}. ${option}${truncated}`);
+      });
+      
+      if (parsed.truncated.question) {
+        console.log('⚠️ Pregunta fue truncada');
+      }
+      
+      const truncatedOptions = parsed.truncated.options.filter(t => t).length;
+      if (truncatedOptions > 0) {
+        console.log(`⚠️ ${truncatedOptions} opciones fueron truncadas`);
+      }
+      
+    } else {
+      invalidCount++;
+      console.log('❌ ERROR AL PARSEAR');
+      console.log(`Errores: ${parsed?.errors.join(', ') || 'Unknown'}`);
+      
+      // Mostrar primeros 200 caracteres para debug
+      console.log(`Contenido (200 chars): ${sample.content.substring(0, 200)}...`);
+    }
+    
+    console.log('\n' + '='.repeat(80) + '\n');
+  }
+  
+  console.log(`📊 RESULTADOS DEL TEST:`);
+  console.log(`✅ Válidas: ${validCount}/${samples.length} (${(validCount/samples.length*100).toFixed(1)}%)`);
+  console.log(`❌ Inválidas: ${invalidCount}/${samples.length} (${(invalidCount/samples.length*100).toFixed(1)}%)`);
+}
+
+/**
+ * Analizar toda la tabla Question con el parser mejorado
+ */
+async function analyzeFullTableWithImprovedParser() {
+  console.log('📊 Analizando tabla completa con parser GIFT mejorado...\n');
+  
+  const totalQuestions = await prisma.question.count({ where: { archived: false } });
+  console.log(`Total de preguntas a procesar: ${totalQuestions}\n`);
+  
+  const batchSize = 100;
+  let processedCount = 0;
+  let validCount = 0;
+  let invalidCount = 0;
+  
+  const stats = {
+    truncatedQuestions: 0,
+    truncatedOptions: 0,
+    averageQuestionLength: 0,
+    averageOptionLength: 0,
+    totalQuestionLength: 0,
+    totalOptionLength: 0,
+    totalOptions: 0
+  };
+  
+  // Procesar en lotes
+  for (let offset = 0; offset < totalQuestions; offset += batchSize) {
+    const batch = await prisma.question.findMany({
+      skip: offset,
+      take: batchSize,
+      select: {
+        id: true,
+        content: true
+      },
+      where: {
+        archived: false
+      }
+    });
+    
+    for (const question of batch) {
+      const parsed = parseGIFTImproved(question.content, question.id);
+      processedCount++;
+      
+      if (parsed?.isValid) {
+        validCount++;
+        
+        // Recopilar estadísticas
+        stats.totalQuestionLength += parsed.originalLength.question;
+        stats.totalOptionLength += parsed.originalLength.longestOption;
+        stats.totalOptions += parsed.options.length;
+        
+        if (parsed.truncated.question) {
+          stats.truncatedQuestions++;
+        }
+        
+        const truncatedOptionsCount = parsed.truncated.options.filter(t => t).length;
+        stats.truncatedOptions += truncatedOptionsCount;
+        
+      } else {
+        invalidCount++;
+      }
+      
+      // Mostrar progreso cada 1000 preguntas
+      if (processedCount % 1000 === 0) {
+        const progress = (processedCount / totalQuestions * 100).toFixed(1);
+        console.log(`Progreso: ${processedCount}/${totalQuestions} (${progress}%) - Válidas: ${validCount}`);
+      }
+    }
+  }
+  
+  // Calcular promedios
+  if (validCount > 0) {
+    stats.averageQuestionLength = stats.totalQuestionLength / validCount;
+    stats.averageOptionLength = stats.totalOptionLength / validCount;
+  }
+  
+  // Mostrar resultados finales
+  console.log('\n🎉 ANÁLISIS COMPLETADO\n');
+  console.log('📊 RESULTADOS FINALES:');
+  console.log(`Total procesadas: ${processedCount.toLocaleString()}`);
+  console.log(`✅ Válidas: ${validCount.toLocaleString()} (${(validCount/processedCount*100).toFixed(2)}%)`);
+  console.log(`❌ Inválidas: ${invalidCount.toLocaleString()} (${(invalidCount/processedCount*100).toFixed(2)}%)`);
+  
+  console.log('\n📈 ESTADÍSTICAS DE CONTENIDO:');
+  console.log(`Longitud promedio de preguntas: ${stats.averageQuestionLength.toFixed(1)} caracteres`);
+  console.log(`Longitud promedio de opciones: ${stats.averageOptionLength.toFixed(1)} caracteres`);
+  console.log(`Preguntas truncadas: ${stats.truncatedQuestions.toLocaleString()}`);
+  console.log(`Opciones truncadas: ${stats.truncatedOptions.toLocaleString()}`);
+  
+  console.log('\n💡 RECOMENDACIÓN:');
+  if (validCount > 1000) {
+    console.log(`¡Excelente! Tienes ${validCount.toLocaleString()} preguntas válidas listas para migrar.`);
+  } else if (validCount > 100) {
+    console.log(`Bueno! Tienes ${validCount.toLocaleString()} preguntas válidas. Considera optimizar el parser para más.`);
+  } else {
+    console.log(`El parser necesita más trabajo. Solo ${validCount} preguntas válidas encontradas.`);
+  }
+  
+  return {
+    total: processedCount,
+    valid: validCount,
+    invalid: invalidCount,
+    validPercentage: (validCount / processedCount) * 100,
+    stats
+  };
+}
+
+/**
+ * Función principal
+ */
+async function main() {
+  const args = process.argv.slice(2);
+  const command = args[0] || 'test';
+  
+  try {
+    switch (command) {
+      case 'test':
+        await testParserWithRealData();
+        break;
+      case 'analyze':
+        await analyzeFullTableWithImprovedParser();
+        break;
+      default:
+        console.log('Uso: npx tsx gift-parser-improved.ts [test|analyze]');
+        console.log('  test    - Probar parser con 10 ejemplos');
+        console.log('  analyze - Analizar toda la tabla Question');
+    }
+  } catch (error) {
+    console.error('❌ Error:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Ejecutar si se llama directamente
+if (require.main === module) {
+  main();
+}
+
+export { parseGIFTImproved, type ParsedQuestion }; 

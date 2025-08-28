@@ -1,0 +1,174 @@
+import { PrismaClient } from '@prisma/client';
+import fs from 'fs';
+import path from 'path';
+
+const prisma = new PrismaClient();
+
+function getValues(sql: string): any[] | null {
+    const valuesMatch = sql.match(/VALUES \((.*)\)/s);
+    if (!valuesMatch) return null;
+
+    let valuesString = valuesMatch[1];
+    const values: any[] = [];
+    let current_value = '';
+    let in_string = false;
+    let bracket_level = 0;
+    let paren_level = 0;
+    
+    for (let i = 0; i < valuesString.length; i++) {
+        const char = valuesString[i];
+        
+        if (char === "'" && (i === 0 || valuesString[i-1] !== "'")) {
+            in_string = !in_string;
+        }
+
+        if (!in_string) {
+            if (char === '[') bracket_level++;
+            else if (char === ']') bracket_level--;
+            else if (char === '(') paren_level++;
+            else if (char === ')') paren_level--;
+        }
+
+        if (char === ',' && !in_string && bracket_level === 0 && paren_level === 0) {
+            values.push(current_value.trim());
+            current_value = '';
+        } else {
+            current_value += char;
+        }
+    }
+    values.push(current_value.trim());
+
+    return values.map(v => {
+        let trimmedV = typeof v === 'string' ? v.trim() : v;
+
+        if (typeof trimmedV === 'string' && trimmedV.startsWith("'") && trimmedV.endsWith("'")) {
+            const inner = trimmedV.slice(1, -1);
+            return inner.replace(/''/g, "'");
+        }
+        
+        if (trimmedV === 'NULL') return null;
+        if (trimmedV === 'TRUE') return true;
+        if (trimmedV === 'FALSE') return false;
+        
+        if (!isNaN(Number(trimmedV)) && trimmedV !== '' && !/[a-z]/i.test(trimmedV)) {
+             return Number(trimmedV);
+        }
+
+        return trimmedV;
+    });
+}
+
+
+function getColumnNames(sql: string): string[] | null {
+    const match = sql.match(/INSERT INTO "[^"]+" \(([^)]+)\)/i);
+    if (!match) return null;
+    return match[1].split(',').map(name => name.trim().replace(/"/g, ''));
+}
+
+async function main() {
+    const filePath = process.argv[2];
+    const modelName = "ValidQuestion";
+
+    if (!filePath) {
+        console.error("Usage: ts-node scripts/import-valid-questions.ts <path/to/sql/file.c>");
+        process.exit(1);
+    }
+
+    const modelNameCamel = modelName.charAt(0).toLowerCase() + modelName.slice(1);
+    if (!(modelNameCamel in prisma)) {
+        console.error(`Model '${modelName}' (as '${modelNameCamel}') not found in Prisma Client.`);
+        process.exit(1);
+    }
+    
+    const prismaModel = (prisma as any)[modelNameCamel];
+
+    console.log(`Starting data import for ${modelName} from ${filePath}...`);
+
+    try {
+        const sqlContent = fs.readFileSync(path.resolve(filePath), 'utf-8');
+        const statements = sqlContent.split(/;\s*[\r\n]+/g).filter(s => s.trim().startsWith('INSERT'));
+
+        if (statements.length === 0) {
+            console.log('No INSERT statements found in the file.');
+            return;
+        }
+
+        console.log(`Found ${statements.length} statements to process.`);
+
+        const transformedData = [];
+
+        for (const stmt of statements) {
+            const columns = getColumnNames(stmt);
+            const values = getValues(stmt);
+
+            if (columns && values && columns.length === values.length) {
+                const rawData: { [key: string]: any } = {};
+                columns.forEach((col, index) => {
+                    rawData[col] = values[index];
+                });
+
+                try {
+                    const parsedOptions = typeof rawData.parsedOptions === 'string'
+                        ? JSON.parse(rawData.parsedOptions)
+                        : rawData.parsedOptions;
+
+                    const dataToCreate = {
+                        id: rawData.id,
+                        originalQuestionId: rawData.originalQuestionId,
+                        content: rawData.content,
+                        parsedQuestion: rawData.parsedQuestion,
+                        parsedOptions: parsedOptions, // This should be a JSON object
+                        correctAnswerIndex: rawData.correctAnswerIndex,
+                        parsedExplanation: rawData.parsedExplanation,
+                        parseMethod: rawData.parseMethod,
+                        type: rawData.type,
+                        difficulty: rawData.difficulty,
+                        bloomLevel: rawData.bloomLevel,
+                        documentId: rawData.documentId,
+                        sendCount: rawData.sendCount,
+                        lastSuccessfulSendAt: rawData.lastSuccessfulSendAt ? new Date(rawData.lastSuccessfulSendAt) : null,
+                        isActive: rawData.isActive,
+                        createdAt: rawData.createdAt ? new Date(rawData.createdAt) : new Date(),
+                        updatedAt: rawData.updatedAt ? new Date(rawData.updatedAt) : new Date(),
+                        lastUsedInTournament: rawData.lastUsedInTournament ? new Date(rawData.lastUsedInTournament) : null,
+                        tournamentUsageCount: rawData.tournamentUsageCount,
+                        lastTournamentId: rawData.lastTournamentId
+                    };
+                    
+                    Object.keys(dataToCreate).forEach(key => {
+                        if ((dataToCreate as any)[key] === undefined) {
+                            delete (dataToCreate as any)[key];
+                        }
+                    });
+
+                    transformedData.push(dataToCreate);
+                } catch (error) {
+                    console.warn(`Skipping row for originalQuestionId ${rawData.originalQuestionId} due to validation/transformation error:`, error);
+                    console.log('Problematic raw data:', rawData);
+                }
+            } else {
+                console.warn("Skipping a statement because column and value counts do not match or parsing failed.");
+            }
+        }
+        
+        if (transformedData.length > 0) {
+            console.log(`Inserting ${transformedData.length} records into ${modelName}...`);
+            await prismaModel.createMany({
+                data: transformedData,
+                skipDuplicates: true,
+            });
+            console.log(`Insertion for ${modelName} completed.`);
+        } else {
+            console.log("No valid data was transformed. Nothing to insert.");
+        }
+
+        console.log(`Data import for ${modelName} completed successfully!`);
+    } catch (error) {
+        console.error(`An error occurred during data import for ${modelName}:`, error);
+        process.exit(1);
+    } finally {
+        await prisma.$disconnect();
+    }
+}
+
+main(); 

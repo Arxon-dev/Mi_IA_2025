@@ -1,0 +1,271 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_neuroopositor/dashboard
+
+    Dashboard principal del plugin NeuroOpositor
+
+    Context variables required for this template:
+    * user_stats - Estadísticas del usuario
+    * recent_activity - Actividad reciente
+    * recommendations - Recomendaciones de IA
+    * neural_map_url - URL del mapa neural
+    * questions_url - URL de preguntas
+    * statistics_url - URL de estadísticas
+}}
+
+<div class="neuroopositor-dashboard">
+    <!-- Header del Dashboard -->
+    <div class="dashboard-header">
+        <div class="row">
+            <div class="col-md-8">
+                <h2 class="dashboard-title">
+                    <i class="fa fa-brain"></i>
+                    {{#str}}dashboard_title, local_neuroopositor{{/str}}
+                </h2>
+                <p class="dashboard-subtitle">{{#str}}dashboard_subtitle, local_neuroopositor{{/str}}</p>
+            </div>
+            <div class="col-md-4 text-right">
+                <div class="user-level-badge">
+                    <span class="badge badge-primary badge-lg">
+                        {{#str}}level, local_neuroopositor{{/str}}: {{user_stats.level}}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estadísticas Principales -->
+    <div class="dashboard-stats">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="stat-card progress-card">
+                    <div class="stat-icon">
+                        <i class="fa fa-chart-line"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{user_stats.overall_progress}}%</h3>
+                        <p>{{#str}}overall_progress, local_neuroopositor{{/str}}</p>
+                        <div class="progress">
+                            <div class="progress-bar" style="width: {{user_stats.overall_progress}}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card accuracy-card">
+                    <div class="stat-icon">
+                        <i class="fa fa-bullseye"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{user_stats.accuracy}}%</h3>
+                        <p>{{#str}}accuracy, local_neuroopositor{{/str}}</p>
+                        <small>{{user_stats.correct_answers}}/{{user_stats.total_answers}} {{#str}}questions, local_neuroopositor{{/str}}</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card streak-card">
+                    <div class="stat-icon">
+                        <i class="fa fa-fire"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{user_stats.streak}}</h3>
+                        <p>{{#str}}current_streak, local_neuroopositor{{/str}}</p>
+                        <small>{{#str}}days, local_neuroopositor{{/str}}</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card time-card">
+                    <div class="stat-icon">
+                        <i class="fa fa-clock"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{user_stats.study_time_formatted}}</h3>
+                        <p>{{#str}}study_time, local_neuroopositor{{/str}}</p>
+                        <small>{{#str}}total_time, local_neuroopositor{{/str}}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acciones Rápidas -->
+    <div class="dashboard-actions">
+        <div class="row">
+            <div class="col-md-4">
+                <a href="{{neural_map_url}}" class="action-card neural-map-card">
+                    <div class="action-icon">
+                        <i class="fa fa-project-diagram"></i>
+                    </div>
+                    <div class="action-content">
+                        <h4>{{#str}}neural_map, local_neuroopositor{{/str}}</h4>
+                        <p>{{#str}}neural_map_desc, local_neuroopositor{{/str}}</p>
+                    </div>
+                    <div class="action-arrow">
+                        <i class="fa fa-arrow-right"></i>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="{{questions_url}}" class="action-card questions-card">
+                    <div class="action-icon">
+                        <i class="fa fa-question-circle"></i>
+                    </div>
+                    <div class="action-content">
+                        <h4>{{#str}}practice_questions, local_neuroopositor{{/str}}</h4>
+                        <p>{{#str}}practice_questions_desc, local_neuroopositor{{/str}}</p>
+                    </div>
+                    <div class="action-arrow">
+                        <i class="fa fa-arrow-right"></i>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="{{statistics_url}}" class="action-card statistics-card">
+                    <div class="action-icon">
+                        <i class="fa fa-chart-bar"></i>
+                    </div>
+                    <div class="action-content">
+                        <h4>{{#str}}detailed_statistics, local_neuroopositor{{/str}}</h4>
+                        <p>{{#str}}detailed_statistics_desc, local_neuroopositor{{/str}}</p>
+                    </div>
+                    <div class="action-arrow">
+                        <i class="fa fa-arrow-right"></i>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recomendaciones de IA -->
+    {{#recommendations}}
+    <div class="dashboard-recommendations">
+        <h3 class="section-title">
+            <i class="fa fa-robot"></i>
+            {{#str}}ai_recommendations, local_neuroopositor{{/str}}
+        </h3>
+        <div class="recommendations-container">
+            {{#items}}
+            <div class="recommendation-card priority-{{prioridad}}">
+                <div class="recommendation-icon">
+                    {{#tipo_icon}}
+                    <i class="fa fa-{{tipo_icon}}"></i>
+                    {{/tipo_icon}}
+                </div>
+                <div class="recommendation-content">
+                    <h5>{{titulo}}</h5>
+                    <p>{{contenido}}</p>
+                    {{#action_url}}
+                    <a href="{{action_url}}" class="btn btn-sm btn-primary">{{action_text}}</a>
+                    {{/action_url}}
+                </div>
+                <div class="recommendation-priority">
+                    <span class="priority-badge priority-{{prioridad}}">{{prioridad_text}}</span>
+                </div>
+            </div>
+            {{/items}}
+        </div>
+    </div>
+    {{/recommendations}}
+
+    <!-- Actividad Reciente -->
+    {{#recent_activity}}
+    <div class="dashboard-activity">
+        <div class="row">
+            <div class="col-md-6">
+                <h3 class="section-title">
+                    <i class="fa fa-history"></i>
+                    {{#str}}recent_activity, local_neuroopositor{{/str}}
+                </h3>
+                <div class="activity-list">
+                    {{#items}}
+                    <div class="activity-item">
+                        <div class="activity-icon {{type}}">
+                            <i class="fa fa-{{icon}}"></i>
+                        </div>
+                        <div class="activity-content">
+                            <p>{{description}}</p>
+                            <small class="text-muted">{{time_ago}}</small>
+                        </div>
+                    </div>
+                    {{/items}}
+                </div>
+            </div>
+            <div class="col-md-6">
+                <h3 class="section-title">
+                    <i class="fa fa-trophy"></i>
+                    {{#str}}achievements, local_neuroopositor{{/str}}
+                </h3>
+                <div class="achievements-grid">
+                    {{#achievements}}
+                    <div class="achievement-badge {{#unlocked}}unlocked{{/unlocked}}{{^unlocked}}locked{{/unlocked}}">
+                        <div class="achievement-icon">
+                            <i class="fa fa-{{icon}}"></i>
+                        </div>
+                        <div class="achievement-info">
+                            <h6>{{name}}</h6>
+                            <small>{{description}}</small>
+                        </div>
+                    </div>
+                    {{/achievements}}
+                </div>
+            </div>
+        </div>
+    </div>
+    {{/recent_activity}}
+
+    <!-- Progreso por Bloques -->
+    {{#block_progress}}
+    <div class="dashboard-blocks">
+        <h3 class="section-title">
+            <i class="fa fa-cubes"></i>
+            {{#str}}progress_by_blocks, local_neuroopositor{{/str}}
+        </h3>
+        <div class="blocks-grid">
+            {{#blocks}}
+            <div class="block-card">
+                <div class="block-header">
+                    <h4>{{#str}}block, local_neuroopositor{{/str}} {{numero}}</h4>
+                    <span class="block-progress-percent">{{progress}}%</span>
+                </div>
+                <div class="block-title">
+                    <h5>{{titulo}}</h5>
+                </div>
+                <div class="block-progress-bar">
+                    <div class="progress">
+                        <div class="progress-bar" style="width: {{progress}}%; background-color: {{color}}"></div>
+                    </div>
+                </div>
+                <div class="block-stats">
+                    <small>
+                        {{completed_topics}}/{{total_topics}} {{#str}}topics_completed, local_neuroopositor{{/str}}
+                    </small>
+                </div>
+            </div>
+            {{/blocks}}
+        </div>
+    </div>
+    {{/block_progress}}
+</div>
+
+{{#js}}
+require(['local_neuroopositor/dashboard'], function(Dashboard) {
+    Dashboard.init();
+});
+{{/js}}

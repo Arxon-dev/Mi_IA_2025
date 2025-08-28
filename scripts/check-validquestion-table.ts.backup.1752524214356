@@ -1,0 +1,181 @@
+#!/usr/bin/env tsx
+
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+const TELEGRAM_POLL_MAX_LENGTH = 300;
+
+async function checkValidQuestionTable() {
+  try {
+    console.log('🔍 ANÁLISIS DE LA TABLA ValidQuestion');
+    console.log('=====================================\n');
+    
+    // 1. Contar total de preguntas
+    const totalValidQuestions = await prisma.validQuestion.count();
+    console.log(`📊 Total de preguntas en ValidQuestion: ${totalValidQuestions}`);
+    
+    if (totalValidQuestions === 0) {
+      console.log('❌ No hay preguntas en la tabla ValidQuestion');
+      return;
+    }
+    
+    // 2. Analizar estructura de algunas preguntas
+    const sampleQuestions = await prisma.validQuestion.findMany({
+      take: 5,
+      select: {
+        id: true,
+        parsedQuestion: true,
+        parsedOptions: true,
+        correctAnswerIndex: true,
+        type: true,
+        difficulty: true,
+        sendCount: true,
+        isActive: true,
+        bloomLevel: true
+      }
+    });
+    
+    console.log('\n🔬 ANÁLISIS DE ESTRUCTURA:');
+    console.log('Campo parsedQuestion: ✅ Compatible (equivale a "question")');
+    console.log('Campo parsedOptions: ✅ Compatible (equivale a "options")');
+    console.log('Campo correctAnswerIndex: ✅ Compatible');
+    console.log('Campo type: ✅ Compatible (equivale a "category")');
+    console.log('Campo difficulty: ✅ Compatible');
+    console.log('Campo sendCount: ✅ Compatible');
+    console.log('Campo isActive: ✅ Compatible');
+    
+    // 3. Verificar si las opciones están en formato correcto
+    console.log('\n📋 MUESTRA DE PREGUNTAS:');
+    for (const question of sampleQuestions) {
+      console.log(`\n🆔 ID: ${question.id}`);
+      console.log(`❓ Pregunta (${question.parsedQuestion.length} chars): ${question.parsedQuestion.substring(0, 100)}...`);
+      
+      // Verificar formato de opciones
+      const options = question.parsedOptions as string[];
+      if (Array.isArray(options)) {
+        console.log(`✅ Opciones (${options.length}): ${options.map(opt => opt.substring(0, 30) + '...').join(' | ')}`);
+        console.log(`🎯 Respuesta correcta: ${options[question.correctAnswerIndex] || 'ÍNDICE INVÁLIDO'}`);
+      } else {
+        console.log(`❌ Opciones no están en formato array: ${typeof question.parsedOptions}`);
+      }
+      
+      console.log(`🏷️ Tipo: ${question.type || 'N/A'} | Dificultad: ${question.difficulty || 'N/A'}`);
+      console.log(`📈 Envíos: ${question.sendCount} | Activa: ${question.isActive ? '✅' : '❌'}`);
+    }
+    
+    // 4. Verificar preguntas compatibles con Telegram polls
+    const tournamentHeaderLength = 60; // Estimación promedio del header de torneo
+    const maxQuestionLength = TELEGRAM_POLL_MAX_LENGTH - tournamentHeaderLength;
+    
+    console.log('\n🎯 ANÁLISIS PARA TORNEOS:');
+    console.log(`📏 Límite Telegram polls: ${TELEGRAM_POLL_MAX_LENGTH} caracteres`);
+    console.log(`📏 Límite para pregunta (con header): ${maxQuestionLength} caracteres`);
+    
+    const validQuestionsForTournaments = await prisma.validQuestion.count({
+      where: {
+        AND: [
+          { isActive: true },
+          { parsedQuestion: { not: "" } }
+        ]
+      }
+    });
+    
+    // Obtener preguntas y verificar longitud
+    const allValidQuestions = await prisma.validQuestion.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        parsedQuestion: true,
+        parsedOptions: true,
+        correctAnswerIndex: true,
+        type: true,
+        difficulty: true
+      }
+    });
+    
+    let compatibleCount = 0;
+    let tooLongCount = 0;
+    let invalidOptionsCount = 0;
+    const categories: Record<string, number> = {};
+    const difficulties: Record<string, number> = {};
+    
+    for (const question of allValidQuestions) {
+      const isValidLength = question.parsedQuestion.length <= maxQuestionLength;
+      const options = question.parsedOptions as string[];
+      const hasValidOptions = Array.isArray(options) && options.length >= 2 && options.length <= 4;
+      const hasValidAnswer = question.correctAnswerIndex >= 0 && question.correctAnswerIndex < (options?.length || 0);
+      
+      if (isValidLength && hasValidOptions && hasValidAnswer) {
+        compatibleCount++;
+      } else {
+        if (!isValidLength) tooLongCount++;
+        if (!hasValidOptions || !hasValidAnswer) invalidOptionsCount++;
+      }
+      
+      // Contar categorías y dificultades
+      if (question.type) {
+        categories[question.type] = (categories[question.type] || 0) + 1;
+      }
+      if (question.difficulty) {
+        difficulties[question.difficulty] = (difficulties[question.difficulty] || 0) + 1;
+      }
+    }
+    
+    console.log(`\n📊 RESULTADOS DEL ANÁLISIS:`);
+    console.log(`✅ Preguntas compatibles con torneos: ${compatibleCount}/${totalValidQuestions} (${((compatibleCount/totalValidQuestions) * 100).toFixed(1)}%)`);
+    console.log(`🚫 Preguntas demasiado largas: ${tooLongCount}`);
+    console.log(`⚠️ Preguntas con opciones inválidas: ${invalidOptionsCount}`);
+    
+    console.log('\n🏷️ DISTRIBUCIÓN POR CATEGORÍAS:');
+    Object.entries(categories).forEach(([category, count]) => {
+      console.log(`   ${category}: ${count}`);
+    });
+    
+    console.log('\n📊 DISTRIBUCIÓN POR DIFICULTAD:');
+    Object.entries(difficulties).forEach(([difficulty, count]) => {
+      console.log(`   ${difficulty}: ${count}`);
+    });
+    
+    // 5. Comparar con otras tablas
+    const count2018 = await prisma.examenOficial2018.count({ where: { isActive: true } });
+    const count2024 = await prisma.examenOficial2024.count({ where: { isActive: true } });
+    
+    console.log('\n🔢 COMPARACIÓN CON OTRAS TABLAS:');
+    console.log(`📚 ExamenOficial2018: ${count2018} preguntas activas`);
+    console.log(`📚 ExamenOficial2024: ${count2024} preguntas activas`);
+    console.log(`📚 ValidQuestion: ${compatibleCount} preguntas compatibles`);
+    console.log(`📚 TOTAL DISPONIBLE: ${count2018 + count2024 + compatibleCount} preguntas`);
+    
+    // 6. Verificar si necesita campos adicionales para torneos
+    console.log('\n🔧 CAMPOS NECESARIOS PARA TORNEOS:');
+    console.log('✅ id: Disponible');
+    console.log('✅ pregunta: parsedQuestion');
+    console.log('✅ opciones: parsedOptions');
+    console.log('✅ respuesta correcta: correctAnswerIndex');
+    console.log('✅ categoría: type');
+    console.log('✅ dificultad: difficulty');
+    console.log('✅ contador de envíos: sendCount');
+    console.log('✅ activa: isActive');
+    console.log('❌ lastUsedInTournament: NO disponible (necesario agregar)');
+    console.log('❌ tournamentUsageCount: NO disponible (necesario agregar)');
+    console.log('❌ lastTournamentId: NO disponible (necesario agregar)');
+    
+    console.log('\n💡 CONCLUSIÓN:');
+    if (compatibleCount > 0) {
+      console.log(`✅ SÍ ES POSIBLE integrar ValidQuestion al sistema de torneos`);
+      console.log(`📊 Dispondremos de ${compatibleCount} preguntas adicionales`);
+      console.log(`🔧 Necesario: Agregar campos de tracking de torneos`);
+      console.log(`🔧 Necesario: Adaptar lógica de selección de preguntas`);
+    } else {
+      console.log(`❌ NO es posible integrar ValidQuestion (no hay preguntas compatibles)`);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+checkValidQuestionTable(); 

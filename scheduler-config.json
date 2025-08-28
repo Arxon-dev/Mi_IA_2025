@@ -1,0 +1,94 @@
+{
+  "notifications": {
+    "enabled": true,
+    "intervalHours": 4,
+    "enabledRules": ["streak_encouragement", "level_celebration", "inactive_users", "high_performers", "close_competition"],
+    "allowedHours": {
+      "startHour": 7,
+      "endHour": 22,
+      "description": "Horario permitido para envío de notificaciones inteligentes (07:00 - 22:00)"
+    }
+  },
+  "promotionalNotifications": {
+    "enabled": true,
+    "morningTime": "10:00",
+    "eveningTime": "18:00",
+    "timezone": "Europe/Madrid"
+  },
+  "premiumFeaturesNotification": {
+    "enabled": true,
+    "time": "16:00",
+    "cronExpression": "0 16 * * *",
+    "timezone": "Europe/Madrid",
+    "description": "Notificación diaria sobre funcionalidades premium (simulacros, sesiones por temas, preguntas falladas)"
+  },
+  "dailyPolls": {
+    "enabled": true,
+    "time": "0 * * * *",
+    "frequency": "hourly",
+    "customMinutes": 60,
+    "questionsPerSend": 10,
+    "startHour": 8,
+    "startMinute": 0,
+    "endHour": 22,
+    "endMinute": 0
+  },
+  "monitoring": {
+    "enabled": true,
+    "intervalMinutes": 30
+  },
+  "rankings": {
+    "general": {
+      "enabled": true,
+      "frequency": "every6h",
+      "cronExpression": "0 */6 * * *",
+      "topUsersCount": 8,
+      "showFailStats": true,
+      "includeWeeklyStats": true,
+      "showAccuracy": true,
+      "showAverageTime": true,
+      "includeMemes": true
+    },
+    "weekly": {
+      "enabled": true,
+      "frequency": "every4h",
+      "cronExpression": "0 */4 * * *",
+      "topUsersCount": 8,
+      "showAccuracy": true,
+      "showAverageTime": true,
+      "includeMemes": true,
+      "showComparison": true
+    },
+    "monthly": {
+      "enabled": true,
+      "frequency": "monthly",
+      "cronExpression": "0 10 1 * *",
+      "topUsersCount": 8,
+      "showAccuracy": true,
+      "showAverageTime": true,
+      "includeMemes": true,
+      "showComparison": true,
+      "resetDay": 1,
+      "announceNewMonth": true,
+      "intermediateUpdates": {
+        "enabled": true,
+        "frequency": "every3days",
+        "cronExpression": "0 10 */3 * *",
+        "showTop8Only": true,
+        "motivationalMessages": true
+      }
+    }
+  },
+  "moodleLinkReminder": {
+    "enabled": true,
+    "frequency": "every5h",
+    "cronExpression": "0 */5 * * *",
+    "targetUsers": "unlinked",
+    "maxMessagesPerRun": 10,
+    "respectNightTime": true,
+    "nightTimeStart": 22,
+    "nightTimeEnd": 8,
+    "onlyActiveUsers": true,
+    "activeDaysThreshold": 7
+  }
+}

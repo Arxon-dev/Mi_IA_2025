@@ -1,0 +1,153 @@
+import fetch from 'node-fetch';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
+const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002352049779';
+
+async function sendTestPoll() {
+  try {
+    console.log('🧪 ENVIANDO POLL DE PRUEBA PARA @Carlos_esp');
+    console.log('============================================');
+    
+    const testQuestion = {
+      question: "🧪 POLL DE PRUEBA para @Carlos_esp - ¿Cuál es la capital de España?",
+      options: ["Madrid", "Barcelona", "Valencia", "Sevilla"],
+      correct_option_id: 0,
+      is_anonymous: false,
+      type: "quiz",
+      explanation: "✅ ¡Correcto! Madrid es la capital de España. Este es un poll de prueba para verificar que @Carlos_esp pueda aparecer en el ranking."
+    };
+    
+    const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendPoll`;
+    
+    console.log('📤 Enviando poll...');
+    console.log(`   🎯 Pregunta: ${testQuestion.question}`);
+    console.log(`   📋 Opciones: ${testQuestion.options.join(', ')}`);
+    console.log(`   ✅ Respuesta correcta: ${testQuestion.options[testQuestion.correct_option_id]}`);
+    console.log('');
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        question: testQuestion.question,
+        options: testQuestion.options,
+        correct_option_id: testQuestion.correct_option_id,
+        is_anonymous: testQuestion.is_anonymous,
+        type: testQuestion.type,
+        explanation: testQuestion.explanation
+      })
+    });
+    
+    const result = await response.json() as any;
+    
+    if (result.ok) {
+      console.log('✅ POLL ENVIADO EXITOSAMENTE!');
+      console.log(`   🆔 Message ID: ${result.result.message_id}`);
+      console.log(`   🗳️  Poll ID: ${result.result.poll.id}`);
+      console.log('');
+      
+      // Registrar el poll en la base de datos
+      const pollRecord = await prisma.telegrampoll.create({
+        data: {
+          pollid: result.result.poll.id,
+          questionid: 'test-poll-for-carlos',
+          sourcemodel: 'manual-test',
+          correctanswerindex: testQuestion.correct_option_id,
+          options: testQuestion.options,
+          chatid: CHAT_ID
+        }
+      });
+      
+      console.log('📝 Poll registrado en base de datos:');
+      console.log(`   🆔 ID interno: ${pollRecord.id}`);
+      console.log('');
+      
+      console.log('🎯 INSTRUCCIONES PARA @Carlos_esp:');
+      console.log('==================================');
+      console.log('1. 📱 Ve al grupo de Telegram "OpoMelilla"');
+      console.log('2. 🔍 Busca el poll de prueba que acabamos de enviar');
+      console.log('3. 👆 Haz click en "Madrid" (la respuesta correcta)');
+      console.log('4. ⏱️  Espera unos segundos');
+      console.log('5. 🏆 Verifica si apareces en el ranking en http://localhost:3000/dashboard');
+      console.log('');
+      console.log('🔍 Si NO apareces después de responder:');
+      console.log('   • Verifica que estés en el grupo correcto');
+      console.log('   • Asegúrate de que tu username sea exactamente @Carlos_esp');
+      console.log('   • Revisa que el webhook esté funcionando');
+      
+    } else {
+      console.error('❌ Error enviando poll:', result);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+async function checkRecentActivity() {
+  try {
+    console.log('\n📊 ACTIVIDAD RECIENTE (últimos 10 minutos):');
+    console.log('============================================');
+    
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    
+    // Polls recientes
+    const recentPolls = await prisma.telegrampoll.findMany({
+      where: { sentAt: { gte: tenMinutesAgo } },
+      orderBy: { sentAt: 'desc' },
+      take: 5
+    });
+    
+    console.log(`🗳️  Polls enviados: ${recentPolls.length}`);
+    if (recentPolls.length > 0) {
+      recentPolls.forEach((poll, index) => {
+        console.log(`   ${index + 1}. Poll ID: ${poll.pollid} - ${poll.sentAt.toLocaleTimeString()}`);
+      });
+    }
+    
+    // Respuestas recientes
+    const recentResponses = await prisma.telegramResponse.findMany({
+      where: { answeredAt: { gte: tenMinutesAgo } },
+      orderBy: { answeredAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            username: true,
+            firstname: true,
+            lastname: true
+          }
+        }
+      }
+    });
+    
+    console.log(`\n💬 Respuestas recibidas: ${recentResponses.length}`);
+    if (recentResponses.length > 0) {
+      recentResponses.forEach((response, index) => {
+        const user = response.user;
+        const name = `${user.firstname} ${user.lastname || ''}`.trim();
+        const username = user.username ? `@${user.username}` : 'sin username';
+        console.log(`   ${index + 1}. ${name} (${username}) - ${response.iscorrect ? '✅' : '❌'} - ${response.answeredAt.toLocaleTimeString()}`);
+      });
+    } else {
+      console.log('   ⚠️  No hay respuestas recientes. Esto puede indicar:');
+      console.log('      • Los usuarios no están respondiendo');
+      console.log('      • El webhook no está funcionando');
+      console.log('      • Hay un problema de conectividad');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error verificando actividad:', error);
+  }
+}
+
+async function main() {
+  await sendTestPoll();
+  await checkRecentActivity();
+}
+
+main(); 

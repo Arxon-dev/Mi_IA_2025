@@ -1,0 +1,393 @@
+#!/usr/bin/env tsx
+
+/**
+ * GESTOR DE PREGUNTAS TRUNCADAS
+ * 
+ * Identifica y gestiona preguntas que requieren truncamiento para cumplir
+ * con las limitaciones de Telegram, ofreciendo opciones para:
+ * - Listar preguntas truncadas
+ * - Migrar solo preguntas sin truncamiento
+ * - Eliminar preguntas truncadas de ValidQuestion
+ * - Generar reporte detallado
+ */
+
+import { PrismaClient } from '@prisma/client';
+import { parseGIFTImproved, type ParsedQuestion } from './gift-parser-improved';
+import fs from 'fs';
+import path from 'path';
+
+const prisma = new PrismaClient();
+
+interface TruncatedAnalysis {
+  totalquestions: number;
+  noTruncation: number;
+  questionTruncated: number;
+  optionsTruncated: number;
+  bothTruncated: number;
+  examples: {
+    noTruncation: ParsedQuestion[];
+    questionTruncated: ParsedQuestion[];
+    optionsTruncated: ParsedQuestion[];
+    bothTruncated: ParsedQuestion[];
+  };
+}
+
+/**
+ * Analizar preguntas y clasificar por tipo de truncamiento
+ */
+async function analyzeTruncatedQuestions(): Promise<TruncatedAnalysis> {
+  console.log('🔍 Analizando preguntas por tipo de truncamiento...\n');
+  
+  const analysis: TruncatedAnalysis = {
+    totalquestions: 0,
+    noTruncation: 0,
+    questionTruncated: 0,
+    optionsTruncated: 0,
+    bothTruncated: 0,
+    examples: {
+      noTruncation: [],
+      questionTruncated: [],
+      optionsTruncated: [],
+      bothTruncated: []
+    }
+  };
+  
+  const batchSize = 100;
+  const totalQuestions = await prisma.question.count({ where: { archived: false } });
+  
+  console.log(`📊 Total de preguntas a analizar: ${totalQuestions.toLocaleString()}\n`);
+  
+  for (let offset = 0; offset < totalQuestions; offset += batchSize) {
+    const batch = await prisma.question.findMany({
+      skip: offset,
+      take: batchSize,
+      select: {
+        id: true,
+        content: true,
+        type: true,
+        difficulty: true
+      },
+      where: {
+        archived: false
+      }
+    });
+    
+    for (const question of batch) {
+      const parsed = parseGIFTImproved(question.content, question.id);
+      
+      if (parsed?.isValid) {
+        analysis.totalquestions++;
+        
+        const hasQuestionTruncation = parsed.truncated.question;
+        const hasOptionsTruncation = parsed.truncated.options.some(t => t);
+        
+        if (!hasQuestionTruncation && !hasOptionsTruncation) {
+          analysis.noTruncation++;
+          if (analysis.examples.noTruncation.length < 3) {
+            analysis.examples.noTruncation.push(parsed);
+          }
+        } else if (hasQuestionTruncation && !hasOptionsTruncation) {
+          analysis.questionTruncated++;
+          if (analysis.examples.questionTruncated.length < 3) {
+            analysis.examples.questionTruncated.push(parsed);
+          }
+        } else if (!hasQuestionTruncation && hasOptionsTruncation) {
+          analysis.optionsTruncated++;
+          if (analysis.examples.optionsTruncated.length < 3) {
+            analysis.examples.optionsTruncated.push(parsed);
+          }
+        } else {
+          analysis.bothTruncated++;
+          if (analysis.examples.bothTruncated.length < 3) {
+            analysis.examples.bothTruncated.push(parsed);
+          }
+        }
+      }
+      
+      // Mostrar progreso cada 1000 preguntas
+      if (analysis.totalquestions % 1000 === 0 && analysis.totalquestions > 0) {
+        const progress = ((offset + batch.indexOf(question) + 1) / totalQuestions * 100).toFixed(1);
+        console.log(`Progreso: ${analysis.totalquestions} procesadas (${progress}%)`);
+      }
+    }
+  }
+  
+  return analysis;
+}
+
+/**
+ * Migrar solo preguntas sin truncamiento
+ */
+async function migrateOnlyNonTruncated(dryRun: boolean = true): Promise<void> {
+  console.log(`🚀 ${dryRun ? 'SIMULANDO' : 'EJECUTANDO'} migración de preguntas sin truncamiento...\n`);
+  
+  let migrated = 0;
+  let skipped = 0;
+  let errors = 0;
+  
+  const batchSize = 50;
+  const totalQuestions = await prisma.question.count({ where: { archived: false } });
+  
+  for (let offset = 0; offset < totalQuestions; offset += batchSize) {
+    const batch = await prisma.question.findMany({
+      skip: offset,
+      take: batchSize,
+      select: {
+        id: true,
+        content: true,
+        type: true,
+        difficulty: true,
+        documentId: true
+      },
+      where: {
+        archived: false
+      }
+    });
+    
+    for (const question of batch) {
+      const parsed = parseGIFTImproved(question.content, question.id);
+      
+      if (!parsed || !parsed.isValid) {
+        errors++;
+        continue;
+      }
+      
+      const hasAnyTruncation = parsed.truncated.question || parsed.truncated.options.some(t => t);
+      
+      if (hasAnyTruncation) {
+        skipped++;
+        continue;
+      }
+      
+      // Esta pregunta no tiene truncamiento, migrarla
+      if (!dryRun) {
+        try {
+          await prisma.validQuestion.create({
+            data: {
+              originalQuestionId: question.id,
+              content: question.content,
+              parsedQuestion: parsed.question,
+              parsedOptions: parsed.options,
+              correctanswerindex: parsed.correctanswerindex,
+              parsedExplanation: parsed.explanation || null,
+              parseMethod: 'GIFT',
+              type: question.type || 'multiplechoice',
+              difficulty: question.difficulty || 'unknown',
+              bloomLevel: null,
+              documentId: question.documentId || null,
+              isactive: true
+            }
+          });
+        } catch (error) {
+          errors++;
+          console.error(`❌ Error migrando ${question.id}:`, error);
+          continue;
+        }
+      }
+      
+      migrated++;
+      
+      if (migrated % 100 === 0) {
+        console.log(`📊 Progreso: ${migrated} migradas | ${skipped} truncadas saltadas | ${errors} errores`);
+      }
+    }
+  }
+  
+  console.log('\n🎉 PROCESO COMPLETADO:');
+  console.log(`✅ Preguntas ${dryRun ? 'que se migrarían' : 'migradas'}: ${migrated.toLocaleString()}`);
+  console.log(`⏭️ Preguntas truncadas saltadas: ${skipped.toLocaleString()}`);
+  console.log(`❌ Errores: ${errors.toLocaleString()}`);
+}
+
+/**
+ * Eliminar preguntas truncadas de ValidQuestion
+ */
+async function removeTruncatedFromValidQuestion(dryRun: boolean = true): Promise<void> {
+  console.log(`🔍 ${dryRun ? 'IDENTIFICANDO' : 'ELIMINANDO'} preguntas truncadas en ValidQuestion...\n`);
+  
+  const validQuestions = await prisma.validQuestion.findMany({
+    where: { isactive: true }
+  });
+  
+  console.log(`📊 Total de preguntas en ValidQuestion: ${validQuestions.length}\n`);
+  
+  let truncatedCount = 0;
+  let removedCount = 0;
+  
+  for (const validQuestion of validQuestions) {
+    // Re-parsear para verificar si está truncada
+    const parsed = parseGIFTImproved(validQuestion.content, validQuestion.id);
+    
+    if (parsed?.isValid) {
+      const hasAnyTruncation = parsed.truncated.question || parsed.truncated.options.some(t => t);
+      
+      if (hasAnyTruncation) {
+        truncatedCount++;
+        
+        if (!dryRun) {
+          try {
+            await prisma.validQuestion.delete({
+              where: { id: validQuestion.id }
+            });
+            removedCount++;
+          } catch (error) {
+            console.error(`❌ Error eliminando ${validQuestion.id}:`, error);
+          }
+        }
+        
+        if (truncatedCount <= 5) {
+          console.log(`🔍 Pregunta truncada encontrada: ${validQuestion.id}`);
+          console.log(`   Pregunta: ${parsed.question.substring(0, 100)}...`);
+          console.log(`   Truncada: Pregunta=${parsed.truncated.question}, Opciones=${parsed.truncated.options.some(t => t)}\n`);
+        }
+      }
+    }
+  }
+  
+  console.log('\n📊 RESULTADOS:');
+  console.log(`🔍 Preguntas truncadas encontradas: ${truncatedCount.toLocaleString()}`);
+  if (!dryRun) {
+    console.log(`🗑️ Preguntas eliminadas: ${removedCount.toLocaleString()}`);
+    console.log(`✅ Preguntas no truncadas restantes: ${(validQuestions.length - removedCount).toLocaleString()}`);
+  }
+}
+
+/**
+ * Generar reporte detallado de truncamiento
+ */
+function generateTruncationReport(analysis: TruncatedAnalysis): string {
+  const report = `
+# 📊 REPORTE DE ANÁLISIS DE TRUNCAMIENTO
+
+**Fecha:** ${new Date().toLocaleString()}
+
+## 🎯 RESUMEN EJECUTIVO
+
+De **${analysis.totalquestions.toLocaleString()}** preguntas válidas analizadas:
+
+- ✅ **Sin truncamiento:** ${analysis.noTruncation.toLocaleString()} (${(analysis.noTruncation/analysis.totalquestions*100).toFixed(2)}%)
+- ⚠️ **Solo pregunta truncada:** ${analysis.questionTruncated.toLocaleString()} (${(analysis.questionTruncated/analysis.totalquestions*100).toFixed(2)}%)
+- ⚠️ **Solo opciones truncadas:** ${analysis.optionsTruncated.toLocaleString()} (${(analysis.optionsTruncated/analysis.totalquestions*100).toFixed(2)}%)
+- 🚨 **Ambos truncados:** ${analysis.bothTruncated.toLocaleString()} (${(analysis.bothTruncated/analysis.totalquestions*100).toFixed(2)}%)
+
+## 💡 RECOMENDACIONES
+
+### Estrategia de Migración Óptima
+
+1. **Migrar solo preguntas sin truncamiento:** ${analysis.noTruncation.toLocaleString()} preguntas perfectas
+2. **Revisar preguntas con truncamiento menor:** Especialmente las ${analysis.questionTruncated.toLocaleString()} con solo pregunta truncada
+3. **Considerar exclusión:** Las ${analysis.bothTruncated.toLocaleString()} preguntas con ambos truncados
+
+### Calidad del Contenido
+
+- **${analysis.noTruncation.toLocaleString()} preguntas (${(analysis.noTruncation/analysis.totalquestions*100).toFixed(1)}%)** son perfectas para Telegram
+- **${(analysis.questionTruncated + analysis.optionsTruncated + analysis.bothTruncated).toLocaleString()} preguntas** requieren algún tipo de truncamiento
+
+## 📋 EJEMPLOS REPRESENTATIVOS
+
+### ✅ Preguntas Sin Truncamiento
+${analysis.examples.noTruncation.map((q, i) => `
+**Ejemplo ${i + 1}:**
+- Pregunta (${q.originalLength.question} chars): ${q.question}
+- Opciones: ${q.options.length} (máx ${q.originalLength.longestOption} chars)
+`).join('')}
+
+### ⚠️ Preguntas con Truncamiento
+${analysis.examples.questionTruncated.length > 0 ? `
+**Solo Pregunta Truncada:**
+${analysis.examples.questionTruncated.map((q, i) => `
+- Original: ${q.originalLength.question} chars → Truncado: ${q.question.length} chars
+- Pregunta: ${q.question}
+`).join('')}` : ''}
+
+${analysis.examples.optionsTruncated.length > 0 ? `
+**Solo Opciones Truncadas:**
+${analysis.examples.optionsTruncated.map((q, i) => `
+- Pregunta OK: ${q.question.substring(0, 80)}...
+- Opciones truncadas: ${q.truncated.options.filter(t => t).length}/${q.options.length}
+`).join('')}` : ''}
+
+## 🚀 PRÓXIMOS PASOS
+
+1. **Ejecutar migración selectiva:** Solo preguntas sin truncamiento
+2. **Revisar manualmente:** Preguntas con truncamiento mínimo
+3. **Optimizar contenido:** Mejorar preguntas con truncamiento excesivo
+
+---
+*Análisis generado el ${new Date().toLocaleString()}*
+`;
+  
+  return report;
+}
+
+/**
+ * Función principal
+ */
+async function main() {
+  const args = process.argv.slice(2);
+  const command = args[0] || 'analyze';
+  const dryRun = !args.includes('--execute');
+  
+  try {
+    switch (command) {
+      case 'analyze':
+        console.log('📊 ANÁLISIS DE PREGUNTAS TRUNCADAS\n');
+        const analysis = await analyzeTruncatedQuestions();
+        
+        const report = generateTruncationReport(analysis);
+        const reportPath = path.join(process.cwd(), 'scripts', 'output', 'truncation-analysis.md');
+        const outputDir = path.dirname(reportPath);
+        
+        if (!fs.existsSync(outputDir)) {
+          fs.mkdirSync(outputDir, { recursive: true });
+        }
+        
+        fs.writeFileSync(reportPath, report, 'utf-8');
+        
+        console.log('\n📊 RESULTADOS FINALES:');
+        console.log(`✅ Sin truncamiento: ${analysis.noTruncation.toLocaleString()} (${(analysis.noTruncation/analysis.totalquestions*100).toFixed(1)}%)`);
+        console.log(`⚠️ Con truncamiento: ${(analysis.totalquestions - analysis.noTruncation).toLocaleString()} (${((analysis.totalquestions - analysis.noTruncation)/analysis.totalquestions*100).toFixed(1)}%)`);
+        console.log(`\n📄 Reporte detallado guardado en: ${reportPath}`);
+        break;
+        
+      case 'migrate-clean':
+        await migrateOnlyNonTruncated(dryRun);
+        break;
+        
+      case 'remove-truncated':
+        await removeTruncatedFromValidQuestion(dryRun);
+        break;
+        
+      default:
+        console.log(`
+Uso: npx tsx manage-truncated-questions.ts [comando] [--execute]
+
+Comandos:
+  analyze           Analizar todas las preguntas por tipo de truncamiento
+  migrate-clean     Migrar solo preguntas sin ningún truncamiento
+  remove-truncated  Eliminar preguntas truncadas de ValidQuestion
+
+Opciones:
+  --execute         Ejecutar cambios reales (por defecto es dry-run)
+
+Ejemplos:
+  npx tsx manage-truncated-questions.ts analyze
+  npx tsx manage-truncated-questions.ts migrate-clean
+  npx tsx manage-truncated-questions.ts migrate-clean --execute
+  npx tsx manage-truncated-questions.ts remove-truncated --execute
+        `);
+    }
+    
+  } catch (error) {
+    console.error('💥 Error:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Ejecutar si se llama directamente
+if (require.main === module) {
+  main();
+}
+
+export { analyzeTruncatedQuestions, migrateOnlyNonTruncated, removeTruncatedFromValidQuestion }; 

@@ -1,0 +1,247 @@
+import { PrismaClient } from '@prisma/client';
+import * as fs from 'fs';
+import * as path from 'path';
+
+const prisma = new PrismaClient();
+
+// Respuestas correctas para las preguntas faltantes
+const RESPUESTAS_FALTANTES: { [key: number]: string } = {
+  8: 'c', 9: 'c', 15: 'a', 20: 'a', 49: 'd', 50: 'd', 
+  51: 'd', 52: 'c', 76: 'c', 77: 'a', 78: 'c'
+};
+
+// Preguntas faltantes identificadas
+const PREGUNTAS_FALTANTES = [8, 9, 15, 20, 49, 50, 51, 52, 76, 77, 78];
+
+interface ParsedQuestion {
+  questionNumber: number;
+  question: string;
+  options: string[];
+  category?: string;
+}
+
+function parseQuestionText(text: string): ParsedQuestion[] {
+  const questions: ParsedQuestion[] = [];
+  const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+  
+  let currentQuestion: Partial<ParsedQuestion> = {};
+  let currentQuestionText = '';
+  let currentOptions: string[] = [];
+  let collectingQuestion = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Detectar inicio de pregunta específica que nos falta
+    const questionMatch = line.match(/^(\d+)\.\s*(.*)/);
+    if (questionMatch) {
+      const questionNumber = parseInt(questionMatch[1]);
+      
+      // Solo procesar si es una pregunta que nos falta
+      if (!PREGUNTAS_FALTANTES.includes(questionNumber)) {
+        collectingQuestion = false;
+        continue;
+      }
+      
+      // Guardar pregunta anterior si existe
+      if (currentQuestion.questionNumber && currentQuestionText && currentOptions.length === 4) {
+        questions.push({
+          questionNumber: currentQuestion.questionNumber,
+          question: currentQuestionText.trim(),
+          options: [...currentOptions],
+          category: extractCategory(currentQuestionText)
+        });
+      }
+      
+      // Iniciar nueva pregunta
+      currentQuestion = { questionNumber };
+      currentQuestionText = questionMatch[2];
+      currentOptions = [];
+      collectingQuestion = true;
+      continue;
+    }
+    
+    if (collectingQuestion) {
+      // Detectar opciones
+      const optionMatch = line.match(/^([a-d])\)\s*(.*)/);
+      if (optionMatch) {
+        currentOptions.push(optionMatch[2].trim());
+        continue;
+      }
+      
+      // Si tenemos 4 opciones, terminar la pregunta
+      if (currentOptions.length === 4) {
+        if (currentQuestion.questionNumber && currentQuestionText) {
+          questions.push({
+            questionNumber: currentQuestion.questionNumber,
+            question: currentQuestionText.trim(),
+            options: [...currentOptions],
+            category: extractCategory(currentQuestionText)
+          });
+        }
+        collectingQuestion = false;
+        currentQuestion = {};
+        currentQuestionText = '';
+        currentOptions = [];
+      } else {
+        // Continuar construyendo el texto de la pregunta
+        currentQuestionText += ' ' + line;
+      }
+    }
+  }
+  
+  // Procesar la última pregunta si existe
+  if (currentQuestion.questionNumber && currentQuestionText && currentOptions.length === 4) {
+    questions.push({
+      questionNumber: currentQuestion.questionNumber,
+      question: currentQuestionText.trim(),
+      options: [...currentOptions],
+      category: extractCategory(currentQuestionText)
+    });
+  }
+  
+  return questions;
+}
+
+function extractCategory(questionText: string): string {
+  const categoryPatterns = [
+    /Constitución Española/i,
+    /Ley Orgánica.*Defensa/i,
+    /Ley.*Régimen Jurídico/i,
+    /R\.?D\.?\s*\d+\/\d+/i,
+    /Instrucción \d+\/\d+/i,
+    /Reales Ordenanzas/i,
+    /Ley.*carrera militar/i,
+    /Ley.*Tropa y Marinería/i,
+    /SEGURIDAD NACIONAL/i,
+    /PDC-01/i,
+    /Organización.*Naciones Unidas/i,
+    /OTAN/i,
+    /OSCE/i,
+    /Unión Europea/i
+  ];
+  
+  for (const pattern of categoryPatterns) {
+    if (pattern.test(questionText)) {
+      const match = questionText.match(pattern);
+      if (match) {
+        return match[0];
+      }
+    }
+  }
+  
+  return 'General';
+}
+
+function getCorrectAnswerIndex(questionNumber: number): number {
+  const correctLetter = RESPUESTAS_FALTANTES[questionNumber];
+  if (!correctLetter) {
+    console.warn(`⚠️ No se encontró respuesta correcta para pregunta ${questionNumber}`);
+    return 0;
+  }
+  
+  switch (correctLetter.toLowerCase()) {
+    case 'a': return 0;
+    case 'b': return 1;
+    case 'c': return 2;
+    case 'd': return 3;
+    default:
+      console.warn(`⚠️ Respuesta inválida '${correctLetter}' para pregunta ${questionNumber}`);
+      return 0;
+  }
+}
+
+async function completeExamen2024Import() {
+  try {
+    console.log('🔧 COMPLETANDO IMPORTACIÓN EXAMEN OFICIAL 2024');
+    console.log('==============================================');
+    console.log(`📝 Preguntas faltantes a importar: ${PREGUNTAS_FALTANTES.join(', ')}`);
+
+    // Leer archivo
+    const filePath = path.join(
+      process.cwd(),
+      '..',
+      '..',
+      'OPOMELILLA',
+      'Examenes oficiales',
+      'formato txt',
+      'AÑO 2024 CON PLANTILLA DE RESPUESTAS.txt'
+    );
+
+    const fileContent = fs.readFileSync(filePath, 'utf-8');
+    console.log(`✅ Archivo leído: ${fileContent.length} caracteres`);
+
+    // Parsear solo las preguntas que necesitamos
+    const questions = parseQuestionText(fileContent);
+    const targetQuestions = questions.filter(q => PREGUNTAS_FALTANTES.includes(q.questionNumber));
+    
+    console.log(`🔍 Preguntas objetivo encontradas: ${targetQuestions.length}`);
+    console.log(`📊 Números encontrados: ${targetQuestions.map(q => q.questionNumber).sort((a, b) => a - b).join(', ')}`);
+
+    if (targetQuestions.length === 0) {
+      console.log('❌ No se encontraron preguntas objetivo en el archivo');
+      return;
+    }
+
+    // Importar cada pregunta faltante
+    console.log('\n📤 Importando preguntas faltantes...');
+    let importedCount = 0;
+    let errorCount = 0;
+
+    for (const question of targetQuestions) {
+      try {
+        // Verificar si ya existe
+        const existing = await prisma.examenOficial2024.findUnique({
+          where: { questionNumber: question.questionNumber }
+        });
+
+        if (existing) {
+          console.log(`⏭️ Pregunta ${question.questionNumber} ya existe, saltando...`);
+          continue;
+        }
+
+        const correctAnswerIndex = getCorrectAnswerIndex(question.questionNumber);
+
+        await prisma.examenOficial2024.create({
+          data: {
+            questionNumber: question.questionNumber,
+            question: question.question,
+            options: question.options,
+            correctAnswerIndex: correctAnswerIndex,
+            category: question.category,
+            difficulty: 'OFICIAL',
+            isActive: true
+          }
+        });
+        
+        importedCount++;
+        console.log(`✅ Pregunta ${question.questionNumber} importada correctamente`);
+        
+      } catch (error) {
+        console.error(`❌ Error importando pregunta ${question.questionNumber}:`, error);
+        errorCount++;
+      }
+    }
+
+    console.log('\n🎉 IMPORTACIÓN COMPLEMENTARIA COMPLETADA');
+    console.log(`✅ Preguntas importadas: ${importedCount}`);
+    console.log(`❌ Errores: ${errorCount}`);
+    
+    // Verificar estado final
+    const finalCount = await prisma.examenOficial2024.count();
+    console.log(`📊 Total de preguntas en base de datos: ${finalCount}`);
+    
+    if (finalCount === 100) {
+      console.log('🎯 ¡PERFECTO! Examen completo con todas las 100 preguntas');
+    } else {
+      console.log(`⚠️ Aún faltan ${100 - finalCount} preguntas`);
+    }
+
+  } catch (error) {
+    console.error('❌ Error general:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+completeExamen2024Import().catch(console.error); 

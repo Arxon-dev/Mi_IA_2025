@@ -1,0 +1,224 @@
+import { prisma } from '../src/lib/prisma';
+
+/**
+ * 🔧 FIX: RANKING SEMANAL FIJO
+ * 
+ * Problema: El ranking semanal actual usa "últimos 7 días" (móvil)
+ * Solución: Implementar semana fija (lunes a domingo)
+ */
+
+function getWeekDates(date: Date = new Date()) {
+  const currentDate = new Date(date);
+  
+  // Encontrar el lunes de esta semana
+  const dayOfWeek = currentDate.getDay();
+  const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Domingo = 0, convertir a 6
+  
+  const mondayOfWeek = new Date(currentDate);
+  mondayOfWeek.setDate(currentDate.getDate() - daysFromMonday);
+  mondayOfWeek.setHours(0, 0, 0, 0);
+  
+  // Domingo de esta semana
+  const sundayOfWeek = new Date(mondayOfWeek);
+  sundayOfWeek.setDate(mondayOfWeek.getDate() + 6);
+  sundayOfWeek.setHours(23, 59, 59, 999);
+  
+  return {
+    weekStart: mondayOfWeek,
+    weekEnd: sundayOfWeek,
+    weekLabel: `${mondayOfWeek.getDate()}/${mondayOfWeek.getMonth() + 1} - ${sundayOfWeek.getDate()}/${sundayOfWeek.getMonth() + 1}`
+  };
+}
+
+async function calculateFixedWeeklyRanking() {
+  console.log('🔧 ======== FIX RANKING SEMANAL ========');
+  console.log('🎯 Implementando ranking semanal FIJO (lunes a domingo)\n');
+
+  try {
+    const { weekStart, weekEnd, weekLabel } = getWeekDates();
+    
+    console.log('📅 Semana actual:');
+    console.log(`   Inicio: ${weekStart.toLocaleString('es-ES')} (lunes)`);
+    console.log(`   Fin: ${weekEnd.toLocaleString('es-ES')} (domingo)`);
+    console.log(`   Etiqueta: Semana del ${weekLabel}\n`);
+
+    // Obtener usuarios con actividad en esta semana FIJA
+    const usersWithWeeklyActivity = await prisma.telegramuser.findMany({
+      where: {
+        responses: {
+          some: {
+            answeredAt: {
+              gte: weekStart,
+              lte: weekEnd
+            }
+          }
+        }
+      },
+      select: {
+        telegramuserid: true,
+        firstname: true,
+        username: true,
+        level: true,
+        totalpoints: true,
+        responses: {
+          where: {
+            answeredAt: {
+              gte: weekStart,
+              lte: weekEnd
+            }
+          },
+          select: {
+            points: true,
+            iscorrect: true,
+            responsetime: true,
+            answeredAt: true
+          }
+        }
+      }
+    });
+
+    console.log(`👥 Usuarios con actividad en semana fija: ${usersWithWeeklyActivity.length}\n`);
+
+    // Calcular estadísticas por usuario
+    const weeklyRanking = usersWithWeeklyActivity.map(user => {
+      const responses = user.responses;
+      
+      const weeklyPoints = responses.reduce((sum, r) => sum + (r.points || 0), 0);
+      const weeklyResponses = responses.length;
+      const weeklyCorrect = responses.filter(r => r.iscorrect).length;
+      const weeklyIncorrect = weeklyResponses - weeklyCorrect;
+      const weeklyAccuracy = weeklyResponses > 0 
+        ? Math.round((weeklyCorrect / weeklyResponses) * 100)
+        : 0;
+      
+      const totalResponseTime = responses.reduce((sum, r) => sum + (r.responsetime || 0), 0);
+      const avgResponseTime = weeklyResponses > 0 
+        ? Math.round(totalResponseTime / weeklyResponses)
+        : 0;
+
+      return {
+        telegramuserid: user.telegramuserid,
+        firstname: user.firstname || 'Usuario',
+        username: user.username || undefined,
+        weeklyPoints,
+        weeklyResponses,
+        weeklyCorrect,
+        weeklyIncorrect,
+        weeklyAccuracy,
+        avgResponseTime,
+        level: user.level,
+        totalpoints: user.totalpoints
+      };
+    }).sort((a, b) => b.weeklyPoints - a.weeklyPoints);
+
+    // Mostrar ranking corregido
+    console.log('🏆 RANKING SEMANAL FIJO (Top 10):');
+    console.log(`📅 Semana del ${weekLabel}\n`);
+
+    weeklyRanking.slice(0, 10).forEach((user, index) => {
+      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🔸';
+      const name = user.username || user.firstname;
+      
+      console.log(`${medal} ${index + 1}. ${name}`);
+      console.log(`   📊 ${user.weeklyPoints} pts | 💎 Nv.${user.level} | 🎯 ${user.weeklyAccuracy}%`);
+      console.log(`   📝 ${user.weeklyResponses} respuestas | ✅ ${user.weeklyCorrect} | ❌ ${user.weeklyIncorrect}\n`);
+    });
+
+    // Buscar específicamente a Juanmaprieto
+    const juanmaprieto = weeklyRanking.find(u => u.telegramuserid === '1324285278');
+    if (juanmaprieto) {
+      const position = weeklyRanking.findIndex(u => u.telegramuserid === '1324285278') + 1;
+      console.log('🔍 ANÁLISIS ESPECÍFICO - Juanmaprieto:');
+      console.log(`   🏆 Posición: #${position}`);
+      console.log(`   📊 Puntos semana fija: ${juanmaprieto.weeklyPoints}`);
+      console.log(`   📝 Respuestas: ${juanmaprieto.weeklyResponses}`);
+      console.log(`   🎯 Precisión: ${juanmaprieto.weeklyAccuracy}%\n`);
+
+      // Comparar con sistema móvil actual
+      const now = new Date();
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setDate(now.getDate() - 7);
+
+      const mobileWeekResponses = await prisma.telegramResponse.findMany({
+        where: {
+          user: { telegramuserid: '1324285278' },
+          answeredAt: {
+            gte: sevenDaysAgo,
+            lte: now
+          }
+        },
+        select: { points: true }
+      });
+
+      const mobileWeekPoints = mobileWeekResponses.reduce((sum, r) => sum + (r.points || 0), 0);
+
+      console.log('📊 COMPARACIÓN DE SISTEMAS:');
+      console.log(`   🔄 Sistema móvil (últimos 7 días): ${mobileWeekPoints} pts`);
+      console.log(`   📅 Sistema fijo (lunes-domingo): ${juanmaprieto.weeklyPoints} pts`);
+      console.log(`   📈 Diferencia: ${juanmaprieto.weeklyPoints - mobileWeekPoints} pts\n`);
+    }
+
+    // Estadísticas de comparación
+    console.log('📈 ESTADÍSTICAS COMPARATIVAS:');
+    
+    // Actividad por día de la semana
+    const activityByDay = weeklyRanking.reduce((acc, user) => {
+      acc.totalpoints += user.weeklyPoints;
+      acc.totalResponses += user.weeklyResponses;
+      return acc;
+    }, { totalpoints: 0, totalResponses: 0 });
+
+    console.log(`   📊 Puntos totales semana: ${activityByDay.totalpoints}`);
+    console.log(`   📝 Respuestas totales semana: ${activityByDay.totalResponses}`);
+    console.log(`   👥 Usuarios activos: ${weeklyRanking.length}`);
+    
+    if (weeklyRanking.length > 0) {
+      const avgPoints = Math.round(activityByDay.totalpoints / weeklyRanking.length);
+      const avgResponses = Math.round(activityByDay.totalResponses / weeklyRanking.length);
+      console.log(`   📊 Promedio puntos/usuario: ${avgPoints}`);
+      console.log(`   📝 Promedio respuestas/usuario: ${avgResponses}`);
+    }
+
+  } catch (error) {
+    console.error('❌ Error en cálculo:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// También calcular la semana pasada para comparar
+async function compareWithLastWeek() {
+  console.log('\n🔄 ======== COMPARACIÓN SEMANA PASADA ========');
+  
+  try {
+    const lastWeek = new Date();
+    lastWeek.setDate(lastWeek.getDate() - 7);
+    const { weekStart: lastWeekStart, weekEnd: lastWeekEnd, weekLabel: lastWeekLabel } = getWeekDates(lastWeek);
+    
+    console.log(`📅 Semana pasada: ${lastWeekLabel}`);
+    
+    const lastWeekResponses = await prisma.telegramResponse.findMany({
+      where: {
+        user: { telegramuserid: '1324285278' },
+        answeredAt: {
+          gte: lastWeekStart,
+          lte: lastWeekEnd
+        }
+      },
+      select: { points: true }
+    });
+
+    const lastWeekPoints = lastWeekResponses.reduce((sum, r) => sum + (r.points || 0), 0);
+    console.log(`📊 Juanmaprieto semana pasada: ${lastWeekPoints} pts (${lastWeekResponses.length} respuestas)`);
+    
+  } catch (error) {
+    console.error('❌ Error comparando semana pasada:', error);
+  }
+}
+
+async function main() {
+  await calculateFixedWeeklyRanking();
+  await compareWithLastWeek();
+}
+
+main(); 

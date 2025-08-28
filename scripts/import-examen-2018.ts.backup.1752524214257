@@ -1,0 +1,287 @@
+#!/usr/bin/env tsx
+
+/**
+ * IMPORTADOR DEL EXAMEN OFICIAL DE PERMANENCIA 2018
+ * 
+ * Parser específico para importar el examen oficial desde archivo de texto plano
+ * hacia la tabla ExamenOficial2018.
+ * 
+ * Características:
+ * - Parse de preguntas numeradas (1º) hasta 100º)
+ * - Extracción de opciones A, B, C, D
+ * - Uso del corrector al final para determinar respuestas correctas
+ * - Importación limpia a ExamenOficial2018
+ */
+
+import { PrismaClient } from '@prisma/client';
+import fs from 'fs';
+import path from 'path';
+
+const prisma = new PrismaClient();
+
+interface ParsedExamQuestion {
+  questionNumber: number;
+  question: string;
+  options: string[];
+  correctAnswerIndex: number;
+  correctAnswerLetter: string;
+}
+
+/**
+ * Parse del archivo de examen 2018
+ */
+function parseExamen2018(content: string): ParsedExamQuestion[] {
+  const lines = content.split('\n').map(line => line.trim()).filter(line => line);
+  
+  const questions: ParsedExamQuestion[] = [];
+  const corrections: Map<number, string> = new Map();
+  
+  // Primero extraer las correcciones del final
+  console.log('📝 Extrayendo correcciones...');
+  let correctorStartIndex = -1;
+  
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes('CORRECTOR') || lines[i].includes('1º) A')) {
+      correctorStartIndex = i;
+      break;
+    }
+  }
+  
+  if (correctorStartIndex !== -1) {
+    for (let i = correctorStartIndex; i < lines.length; i++) {
+      const line = lines[i];
+      // Buscar patrones como "1º) A", "2º) B", etc.
+      const correctionMatch = line.match(/(\d+)º?\)\s*([ABCD])/g);
+      if (correctionMatch) {
+        correctionMatch.forEach(match => {
+          const parts = match.match(/(\d+)º?\)\s*([ABCD])/);
+          if (parts) {
+            const questionNum = parseInt(parts[1]);
+            const answerLetter = parts[2];
+            corrections.set(questionNum, answerLetter);
+          }
+        });
+      }
+    }
+  }
+  
+  console.log(`✅ Extraídas ${corrections.size} correcciones`);
+  
+  // Ahora parsear las preguntas
+  console.log('📝 Parseando preguntas...');
+  
+  let currentQuestion: Partial<ParsedExamQuestion> | null = null;
+  let currentOptions: string[] = [];
+  
+  for (let i = 0; i < correctorStartIndex; i++) {
+    const line = lines[i];
+    
+    // Detectar inicio de nueva pregunta (formato: "1º)", "2º)", etc.)
+    const questionMatch = line.match(/^(\d+)º?\)\s*(.+)/);
+    if (questionMatch) {
+      // Guardar pregunta anterior si existe
+      if (currentQuestion && currentQuestion.questionNumber) {
+        const correctLetter = corrections.get(currentQuestion.questionNumber!);
+        if (correctLetter && currentOptions.length === 4) {
+          const correctIndex = ['A', 'B', 'C', 'D'].indexOf(correctLetter);
+          questions.push({
+            questionNumber: currentQuestion.questionNumber!,
+            question: currentQuestion.question!,
+            options: [...currentOptions],
+            correctAnswerIndex: correctIndex,
+            correctAnswerLetter: correctLetter
+          });
+        }
+      }
+      
+      // Iniciar nueva pregunta
+      const questionNumber = parseInt(questionMatch[1]);
+      const questionText = questionMatch[2];
+      
+      currentQuestion = {
+        questionNumber,
+        question: questionText
+      };
+      currentOptions = [];
+      continue;
+    }
+    
+    // Detectar opciones (A), B), C), D))
+    const optionMatch = line.match(/^([ABCD])\)\s*(.+)/);
+    if (optionMatch && currentQuestion) {
+      const optionText = optionMatch[2];
+      currentOptions.push(optionText);
+      continue;
+    }
+    
+    // Si no es inicio de pregunta ni opción, puede ser continuación de pregunta
+    if (currentQuestion && currentOptions.length === 0 && line.length > 0) {
+      currentQuestion.question += ' ' + line;
+    }
+  }
+  
+  // Procesar última pregunta
+  if (currentQuestion && currentQuestion.questionNumber) {
+    const correctLetter = corrections.get(currentQuestion.questionNumber);
+    if (correctLetter && currentOptions.length === 4) {
+      const correctIndex = ['A', 'B', 'C', 'D'].indexOf(correctLetter);
+      questions.push({
+        questionNumber: currentQuestion.questionNumber,
+        question: currentQuestion.question!,
+        options: [...currentOptions],
+        correctAnswerIndex: correctIndex,
+        correctAnswerLetter: correctLetter
+      });
+    }
+  }
+  
+  return questions;
+}
+
+/**
+ * Importar preguntas a la base de datos
+ */
+async function importQuestions(questions: ParsedExamQuestion[]) {
+  console.log(`\n📥 Importando ${questions.length} preguntas a ExamenOficial2018...`);
+  
+  let successCount = 0;
+  let errorCount = 0;
+  
+  for (const question of questions) {
+    try {
+      await (prisma as any).examenOficial2018.create({
+        data: {
+          questionNumber: question.questionNumber,
+          question: question.question,
+          options: question.options,
+          correctAnswerIndex: question.correctAnswerIndex,
+          category: 'EXAMEN_OFICIAL_2018',
+          difficulty: 'OFICIAL',
+          isActive: true,
+          sendCount: 0
+        }
+      });
+      successCount++;
+    } catch (error) {
+      console.error(`❌ Error en pregunta ${question.questionNumber}:`, error);
+      errorCount++;
+    }
+  }
+  
+  console.log(`\n🎉 IMPORTACIÓN COMPLETADA:`);
+  console.log(`✅ Exitosas: ${successCount}`);
+  console.log(`❌ Errores: ${errorCount}`);
+  
+  return { successCount, errorCount };
+}
+
+/**
+ * Función principal
+ */
+async function main() {
+  try {
+    console.log('🚀 INICIANDO IMPORTACIÓN DEL EXAMEN OFICIAL 2018\n');
+    
+    // Verificar que la tabla esté vacía
+    const existingCount = await (prisma as any).examenOficial2018.count();
+    if (existingCount > 0) {
+      console.log(`⚠️ ADVERTENCIA: La tabla ya tiene ${existingCount} preguntas`);
+      console.log('¿Deseas continuar? (Se añadirán a las existentes)');
+    }
+    
+    // Leer archivo
+    let filePath = path.join(process.cwd(), 'Examen_Permanencia_2018.txt');
+    
+    if (!fs.existsSync(filePath)) {
+      console.error('❌ No se encuentra el archivo:', filePath);
+      console.log('📁 Intentando rutas alternativas...');
+      
+      // Rutas alternativas
+      const alternatives = [
+        'Examen Permanencia año 2018.txt',
+        'examenes/Examen Permanencia año 2018.txt',
+        '../OPOMELILLA/Examenes oficiales/formato txt/Examen Permanencia año 2018.txt'
+      ];
+      
+      let found = false;
+      for (const alt of alternatives) {
+        if (fs.existsSync(alt)) {
+          console.log(`✅ Encontrado en: ${alt}`);
+          filePath = alt;
+          found = true;
+          break;
+        }
+      }
+      
+      if (!found) {
+        console.error('❌ No se pudo encontrar el archivo en ninguna ubicación');
+        console.log('💡 Asegúrate de que el archivo "Examen_Permanencia_2018.txt" está en el directorio del proyecto');
+        return;
+      }
+    }
+    
+    console.log(`📖 Leyendo archivo: ${filePath}`);
+    const content = fs.readFileSync(filePath, 'utf-8');
+    
+    // Parser
+    const questions = parseExamen2018(content);
+    
+    if (questions.length === 0) {
+      console.error('❌ No se pudieron extraer preguntas del archivo');
+      return;
+    }
+    
+    console.log(`✅ Parseadas ${questions.length} preguntas correctamente`);
+    
+    // Mostrar ejemplo
+    if (questions.length > 0) {
+      const example = questions[0];
+      console.log(`\n📋 EJEMPLO DE PREGUNTA PARSEADA:`);
+      console.log(`Número: ${example.questionNumber}`);
+      console.log(`Pregunta: ${example.question.substring(0, 100)}...`);
+      console.log(`Opciones: ${example.options.map((opt, i) => `${['A','B','C','D'][i]}) ${opt.substring(0, 50)}`).join(' | ')}`);
+      console.log(`Respuesta correcta: ${example.correctAnswerLetter} (índice ${example.correctAnswerIndex})`);
+    }
+    
+    // Confirmar importación
+    console.log(`\n❓ ¿Proceder con la importación de ${questions.length} preguntas? (y/N)`);
+    
+    // Para automatizar, proceder directamente
+    const proceed = process.argv.includes('--execute');
+    
+    if (proceed) {
+      const result = await importQuestions(questions);
+      
+      if (result.successCount > 0) {
+        console.log(`\n🎯 VERIFICACIÓN FINAL:`);
+        const finalCount = await (prisma as any).examenOficial2018.count();
+        console.log(`Total preguntas en ExamenOficial2018: ${finalCount}`);
+        
+        // Mostrar primera pregunta importada
+        const firstImported = await (prisma as any).examenOficial2018.findFirst({
+          where: { questionNumber: 1 }
+        });
+        
+        if (firstImported) {
+          console.log(`\n✅ Pregunta 1 verificada:`);
+          console.log(`   ${firstImported.question.substring(0, 100)}...`);
+          console.log(`   Respuesta: ${['A','B','C','D'][firstImported.correctAnswerIndex]}) ${firstImported.options[firstImported.correctAnswerIndex]}`);
+        }
+      }
+    } else {
+      console.log('⏸️ Importación cancelada. Usa --execute para proceder automáticamente.');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error general:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Ejecutar si es llamado directamente
+if (require.main === module) {
+  main();
+}
+
+export default main; 

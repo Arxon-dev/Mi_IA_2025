@@ -1,0 +1,296 @@
+import { PrismaClient } from '@prisma/client';
+import { promises as fs } from 'fs';
+import path from 'path';
+
+const prisma = new PrismaClient();
+
+// Interfaz para representar una pregunta parseada del GIFT
+interface GiftQuestion {
+  questionNumber: number;
+  category: string;
+  question: string;
+  options: string[];
+  correctAnswerIndex: number;
+  explanation: string;
+}
+
+// Función para parsear archivo GIFT
+async function parseGiftFile(filePath: string): Promise<GiftQuestion[]> {
+  console.log('📖 Leyendo archivo GIFT...');
+  
+  const content = await fs.readFile(filePath, 'utf-8');
+  const questions: GiftQuestion[] = [];
+  
+  // Dividir por bloques de preguntas (separados por líneas vacías dobles)
+  const questionBlocks = content.split(/\n\s*\n/).filter(block => block.trim().length > 0);
+  
+  console.log(`🔍 Parseando ${questionBlocks.length} bloques de preguntas...`);
+  
+  for (const block of questionBlocks) {
+    if (!block.includes('Permanencia 2018 - Pregunta')) continue;
+    
+    const lines = block.split('\n').map(line => line.trim());
+    
+    let category = 'General';
+    let questionNumber = 0;
+    let questionText = '';
+    let options: string[] = [];
+    let correctAnswerIndex = -1;
+    let explanation = '';
+    
+    let inFeedback = false;
+    
+    for (const line of lines) {
+      // Extraer categoría
+      if (line.startsWith('$CATEGORY:')) {
+        category = line.replace('$CATEGORY:', '').trim();
+      }
+      
+      // Extraer número y texto de pregunta
+      else if (line.includes('Permanencia 2018 - Pregunta')) {
+        const match = line.match(/Pregunta (\d+)\\n(.+)\{/);
+        if (match) {
+          questionNumber = parseInt(match[1]);
+          questionText = match[2].trim();
+        }
+      }
+      
+      // Extraer opciones
+      else if (line.match(/^\s*[=~]/)) {
+        const isCorrect = line.trim().startsWith('=');
+        const optionText = line.replace(/^\s*[=~]/, '').trim();
+        
+        if (isCorrect) {
+          correctAnswerIndex = options.length;
+        }
+        
+        options.push(optionText);
+      }
+      
+      // Detectar inicio de retroalimentación
+      else if (line.includes('#### RETROALIMENTACIÓN:')) {
+        inFeedback = true;
+        const feedbackStart = line.replace('#### RETROALIMENTACIÓN:', '').replace(/^\\n/, '').trim();
+        if (feedbackStart) {
+          explanation = feedbackStart;
+        }
+      }
+      
+      // Continuar leyendo retroalimentación
+      else if (inFeedback && line && !line.includes('}')) {
+        explanation += (explanation ? ' ' : '') + line;
+      }
+      
+      // Finalizar al encontrar el cierre de la pregunta
+      else if (line.includes('}')) {
+        inFeedback = false;
+      }
+    }
+    
+    // Validar y agregar pregunta
+    if (questionNumber > 0 && questionText && options.length === 4 && correctAnswerIndex >= 0) {
+      questions.push({
+        questionNumber,
+        category,
+        question: questionText,
+        options,
+        correctAnswerIndex,
+        explanation: explanation || 'Respuesta correcta según examen oficial de permanencia 2018.'
+      });
+      
+      console.log(`   ✅ Pregunta ${questionNumber} parseada: ${questionText.substring(0, 50)}...`);
+    } else {
+      console.warn(`   ⚠️  Pregunta ${questionNumber} incompleta o inválida`);
+    }
+  }
+  
+  console.log(`✅ Parseadas ${questions.length} preguntas válidas del archivo GIFT`);
+  return questions;
+}
+
+// Función para insertar preguntas en la base de datos
+async function insertQuestionsToDatabase(questions: GiftQuestion[]): Promise<void> {
+  console.log('\n💾 Insertando preguntas en la base de datos...');
+  
+  try {
+    // Primero, crear la tabla si no existe (ejecutar el SQL)
+    console.log('🔨 Verificando/creando tabla ExamenOficial2018...');
+    
+    // Verificar si la tabla existe
+    const tableExists = await prisma.$queryRaw`
+      SELECT COUNT(*) as table_exists FROM information_schema.tables 
+      WHERE table_name = 'ExamenOficial2018'
+    ` as [{ table_exists: bigint }];
+    
+    if (Number(tableExists[0].table_exists) === 0) {
+      console.log('⚠️  La tabla ExamenOficial2018 no existe. Por favor, ejecuta el SQL del archivo scripts/create-examen-oficial-2018-table.sql en Supabase.');
+      throw new Error('Tabla ExamenOficial2018 no encontrada');
+    }
+    
+    console.log('✅ Tabla ExamenOficial2018 encontrada');
+    
+    // Limpiar datos existentes (opcional)
+    const existingCount = await prisma.examenOficial2018.count();
+    if (existingCount > 0) {
+      console.log(`🧹 Encontradas ${existingCount} preguntas existentes. ¿Desea limpiar la tabla? (Implementar confirmación si es necesario)`);
+      // await prisma.examenOficial2018.deleteMany({});
+      // console.log('🗑️  Datos existentes eliminados');
+    }
+    
+    // Insertar preguntas una por una para mejor control de errores
+    let insertedCount = 0;
+    let skippedCount = 0;
+    
+    for (const question of questions) {
+      try {
+        // Verificar si la pregunta ya existe
+        const existing = await prisma.examenOficial2018.findUnique({
+          where: { questionNumber: question.questionNumber }
+        });
+        
+        if (existing) {
+          console.log(`   ⏩ Pregunta ${question.questionNumber} ya existe, omitiendo...`);
+          skippedCount++;
+          continue;
+        }
+        
+        // Insertar nueva pregunta
+        await prisma.examenOficial2018.create({
+          data: {
+            questionNumber: question.questionNumber,
+            question: question.question,
+            options: question.options,
+            correctAnswerIndex: question.correctAnswerIndex,
+            explanation: question.explanation,
+            category: question.category,
+            difficulty: 'medium', // Valor por defecto
+            originalExamInfo: 'Examen Permanencia 2018',
+            isActive: true
+          }
+        });
+        
+        insertedCount++;
+        console.log(`   ✅ Pregunta ${question.questionNumber} insertada`);
+        
+      } catch (error) {
+        console.error(`   ❌ Error insertando pregunta ${question.questionNumber}:`, error);
+      }
+    }
+    
+    console.log(`\n📊 RESUMEN DE INSERCIÓN:`);
+    console.log(`   ✅ Insertadas: ${insertedCount}`);
+    console.log(`   ⏩ Omitidas: ${skippedCount}`);
+    console.log(`   📝 Total procesadas: ${questions.length}`);
+    
+    // Verificar el resultado final
+    const finalCount = await prisma.examenOficial2018.count();
+    console.log(`   🎯 Total en base de datos: ${finalCount}`);
+    
+  } catch (error) {
+    console.error('❌ Error en la inserción:', error);
+    throw error;
+  }
+}
+
+// Función para verificar la migración
+async function verifyMigration(): Promise<void> {
+  console.log('\n🔍 Verificando migración...');
+  
+  try {
+    const stats = await prisma.examenOficial2018.groupBy({
+      by: ['category'],
+      _count: {
+        id: true
+      },
+      orderBy: {
+        _count: {
+          id: 'desc'
+        }
+      }
+    });
+    
+    console.log('\n📊 ESTADÍSTICAS POR CATEGORÍA:');
+    stats.forEach(stat => {
+      console.log(`   📁 ${stat.category}: ${stat._count.id} preguntas`);
+    });
+    
+    // Verificar algunas preguntas específicas
+    const sampleQuestions = await prisma.examenOficial2018.findMany({
+      take: 3,
+      orderBy: { questionNumber: 'asc' },
+      select: {
+        questionNumber: true,
+        question: true,
+        options: true,
+        correctAnswerIndex: true,
+        category: true
+      }
+    });
+    
+    console.log('\n📋 MUESTRA DE PREGUNTAS MIGRADAS:');
+    sampleQuestions.forEach(q => {
+      console.log(`   ${q.questionNumber}. ${q.question.substring(0, 60)}...`);
+      console.log(`      Categoría: ${q.category}`);
+      console.log(`      Respuesta correcta: ${q.options[q.correctAnswerIndex].substring(0, 40)}...`);
+      console.log();
+    });
+    
+  } catch (error) {
+    console.error('❌ Error verificando migración:', error);
+  }
+}
+
+// Función principal
+async function main() {
+  try {
+    console.log('🚀 MIGRACIÓN GIFT → EXAMEN OFICIAL 2018');
+    console.log('=' .repeat(50));
+    
+    // Rutas de archivos
+    const giftFile = path.join('scripts', 'output', 'examen-permanencia-2018.gift');
+    
+    // Verificar que el archivo GIFT existe
+    try {
+      await fs.access(giftFile);
+    } catch {
+      throw new Error(`Archivo GIFT no encontrado: ${giftFile}\nEjecuta primero el script convert-examen-2018-to-gift.ts`);
+    }
+    
+    // Parsear archivo GIFT
+    const questions = await parseGiftFile(giftFile);
+    
+    if (questions.length === 0) {
+      throw new Error('No se pudieron parsear preguntas del archivo GIFT');
+    }
+    
+    // Insertar en base de datos
+    await insertQuestionsToDatabase(questions);
+    
+    // Verificar migración
+    await verifyMigration();
+    
+    console.log('\n🎉 ¡MIGRACIÓN COMPLETADA EXITOSAMENTE!');
+    console.log('Las preguntas del examen de permanencia 2018 están listas para usar en Telegram Bot');
+    
+  } catch (error) {
+    console.error('💥 Error en la migración:', error);
+    process.exit(1);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Ejecutar si es llamado directamente
+if (require.main === module) {
+  main()
+    .then(() => {
+      console.log('\n✅ Proceso completado');
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('💥 Error fatal:', error);
+      process.exit(1);
+    });
+}
+
+export { main, parseGiftFile, insertQuestionsToDatabase }; 

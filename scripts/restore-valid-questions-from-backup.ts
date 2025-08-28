@@ -1,0 +1,293 @@
+import { PrismaClient } from '@prisma/client';
+import { promises as fs } from 'fs';
+import path from 'path';
+
+const prisma = new PrismaClient();
+
+interface ParsedQuestion {
+  title: string;
+  question: string;
+  options: string[];
+  correctanswerindex: number;
+  explanation: string;
+}
+
+// Función para validar límites de Telegram
+function validateTelegramLimits(parsedData: ParsedQuestion): { valid: boolean; issues: string[] } {
+  const issues = [];
+  
+  // Quiz question: 1-200 caracteres
+  if (!parsedData.question || parsedData.question.length < 1 || parsedData.question.length > 200) {
+    issues.push(`Pregunta: ${parsedData.question?.length || 0} caracteres (límite: 1-200)`);
+  }
+  
+  // Poll options: 1-100 caracteres cada una
+  for (let i = 0; i < parsedData.options.length; i++) {
+    const option = parsedData.options[i];
+    if (!option || option.length < 1 || option.length > 100) {
+      issues.push(`Opción ${i + 1}: "${option?.substring(0, 20)}..." (${option?.length || 0} caracteres, límite: 1-100)`);
+    }
+  }
+  
+  // Mínimo 2 opciones requeridas
+  if (parsedData.options.length < 2) {
+    issues.push(`Insuficientes opciones: ${parsedData.options.length} (mínimo: 2)`);
+  }
+  
+  return {
+    valid: issues.length === 0,
+    issues
+  };
+}
+
+// Función para parsear contenido GIFT
+function parseGiftContent(content: string): ParsedQuestion | null {
+  try {
+    const lines = content.split('\n').map(line => line.trim()).filter(line => line);
+    
+    if (lines.length === 0) return null;
+    
+    let title = '';
+    let questionText = '';
+    let optionsText = '';
+    let foundOptionsStart = false;
+    
+    for (const line of lines) {
+      if (line.includes('::') && !title) {
+        const parts = line.split('::');
+        if (parts.length >= 2) {
+          title = parts[0].trim();
+          const afterTitle = parts.slice(1).join('::').trim();
+          if (afterTitle) {
+            questionText += ' ' + afterTitle;
+          }
+        }
+        continue;
+      }
+      
+      if (line.includes('{')) {
+        foundOptionsStart = true;
+        const beforeBrace = line.split('{')[0].trim();
+        if (beforeBrace && !questionText) {
+          questionText = beforeBrace;
+        }
+        
+        const afterBrace = line.split('{')[1];
+        if (afterBrace) {
+          optionsText += afterBrace;
+        }
+        continue;
+      }
+      
+      if (foundOptionsStart) {
+        optionsText += ' ' + line;
+      } else if (!questionText) {
+        questionText += ' ' + line;
+      }
+    }
+    
+    questionText = questionText.replace(/\{[^}]*\}/, '').trim();
+    
+    const options: string[] = [];
+    let correctanswerindex = -1;
+    let explanation = '';
+    
+    optionsText = optionsText.replace(/}$/, '');
+    
+    // Extraer explicación
+    const explanationMatch = optionsText.match(/####[^~=]*$/);
+    if (explanationMatch) {
+      explanation = explanationMatch[0].replace(/^####\s*/, '').trim();
+      explanation = explanation.replace(/RETROALIMENTACIÓN[^:]*:\s*/i, '');
+      explanation = explanation.replace(/Explicación detallada[^:]*:\s*/i, '');
+      explanation = explanation.replace(/^\s*-\s*/, '');
+      explanation = explanation.replace(/^\n+/, '');
+      
+      if (explanation.length > 200) {
+        explanation = explanation.substring(0, 197) + '...';
+      } else {
+        explanation = explanation.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+      }
+      
+      optionsText = optionsText.replace(/####[^~=]*$/, '');
+    }
+    
+    // Extraer opciones
+    const optionParts = optionsText.split(/[~=]/).filter(part => part.trim());
+    
+    for (let i = 0; i < optionParts.length; i++) {
+      const part = optionParts[i].trim();
+      if (part) {
+        if (optionsText.includes('=' + part) && correctanswerindex === -1) {
+          correctanswerindex = options.length;
+        }
+        
+        let cleanOption = part.replace(/####.*$/, '').trim();
+        
+        // Truncar opciones que excedan el límite de Telegram
+        if (cleanOption.length > 100) {
+          cleanOption = cleanOption.substring(0, 97) + '...';
+        }
+        
+        if (cleanOption) {
+          options.push(cleanOption);
+        }
+      }
+    }
+    
+    if (!questionText || options.length < 2 || correctanswerindex === -1) {
+      return null;
+    }
+    
+    // Truncar pregunta si es necesario
+    if (questionText.length > 200) {
+      questionText = questionText.substring(0, 197) + '...';
+    }
+    
+    return {
+      title,
+      question: questionText,
+      options,
+      correctanswerindex,
+      explanation: explanation || 'Respuesta correcta'
+    };
+    
+  } catch (error) {
+    return null;
+  }
+}
+
+async function restoreValidQuestionsFromBackup() {
+  try {
+    console.log('🚀 RESTAURANDO PREGUNTAS VÁLIDAS DESDE BACKUP');
+    console.log('='.repeat(60));
+    
+    const backupFile = 'preguntas-Permanencia-top-20250516-1103.txt';
+    const backupPath = path.join(process.cwd(), backupFile);
+    
+    // Verificar que el archivo existe
+    try {
+      await fs.access(backupPath);
+      console.log(`✅ Archivo de backup encontrado: ${backupFile}`);
+    } catch (error) {
+      console.error(`❌ Archivo de backup no encontrado: ${backupPath}`);
+      return;
+    }
+    
+    // Leer archivo por chunks para manejar el gran tamaño
+    console.log('📖 Leyendo archivo de backup (13MB)...');
+    const content = await fs.readFile(backupPath, 'utf-8');
+    
+    console.log('📏 Tamaño del archivo:', content.length.toLocaleString(), 'caracteres');
+    
+    // Dividir en preguntas individuales
+    console.log('🔍 Dividiendo contenido en preguntas individuales...');
+    const questionBlocks = content.split(/(?=::|\n\n|\r\n\r\n)/).filter(block => block.trim());
+    
+    console.log(`📊 Encontrados ${questionBlocks.length.toLocaleString()} bloques de preguntas`);
+    
+    // Limpiar tabla ValidQuestion existente
+    console.log('🗑️ Limpiando tabla ValidQuestion...');
+    await prisma.validQuestion.deleteMany({});
+    
+    // Procesar preguntas por lotes
+    const batchSize = 50;
+    let validQuestions = 0;
+    let invalidQuestions = 0;
+    let processedCount = 0;
+    
+    console.log('🔄 Procesando preguntas...\n');
+    
+    for (let i = 0; i < questionBlocks.length; i += batchSize) {
+      const batch = questionBlocks.slice(i, i + batchSize);
+      const validBatch = [];
+      
+      for (const block of batch) {
+        processedCount++;
+        
+        const parsed = parseGiftContent(block);
+        if (parsed) {
+          const validation = validateTelegramLimits(parsed);
+          
+          if (validation.valid) {
+            // Crear registro para ValidQuestion
+            validBatch.push({
+              originalQuestionId: `restored-${processedCount}`,
+              content: JSON.stringify({
+                title: parsed.title,
+                question: parsed.question,
+                options: parsed.options,
+                correct: parsed.correctanswerindex,
+                explanation: parsed.explanation
+              }),
+              parsedQuestion: parsed.question,
+              parsedOptions: parsed.options,
+              correctanswerindex: parsed.correctanswerindex,
+              parsedExplanation: parsed.explanation,
+              parseMethod: 'GIFT',
+              type: 'multiple_choice',
+              difficulty: 'medium',
+              bloomLevel: 'Comprensión',
+              documentId: 'backup-permanencia',
+              sendCount: 0,
+              lastsuccessfulsendat: null,
+              isactive: true
+            });
+            validQuestions++;
+          } else {
+            invalidQuestions++;
+          }
+        } else {
+          invalidQuestions++;
+        }
+        
+        // Mostrar progreso cada 1000 preguntas
+        if (processedCount % 1000 === 0) {
+          const percentage = ((processedCount / questionBlocks.length) * 100).toFixed(1);
+          console.log(`   📈 Progreso: ${processedCount.toLocaleString()}/${questionBlocks.length.toLocaleString()} (${percentage}%) - Válidas: ${validQuestions}`);
+        }
+      }
+      
+      // Insertar lote de preguntas válidas
+      if (validBatch.length > 0) {
+        try {
+          await prisma.validQuestion.createMany({
+            data: validBatch
+          });
+        } catch (error) {
+          console.error(`❌ Error insertando lote ${Math.floor(i / batchSize) + 1}:`, error);
+        }
+      }
+    }
+    
+    // Verificar inserción final
+    const finalCount = await prisma.validQuestion.count();
+    
+    console.log('\n' + '='.repeat(60));
+    console.log('📊 RESULTADOS DE LA RESTAURACIÓN');
+    console.log('='.repeat(60));
+    
+    console.log(`\n🎯 RESUMEN:`);
+    console.log(`   📄 Bloques procesados: ${processedCount.toLocaleString()}`);
+    console.log(`   ✅ Preguntas válidas: ${validQuestions.toLocaleString()}`);
+    console.log(`   ❌ Preguntas inválidas: ${invalidQuestions.toLocaleString()}`);
+    console.log(`   📊 Verificación en BD: ${finalCount.toLocaleString()}`);
+    console.log(`   📈 Tasa de éxito: ${((validQuestions / processedCount) * 100).toFixed(2)}%`);
+    
+    if (finalCount > 4000) {
+      console.log('\n🎉 ¡RESTAURACIÓN COMPLETADA EXITOSAMENTE!');
+      console.log('✅ Tabla ValidQuestion poblada con preguntas de permanencia');
+      console.log('🚀 El sistema de gamificación está listo para usar');
+    } else {
+      console.log('\n⚠️ Restauración completada pero con pocos registros');
+      console.log('🔍 Revisar logs para posibles problemas');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error durante la restauración:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+restoreValidQuestionsFromBackup(); 

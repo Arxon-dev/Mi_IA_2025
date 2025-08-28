@@ -1,0 +1,133 @@
+import fetch from 'node-fetch';
+
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
+
+async function checkWebhookInfo() {
+  try {
+    console.log('🔍 VERIFICANDO INFORMACIÓN DEL WEBHOOK');
+    console.log('=====================================');
+    
+    const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getWebhookInfo`);
+    const result = await response.json() as any;
+    
+    if (result.ok) {
+      const info = result.result;
+      console.log('📋 Estado del webhook:');
+      console.log(`   🌐 URL: ${info.url}`);
+      console.log(`   📤 Actualizaciones pendientes: ${info.pending_update_count}`);
+      console.log(`   ❌ Último error: ${info.last_error_message || 'Ninguno'}`);
+      console.log(`   📅 Último error (fecha): ${info.last_error_date ? new Date(info.last_error_date * 1000) : 'N/A'}`);
+      console.log(`   🎛️  Actualizaciones permitidas: ${info.allowed_updates?.join(', ') || 'Todas'}`);
+      console.log(`   📊 Conexiones máximas: ${info.max_connections || 'Default'}`);
+      
+      if (info.pending_update_count > 0) {
+        console.log(`\n⚠️  HAY ${info.pending_update_count} ACTUALIZACIONES PENDIENTES`);
+        console.log('   Estas pueden incluir poll_answers que no se han procesado.');
+      }
+      
+      if (info.last_error_message) {
+        console.log(`\n❌ ÚLTIMO ERROR DETECTADO:`);
+        console.log(`   Mensaje: ${info.last_error_message}`);
+        console.log(`   Fecha: ${new Date(info.last_error_date * 1000)}`);
+      }
+      
+      // Verificar si poll_answer está en allowed_updates
+      if (info.allowed_updates && !info.allowed_updates.includes('poll_answer')) {
+        console.log('\n🚨 PROBLEMA DETECTADO:');
+        console.log('   poll_answer NO está en allowed_updates');
+        console.log('   Esto explica por qué no llegan las respuestas de polls');
+        
+        return false;
+      } else {
+        console.log('\n✅ poll_answer está configurado correctamente en allowed_updates');
+        return true;
+      }
+      
+    } else {
+      console.error('❌ Error obteniendo información del webhook:', result);
+      return false;
+    }
+    
+  } catch (error) {
+    console.error('❌ Error:', error);
+    return false;
+  }
+}
+
+async function sendTestPoll() {
+  try {
+    console.log('\n🎯 ENVIANDO POLL DE PRUEBA');
+    console.log('==========================');
+    
+    // ID de chat de prueba (reemplaza con tu ID de usuario)
+    const CHAT_ID = '5793286375'; // Carlos
+    
+    const pollData = {
+      chat_id: CHAT_ID,
+      question: '🧪 TEST: ¿Funciona el sistema de poll answers?',
+      options: ['Sí, funciona', 'No funciona', 'No estoy seguro'],
+      type: 'quiz',
+      correct_option_id: 0,
+      is_anonymous: false,
+      allows_multiple_answers: false
+    };
+    
+    console.log('📤 Enviando poll a chat ID:', CHAT_ID);
+    
+    const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPoll`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(pollData)
+    });
+    
+    const result = await response.json() as any;
+    
+    if (result.ok) {
+      console.log('✅ Poll enviado exitosamente!');
+      console.log(`   📊 Poll ID: ${result.result.poll.id}`);
+      console.log(`   📝 Message ID: ${result.result.message_id}`);
+      
+      console.log('\n📋 INSTRUCCIONES:');
+      console.log('1. Ve a tu chat privado con el bot');
+      console.log('2. Responde al poll que acabas de recibir');
+      console.log('3. Verifica en los logs del servidor si llega poll_answer');
+      console.log('4. Ejecuta: tail -f npm-debug.log | grep poll_answer');
+      
+      return result.result.poll.id;
+    } else {
+      console.error('❌ Error enviando poll:', result);
+      return null;
+    }
+    
+  } catch (error) {
+    console.error('❌ Error enviando poll:', error);
+    return null;
+  }
+}
+
+async function main() {
+  console.log('🧪 DIAGNÓSTICO DE POLL ANSWERS');
+  console.log('==============================\n');
+  
+  // Paso 1: Verificar configuración del webhook
+  const webhookOk = await checkWebhookInfo();
+  
+  if (!webhookOk) {
+    console.log('\n🔧 Para arreglar el problema de configuración:');
+    console.log('   1. Ejecuta: npx tsx scripts/setup-webhook.ts');
+    console.log('   2. O ejecuta este script de nuevo');
+    return;
+  }
+  
+  // Paso 2: Enviar poll de prueba
+  const pollId = await sendTestPoll();
+  
+  if (pollId) {
+    console.log('\n⏰ ESPERANDO RESPUESTA...');
+    console.log('==========================');
+    console.log('Responde al poll en Telegram y verifica que llegue poll_answer al webhook.');
+    console.log('Si no llega nada, el problema está en la configuración del webhook.');
+  }
+}
+
+main(); 

@@ -1,0 +1,76 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+
+export async function GET(request: NextRequest) {
+  try {
+    console.log('🔍 ======== DIAGNÓSTICO DE TABLAS POSTGRESQL ========');
+
+    // 1. Verificar si las tablas de Moodle existen
+    const tables = await prisma.$queryRaw<any[]>`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_name LIKE '%Moodle%'
+      ORDER BY table_name
+    `;
+
+    console.log('📋 Tablas Moodle encontradas:', tables);
+
+    // 2. Verificar estructura de MoodleUserLink si existe
+    let moodleUserLinkColumns: any[] = [];
+    try {
+      moodleUserLinkColumns = await prisma.$queryRaw<any[]>`
+        SELECT column_name, data_type, is_nullable
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'MoodleUserLink'
+        ORDER BY ordinal_position
+      `;
+    } catch (error) {
+      console.log('❌ Error obteniendo columnas de MoodleUserLink:', error);
+    }
+
+    // 3. Intentar crear registro de prueba (sin ejecutar)
+    const testRecord = {
+      id: 'test-id',
+      telegramUserId: 'test-telegram',
+      moodleUserId: 'test-moodle',
+      moodleUsername: 'test-user',
+      moodleEmail: 'test@test.com',
+      moodleFullname: 'Test User',
+      linkedAt: new Date(),
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    // 4. Verificar todas las tablas de la base de datos
+    const allTables = await prisma.$queryRaw<any[]>`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+      ORDER BY table_name
+    `;
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        moodleTables: tables,
+        moodleUserLinkColumns: moodleUserLinkColumns,
+        allTables: allTables.map(t => t.table_name),
+        testRecord: testRecord,
+        databaseInfo: {
+          host: process.env.DATABASE_URL?.includes('localhost') ? 'localhost' : 'remote',
+          schema: 'public'
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error en diagnóstico:', error);
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error desconocido'
+    }, { status: 500 });
+  }
+} 

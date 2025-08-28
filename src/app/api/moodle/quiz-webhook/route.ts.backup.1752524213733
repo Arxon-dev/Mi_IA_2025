@@ -1,0 +1,191 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+
+// ==========================================
+// 🎯 WEBHOOK PARA ACTIVIDADES DE QUIZ MOODLE
+// ==========================================
+
+export async function POST(request: NextRequest) {
+  console.log('🎯 WEBHOOK MOODLE: Recibiendo datos del observer');
+  
+  try {
+    const body = await request.json();
+    
+    // ✅ LOGGING COMPLETO DE DATOS RECIBIDOS
+    console.log('📦 DATOS COMPLETOS RECIBIDOS:');
+    console.log(JSON.stringify(body, null, 2));
+    
+    console.log('🔍 ANÁLISIS DETALLADO:');
+    console.log('- Tipo de datos:', typeof body);
+    console.log('- Keys disponibles:', Object.keys(body));
+    
+    if (body.quizData) {
+      console.log('📊 Quiz Data Keys:', Object.keys(body.quizData));
+      console.log('📊 Quiz Data Content:', JSON.stringify(body.quizData, null, 2));
+    }
+    
+    if (body.questions && Array.isArray(body.questions)) {
+      console.log(`📝 Total preguntas recibidas: ${body.questions.length}`);
+      body.questions.forEach((question: any, index: number) => {
+        console.log(`📝 Pregunta ${index + 1}:`, {
+          questionId: question.questionId,
+          isCorrect: question.isCorrect,
+          userAnswer: question.userAnswer,
+          correctAnswer: question.correctAnswer,
+          keys: Object.keys(question)
+        });
+      });
+    }
+
+    // ✅ MANEJAR AMBOS FORMATOS: con wrapper y directo del observer
+    let quizData, questions;
+    
+    if (body.quizData) {
+      // Formato con wrapper (quiz simulado)
+      console.log('📦 Formato con quizData wrapper detectado');
+      quizData = body.quizData;
+      questions = body.questions || [];
+    } else if (body.moodleUserId) {
+      // Formato directo del observer de Moodle  
+      console.log('📦 Formato directo del observer detectado');
+      quizData = {
+        userId: body.moodleUserId,
+        attemptId: body.attemptId,
+        quizName: body.quizName,
+        totalQuestions: body.totalQuestions,
+        correctAnswers: body.correctAnswers,
+        scorePercentage: body.scorePercentage,
+        timeSpent: body.timeSpent,
+        subject: body.subject
+      };
+      questions = body.questions || [];
+    } else {
+      console.error('❌ Error: Formato de datos no reconocido');
+      console.log('📦 Keys recibidas:', Object.keys(body));
+      return NextResponse.json({
+        success: false,
+        error: 'Formato de datos no reconocido',
+        receivedKeys: Object.keys(body)
+      }, { status: 400 });
+    }
+
+    // Buscar usuario vinculado
+    const linkRecords = await prisma.$queryRaw<any[]>`
+      SELECT * FROM "MoodleUserLink" 
+      WHERE "moodleUserId" = ${quizData.userId.toString()}
+      AND "isActive" = true
+      LIMIT 1
+    `;
+    
+    const userLink = linkRecords.length > 0 ? linkRecords[0] : null;
+
+    if (!userLink) {
+      console.error(`❌ Usuario Moodle ${quizData.userId} no está vinculado a Telegram`);
+      return NextResponse.json({
+        success: false,
+        error: 'User not linked to Telegram',
+        moodleUserId: quizData.userId
+      });
+    }
+
+    console.log(`✅ Usuario vinculado encontrado: ${userLink.moodleUsername} -> @${userLink.telegramUserId}`);
+
+    // Procesar cada pregunta
+    const processedActivities: any[] = [];
+    
+    for (const question of questions) {
+      console.log('🔄 Procesando pregunta:', {
+        questionId: question.questionId,
+        slot: question.slot,
+        isCorrect: question.isCorrect || question.correct,
+        hasCorrectInfo: 'isCorrect' in question || 'correct' in question,
+        allKeys: Object.keys(question)
+      });
+
+      const activityId = crypto.randomUUID();
+      // ✅ MANEJAR AMBOS CAMPOS: isCorrect (simulado) y correct (observer real)
+      const isCorrect = Boolean(question.isCorrect !== undefined ? question.isCorrect : question.correct);
+      
+      // ✅ USAR SOLO CAMPOS QUE EXISTEN EN LA TABLA REAL
+      const difficulty = question.difficulty || 'easy';
+      const subject = quizData.subject || 'general';
+      const responseTime = question.response_time || question.responseTime || null;
+      
+      await prisma.$executeRaw`
+        INSERT INTO "MoodleActivity" (
+          "id", "moodleUserId", "telegramUserId", "questionCorrect",
+          "responseTime", "subject", "difficulty", "processedAt"
+        ) VALUES (
+          ${activityId}, ${quizData.userId.toString()}, ${userLink.telegramUserId},
+          ${isCorrect}, ${responseTime}, ${subject}, ${difficulty}, ${new Date()}
+        )
+      `;
+
+      const activity = {
+        id: activityId,
+        questionCorrect: isCorrect,
+        responseTime: responseTime,
+        subject: subject,
+        difficulty: difficulty,
+        moodleUserId: quizData.userId.toString(),
+        telegramUserId: userLink.telegramUserId
+      };
+
+      processedActivities.push(activity);
+      
+      console.log(`✅ Actividad creada: ${activity.id} - Correcta: ${activity.questionCorrect}`);
+    }
+
+    console.log(`🎉 PROCESAMIENTO COMPLETADO: ${processedActivities.length} actividades creadas`);
+    console.log('📊 Resumen de actividades:');
+    const correctCount = processedActivities.filter((a: any) => a.questionCorrect).length;
+    const incorrectCount = processedActivities.filter((a: any) => !a.questionCorrect).length;
+    console.log(`✅ Correctas: ${correctCount}`);
+    console.log(`❌ Incorrectas: ${incorrectCount}`);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Quiz activities processed successfully',
+      userId: quizData.userId,
+      telegramUserId: userLink.telegramUserId,
+      activitiesCreated: processedActivities.length,
+      correctAnswers: correctCount,
+      incorrectAnswers: incorrectCount,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error procesando webhook Moodle:', error);
+    return NextResponse.json({
+      success: false,
+      error: 'Error processing Moodle webhook',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
+  }
+}
+
+// Permitir GET para verificar que el endpoint existe
+export async function GET() {
+  return NextResponse.json({
+    message: 'Webhook para recibir actividades de quiz desde Moodle',
+    description: 'Procesa datos de quiz completos y crea actividades en la base de datos',
+    expectedFormat: {
+      quizData: {
+        userId: 'number',
+        attemptId: 'number',
+        quizId: 'number',
+        grade: 'number'
+      },
+      questions: [
+        {
+          questionId: 'number',
+          isCorrect: 'boolean',
+          userAnswer: 'string',
+          correctAnswer: 'string'
+        }
+      ]
+    },
+    timestamp: new Date().toISOString()
+  });
+} 

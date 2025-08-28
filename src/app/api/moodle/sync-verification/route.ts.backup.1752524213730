@@ -1,0 +1,162 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import mysql from 'mysql2/promise';
+
+// ==========================================
+// 🔄 API PARA SINCRONIZACIÓN MOODLE ↔ TELEGRAM
+// ==========================================
+
+export async function POST(request: NextRequest) {
+  try {
+    console.log('🔄 ======== SINCRONIZACIÓN MOODLE ↔ TELEGRAM ========');
+    
+    const body = await request.json();
+    const { telegramUserId, code } = body;
+
+    if (!telegramUserId || !code) {
+      return NextResponse.json({
+        success: false,
+        message: 'telegramUserId y code son requeridos'
+      }, { status: 400 });
+    }
+
+    console.log(`🔄 Sincronizando código ${code} para usuario Telegram: ${telegramUserId}`);
+
+    // 1. Verificar si ya tiene vinculación en PostgreSQL
+    const existingLinks = await prisma.$queryRaw<any[]>`
+      SELECT * FROM "MoodleUserLink" 
+      WHERE "telegramUserId" = ${telegramUserId}
+      LIMIT 1
+    `;
+
+    if (existingLinks.length > 0) {
+      console.log('❌ Usuario ya tiene vinculación existente en PostgreSQL');
+      return NextResponse.json({
+        success: false,
+        message: 'YA TIENES CUENTA VINCULADA',
+        data: existingLinks[0]
+      });
+    }
+
+    // 2. Conectar a MySQL de Moodle
+    const connection = await mysql.createConnection({
+      host: process.env.MOODLE_DB_HOST || 'localhost',
+      user: process.env.MOODLE_DB_USER || 'root',
+      password: process.env.MOODLE_DB_PASSWORD || '',
+      database: process.env.MOODLE_DB_NAME || 'moodle',
+      port: parseInt(process.env.MOODLE_DB_PORT || '3306')
+    });
+
+    try {
+      // 3. Buscar el código en Moodle MySQL
+      const [moodleRows] = await connection.execute(
+        `SELECT * FROM mdl_local_telegram_verification 
+         WHERE verification_code = ? 
+         AND expires_at > UNIX_TIMESTAMP() 
+         LIMIT 1`,
+        [code]
+      );
+
+      const moodleRecords = moodleRows as any[];
+      
+      if (moodleRecords.length === 0) {
+        console.log('❌ Código no encontrado o expirado en Moodle');
+        return NextResponse.json({
+          success: false,
+          message: 'CÓDIGO NO VÁLIDO O EXPIRADO'
+        }, { status: 400 });
+      }
+
+      const moodleRecord = moodleRecords[0];
+      console.log(`✅ Código encontrado en Moodle para usuario: ${moodleRecord.moodle_userid}`);
+
+      // 4. Obtener datos del usuario de Moodle
+      const [userRows] = await connection.execute(
+        `SELECT id, username, email, firstname, lastname 
+         FROM mdl_user 
+         WHERE id = ? 
+         LIMIT 1`,
+        [moodleRecord.moodle_userid]
+      );
+
+      const userRecords = userRows as any[];
+      
+      if (userRecords.length === 0) {
+        console.log('❌ Usuario no encontrado en Moodle');
+        return NextResponse.json({
+          success: false,
+          message: 'Usuario no encontrado en Moodle'
+        }, { status: 400 });
+      }
+
+      const moodleUser = userRecords[0];
+      const fullname = `${moodleUser.firstname} ${moodleUser.lastname}`.trim();
+
+      // 5. Crear vinculación en PostgreSQL
+      const linkId = crypto.randomUUID();
+      const linkedAt = new Date();
+      const createdAt = new Date();
+      const updatedAt = new Date();
+
+      await prisma.$executeRaw`
+        INSERT INTO "MoodleUserLink" (
+          "id", "telegramUserId", "moodleUserId", "moodleUsername", 
+          "moodleEmail", "moodleFullname", "linkedAt", "isActive", 
+          "createdAt", "updatedAt"
+        ) VALUES (
+          ${linkId}, ${telegramUserId}, ${moodleUser.id.toString()}, 
+          ${moodleUser.username}, ${moodleUser.email}, 
+          ${fullname}, ${linkedAt}, true, ${createdAt}, ${updatedAt}
+        )
+      `;
+
+      // 6. Marcar como verificado en Moodle MySQL
+      await connection.execute(
+        `UPDATE mdl_local_telegram_verification 
+         SET is_verified = 1, verified_at = UNIX_TIMESTAMP(), 
+             telegram_userid = ?, telegram_username = ?
+         WHERE verification_code = ?`,
+        [telegramUserId, 'Carlos_esp', code] // TODO: Obtener username real
+      );
+
+      // 7. Crear código de verificación en PostgreSQL para referencia
+      const codeId = crypto.randomUUID();
+      await prisma.$executeRaw`
+        INSERT INTO "MoodleVerificationCode" (
+          "id", "code", "moodleUserId", "moodleUsername", 
+          "moodleEmail", "moodleFullname", "expiresAt", "used", "usedAt"
+        ) VALUES (
+          ${codeId}, ${code}, ${moodleUser.id.toString()}, 
+          ${moodleUser.username}, ${moodleUser.email}, 
+          ${fullname}, ${new Date(Date.now() + 15 * 60 * 1000)}, true, ${linkedAt}
+        )
+      `;
+
+      console.log('🎉 Sincronización y vinculación REAL completada exitosamente');
+
+      return NextResponse.json({
+        success: true,
+        message: '¡VINCULACIÓN REAL EXITOSA!',
+        data: {
+          moodleUserId: moodleUser.id.toString(),
+          moodleUsername: moodleUser.username,
+          moodleEmail: moodleUser.email,
+          moodleFullname: fullname,
+          linkedAt: linkedAt,
+          synchronized: true
+        }
+      });
+
+    } finally {
+      await connection.end();
+    }
+
+  } catch (error) {
+    console.error('❌ Error en sincronización:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'Error en sincronización con Moodle',
+      error: error instanceof Error ? error.message : 'Error desconocido'
+    }, { status: 500 });
+  }
+} 

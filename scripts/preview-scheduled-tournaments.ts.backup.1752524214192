@@ -1,0 +1,136 @@
+// Vista previa de torneos programados
+// Muestra qué torneos se crearán sin crearlos realmente
+
+const START_DATE = new Date('2025-06-08'); // Domingo 08/06/2025
+const END_DATE = new Date('2025-10-30');   // Jueves 30/10/2025
+const TOURNAMENT_DAYS = [0, 2, 4, 6]; // Domingo=0, Martes=2, Jueves=4, Sábado=6
+const TOURNAMENT_TIMES = ['10:30', '16:00', '20:00'];
+
+function generateTournamentDates(startDate: Date, endDate: Date): Date[] {
+  const dates: Date[] = [];
+  const current = new Date(startDate);
+  
+  while (current <= endDate) {
+    const dayOfWeek = current.getDay();
+    
+    // Si es uno de los días de torneo
+    if (TOURNAMENT_DAYS.includes(dayOfWeek)) {
+      TOURNAMENT_TIMES.forEach(time => {
+        const [hours, minutes] = time.split(':').map(Number);
+        const tournamentDate = new Date(current);
+        tournamentDate.setHours(hours, minutes, 0, 0);
+        dates.push(new Date(tournamentDate));
+      });
+    }
+    
+    current.setDate(current.getDate() + 1);
+  }
+  
+  return dates.sort((a, b) => a.getTime() - b.getTime());
+}
+
+function formatDate(date: Date): string {
+  return date.toLocaleDateString('es-ES', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function getDayName(dayOfWeek: number): string {
+  const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  return days[dayOfWeek];
+}
+
+function main() {
+  console.log('🏆 VISTA PREVIA - TORNEOS PERMA PROGRAMADOS');
+  console.log('===========================================');
+  console.log(`📅 Período: ${START_DATE.toLocaleDateString('es-ES')} - ${END_DATE.toLocaleDateString('es-ES')}`);
+  console.log(`📋 Configuración:`);
+  console.log(`   • Días: ${TOURNAMENT_DAYS.map(d => getDayName(d)).join(', ')}`);
+  console.log(`   • Horarios: ${TOURNAMENT_TIMES.join(', ')}`);
+  console.log(`   • Preguntas: 20 por torneo`);
+  console.log(`   • Duración: 20 minutos`);
+  console.log('');
+
+  const tournamentDates = generateTournamentDates(START_DATE, END_DATE);
+  
+  console.log(`🎯 Total de torneos a crear: ${tournamentDates.length}`);
+  console.log('');
+
+  // Agrupar por mes para mejor visualización
+  const byMonth = new Map<string, Date[]>();
+  
+  tournamentDates.forEach(date => {
+    const monthKey = date.toLocaleDateString('es-ES', { year: 'numeric', month: 'long' });
+    if (!byMonth.has(monthKey)) {
+      byMonth.set(monthKey, []);
+    }
+    byMonth.get(monthKey)!.push(date);
+  });
+
+  // Mostrar resumen por mes
+  console.log('📊 RESUMEN POR MES:');
+  console.log('==================');
+  
+  let tournamentCounter = 1;
+  
+  for (const [month, dates] of byMonth) {
+    console.log(`\n📅 ${month}: ${dates.length} torneos`);
+    
+    // Agrupar por día de la semana en este mes
+    const byDay = new Map<string, Date[]>();
+    dates.forEach(date => {
+      const dayKey = getDayName(date.getDay());
+      if (!byDay.has(dayKey)) {
+        byDay.set(dayKey, []);
+      }
+      byDay.get(dayKey)!.push(date);
+    });
+
+    for (const [dayName, dayDates] of byDay) {
+      console.log(`   ${dayName}: ${dayDates.length} torneos`);
+    }
+  }
+
+  console.log('\n🗓️ CALENDARIO DETALLADO:');
+  console.log('========================');
+
+  // Mostrar los primeros 20 torneos como ejemplo
+  console.log('\n📋 Primeros 20 torneos:');
+  for (let i = 0; i < Math.min(20, tournamentDates.length); i++) {
+    const date = tournamentDates[i];
+    const tournamentName = `PERMA ${tournamentCounter + i}`;
+    console.log(`${(i + 1).toString().padStart(2, '0')}. ${tournamentName} - ${formatDate(date)}`);
+  }
+
+  if (tournamentDates.length > 20) {
+    console.log(`    ... y ${tournamentDates.length - 20} torneos más`);
+  }
+
+  // Mostrar los últimos 5 torneos
+  if (tournamentDates.length > 25) {
+    console.log('\n📋 Últimos 5 torneos:');
+    for (let i = tournamentDates.length - 5; i < tournamentDates.length; i++) {
+      const date = tournamentDates[i];
+      const tournamentName = `PERMA ${tournamentCounter + i}`;
+      console.log(`${(i + 1).toString().padStart(3, '0')}. ${tournamentName} - ${formatDate(date)}`);
+    }
+  }
+
+  console.log('\n📈 ESTADÍSTICAS:');
+  console.log('================');
+  console.log(`🎯 Total de torneos: ${tournamentDates.length}`);
+  console.log(`⏰ Duración total estimada: ${(tournamentDates.length * 20 / 60).toFixed(1)} horas`);
+  console.log(`🎮 Preguntas totales: ${tournamentDates.length * 20} preguntas`);
+  console.log(`📅 Período: ${Math.ceil((END_DATE.getTime() - START_DATE.getTime()) / (1000 * 60 * 60 * 24))} días`);
+  console.log(`📊 Promedio: ${(tournamentDates.length / Math.ceil((END_DATE.getTime() - START_DATE.getTime()) / (1000 * 60 * 60 * 24 * 7))).toFixed(1)} torneos por semana`);
+
+  console.log('\n✅ Para ejecutar la creación real, ejecuta:');
+  console.log('   npx ts-node scripts/create-scheduled-tournaments.ts');
+}
+
+main(); 

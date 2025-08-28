@@ -1,0 +1,123 @@
+import { config } from 'dotenv';
+
+config();
+
+async function createSimulacroTables() {
+  try {
+    console.log('🔧 CREANDO TABLAS DE SIMULACRO EN LA BASE DE DATOS');
+    console.log('=' .repeat(60));
+    
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
+    
+    await prisma.$connect();
+    
+    console.log('\n📊 1. CREANDO TABLA SIMULACRO...');
+    
+    // Crear tabla Simulacro
+    await prisma.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "Simulacro" (
+          "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          "userid" TEXT NOT NULL,
+          "status" TEXT NOT NULL DEFAULT 'in_progress',
+          "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "completedAt" TIMESTAMP(3),
+          "timelimit" INTEGER NOT NULL DEFAULT 10800,
+          "timeElapsed" INTEGER DEFAULT 0,
+          "currentQuestionIndex" INTEGER NOT NULL DEFAULT 0,
+          "totalQuestions" INTEGER NOT NULL DEFAULT 100,
+          "finalScore" INTEGER DEFAULT 0,
+          "finalPercentage" REAL DEFAULT 0,
+          "passed" BOOLEAN DEFAULT false,
+          "averageResponseTime" REAL,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY ("userid") REFERENCES "TelegramUser"("id") ON DELETE CASCADE
+      );
+    `;
+    
+    console.log('✅ Tabla Simulacro creada');
+    
+    console.log('\n📝 2. CREANDO TABLA SIMULACRO_RESPONSE...');
+    
+    // Crear tabla SimulacroResponse
+    await prisma.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "SimulacroResponse" (
+          "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          "simulacroId" TEXT NOT NULL,
+          "questionid" TEXT NOT NULL,
+          "questionnumber" INTEGER NOT NULL,
+          "pollid" TEXT,
+          "selectedOption" INTEGER,
+          "iscorrect" BOOLEAN,
+          "responsetime" INTEGER,
+          "answeredAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
+          "skipped" BOOLEAN DEFAULT false,
+          "questionCategory" TEXT,
+          "questionDifficulty" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY ("simulacroId") REFERENCES "Simulacro"("id") ON DELETE CASCADE,
+          FOREIGN KEY ("questionid") REFERENCES "ExamenOficial2018"("id") ON DELETE CASCADE,
+          UNIQUE("simulacroId", "questionnumber")
+      );
+    `;
+    
+    console.log('✅ Tabla SimulacroResponse creada');
+    
+    console.log('\n📇 3. CREANDO ÍNDICES...');
+    
+    // Crear índices
+    await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "Simulacro_userId_status_idx" ON "Simulacro"("userid", "status");`;
+    await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "Simulacro_startedAt_idx" ON "Simulacro"("startedAt");`;
+    await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "Simulacro_status_timeLimit_idx" ON "Simulacro"("status", "timelimit");`;
+    
+    await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "SimulacroResponse_simulacroId_idx" ON "SimulacroResponse"("simulacroId");`;
+    await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "SimulacroResponse_questionNumber_idx" ON "SimulacroResponse"("questionnumber");`;
+    await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "SimulacroResponse_isCorrect_idx" ON "SimulacroResponse"("iscorrect");`;
+    
+    console.log('✅ Índices creados');
+    
+    console.log('\n🔍 4. VERIFICANDO TABLAS CREADAS...');
+    
+    // Verificar que las tablas existen
+    const tablesCheck = await prisma.$queryRaw`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_name IN ('Simulacro', 'SimulacroResponse')
+      ORDER BY table_name;
+    ` as any[];
+    
+    console.log('📋 Tablas encontradas:', tablesCheck.map(t => t.table_name));
+    
+    if (tablesCheck.length === 2) {
+      console.log('✅ Todas las tablas de simulacro están creadas correctamente');
+    } else {
+      console.log('⚠️ Faltan algunas tablas');
+    }
+    
+    console.log('\n📊 5. VERIFICANDO PREGUNTAS DISPONIBLES...');
+    
+    const questionCount = await prisma.$queryRaw`
+      SELECT COUNT(*) as count FROM "ExamenOficial2018" WHERE "isActive" = true
+    ` as any[];
+    
+    console.log(`📝 Preguntas del examen oficial disponibles: ${questionCount[0]?.count || 0}/100`);
+    
+    if (parseInt(questionCount[0]?.count || '0') >= 100) {
+      console.log('✅ Suficientes preguntas para simulacros');
+    } else {
+      console.log('⚠️ Necesitas al menos 100 preguntas para simulacros completos');
+    }
+    
+    await prisma.$disconnect();
+    
+    console.log('\n🎉 TABLAS DE SIMULACRO CREADAS EXITOSAMENTE');
+    console.log('🚀 El sistema de simulacro está listo para usar');
+    
+  } catch (error) {
+    console.error('❌ ERROR:', error);
+  }
+}
+
+createSimulacroTables(); 

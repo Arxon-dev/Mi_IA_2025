@@ -1,0 +1,36 @@
+{
+  "fecha": "2025-06-10T14:20:07.356Z",
+  "verificaciones": {
+    "prompts": {
+      "esperados": 6,
+      "encontrados": 6,
+      "porcentaje": 100
+    },
+    "bloom": {
+      "esperados": 6,
+      "correctos": 6,
+      "sumaPorcentajes": 100,
+      "porcentaje": 100
+    },
+    "archivos": {
+      "esperados": 7,
+      "encontrados": 7,
+      "porcentaje": 100
+    },
+    "questionConfig": {
+      "existe": true,
+      "correcto": true,
+      "porcentaje": 100
+    },
+    "limites": {
+      "preguntasLargas": 0,
+      "opcionesLargas": 0,
+      "explicacionesLargas": 0,
+      "cumple": true,
+      "porcentaje": 100
+    }
+  },
+  "cumplimiento": 100,
+  "problemas": [],
+  "exito": true
+}

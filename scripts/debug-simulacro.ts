@@ -1,0 +1,174 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function debugSimulacro() {
+  try {
+    console.log('🔍 DEBUGGING SIMULACRO STATE');
+    console.log('=============================');
+
+    // 1. Buscar usuario Carlos
+    const user = await prisma.telegramuser.findUnique({
+      where: { telegramuserid: '5793286375' }
+    });
+
+    if (!user) {
+      console.error('❌ Usuario no encontrado');
+      return;
+    }
+
+    console.log('✅ Usuario encontrado:', {
+      id: user.id,
+      telegramuserid: user.telegramuserid,
+      firstname: user.firstname,
+      username: user.username
+    });
+
+    // 2. Buscar simulacros del usuario
+    const simulacros = await prisma.simulacro.findMany({
+      where: { userid: user.id },
+      orderBy: { startedAt: 'desc' },
+      take: 3
+    });
+
+    console.log('\n📋 SIMULACROS DEL USUARIO:');
+    console.log('==========================');
+
+    simulacros.forEach((sim, index) => {
+      console.log(`${index + 1}. ID: ${sim.id}`);
+      console.log(`   Status: ${sim.status}`);
+      console.log(`   Started: ${sim.startedAt}`);
+      console.log(`   Completed: ${sim.completedAt || 'null'}`);
+      console.log(`   Current Question Index: ${sim.currentQuestionIndex}`);
+      console.log(`   Total Questions: ${sim.totalquestions}`);
+      console.log(`   Final Score: ${sim.finalScore}`);
+      console.log('   ---');
+    });
+
+    // 3. Enfocarse en el simulacro activo (en progreso)
+    const activeSimulacro = simulacros.find(s => s.status === 'in_progress');
+
+    if (!activeSimulacro) {
+      console.log('\n❌ No hay simulacro activo');
+      return;
+    }
+
+    console.log('\n🎯 SIMULACRO ACTIVO DETECTADO:');
+    console.log('===============================');
+    console.log('ID:', activeSimulacro.id);
+    console.log('Status:', activeSimulacro.status);
+    console.log('Iniciado:', activeSimulacro.startedAt);
+    console.log('Current Question Index:', activeSimulacro.currentQuestionIndex);
+
+    // 4. Analizar las respuestas del simulacro activo
+    const responses = await prisma.simulacroResponse.findMany({
+      where: { simulacroId: activeSimulacro.id },
+      orderBy: { questionnumber: 'asc' },
+      include: {
+        question: true
+      }
+    });
+
+    console.log('\n📊 ANÁLISIS DE RESPUESTAS:');
+    console.log('==========================');
+    console.log('Total responses creadas:', responses.length);
+
+    const answeredResponses = responses.filter(r => r.answeredAt !== null);
+    const unansweredResponses = responses.filter(r => r.answeredAt === null && !r.skipped);
+    const skippedResponses = responses.filter(r => r.skipped);
+
+    console.log('Respondidas:', answeredResponses.length);
+    console.log('Sin responder:', unansweredResponses.length);
+    console.log('Saltadas:', skippedResponses.length);
+
+    // 5. Mostrar primeras 5 respondidas
+    if (answeredResponses.length > 0) {
+      console.log('\n✅ PRIMERAS 5 RESPONDIDAS:');
+      console.log('===========================');
+      answeredResponses.slice(0, 5).forEach(r => {
+        console.log(`Q${r.questionnumber}: ${r.iscorrect ? '✅' : '❌'} | ${r.answeredAt} | Option: ${r.selectedOption}/${r.question.correctanswerindex}`);
+      });
+    }
+
+    // 6. Mostrar primeras 5 sin responder
+    if (unansweredResponses.length > 0) {
+      console.log('\n⏳ PRIMERAS 5 SIN RESPONDER:');
+      console.log('============================');
+      unansweredResponses.slice(0, 5).forEach(r => {
+        console.log(`Q${r.questionnumber}: ${r.question.question.substring(0, 100)}...`);
+      });
+
+      // 7. Probar getCurrentQuestion con el simulacroService
+      console.log('\n🔄 PROBANDO getCurrentQuestion():');
+      console.log('==================================');
+      
+      const { SimulacroService } = await import('../src/services/simulacroService');
+      const currentQuestion = await SimulacroService.getCurrentQuestion(activeSimulacro.id);
+      
+      if (currentQuestion) {
+        console.log('✅ getCurrentQuestion() devolvió pregunta:', currentQuestion.questionnumber);
+        console.log('   Pregunta:', currentQuestion.question.substring(0, 100) + '...');
+      } else {
+        console.log('❌ getCurrentQuestion() devolvió null');
+      }
+    }
+
+    // 8. Verificar si hay problemas en las relaciones de datos
+    console.log('\n🔍 VERIFICACIÓN DE INTEGRIDAD:');
+    console.log('==============================');
+    
+    for (const response of responses.slice(0, 3)) {
+      if (!response.question) {
+        console.log(`❌ Response ${response.id} (Q${response.questionnumber}) no tiene question asociada`);
+      } else {
+        console.log(`✅ Response ${response.id} (Q${response.questionnumber}) tiene question ${response.question.id}`);
+      }
+    }
+
+    // 9. Verificar estado del simulacro desde diferentes ángulos
+    console.log('\n📈 VERIFICACIONES FINALES:');
+    console.log('==========================');
+    
+    // Verificar con la misma lógica del webhook
+    const webhookLogicCheck = await prisma.$queryRaw`
+      SELECT sr."questionnumber", eo.question, eo.options, eo."correctanswerindex"
+      FROM "SimulacroResponse" sr
+      JOIN "ExamenOficial2018" eo ON sr."questionid" = eo.id
+      WHERE sr."simulacroId" = ${activeSimulacro.id}
+      AND sr."answeredAt" IS NULL
+      AND sr.skipped = false
+      ORDER BY sr."questionnumber" ASC
+      LIMIT 1
+    ` as any[];
+
+    console.log('Webhook logic check result:', webhookLogicCheck.length > 0 ? `Q${webhookLogicCheck[0].questionnumber}` : 'No questions found');
+
+    if (webhookLogicCheck.length === 0) {
+      console.log('🚨 PROBLEMA ENCONTRADO: La consulta del webhook no encuentra preguntas sin responder');
+      console.log('   Esto explica por qué dice "SIMULACRO COMPLETADO"');
+      
+      // Verificar si hay desincronización
+      console.log('\n🔍 INVESTIGANDO DESINCRONIZACIÓN:');
+      const allResponsesRaw = await prisma.$queryRaw`
+        SELECT sr.id, sr."questionnumber", sr."answeredAt", sr.skipped, sr."iscorrect", sr."selectedOption"
+        FROM "SimulacroResponse" sr
+        WHERE sr."simulacroId" = ${activeSimulacro.id}
+        ORDER BY sr."questionnumber" ASC
+        LIMIT 10
+      ` as any[];
+
+      console.log('Primeras 10 respuestas (raw query):');
+      allResponsesRaw.forEach(r => {
+        console.log(`  Q${r.questionnumber}: answeredAt=${r.answeredAt}, skipped=${r.skipped}, correct=${r.iscorrect}, option=${r.selectedOption}`);
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Error en debug:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Ejecutar el debug
+debugSimulacro(); 

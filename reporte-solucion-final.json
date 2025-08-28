@@ -1,0 +1,35 @@
+{
+  "timestamp": "2025-06-10T14:28:39.270Z",
+  "solucionCompleta": true,
+  "estadisticas": {
+    "totalLlamadas": 2,
+    "llamadasCorrectas": 2,
+    "llamadasIncorrectas": 0
+  },
+  "configuracionActual": {
+    "tipos": {
+      "textual": 75,
+      "blank_spaces": 5,
+      "none_correct": 10,
+      "identify_incorrect": 10
+    },
+    "dificultades": {
+      "difficult": 5,
+      "very_difficult": 25,
+      "extremely_difficult": 70
+    },
+    "longitudOpciones": "telegram"
+  },
+  "llamadasAnalizadas": [
+    {
+      "numero": 1,
+      "codigo": "AIService.generateQuestions( targetSection.content, // Contenido de la sección numberOfQuestions, questionTypeCounts, // 🎯 APLICAR configuraciones guardadas optionLength, undefined, // modelOverride customTitleParam || customTitle // título personalizado )",
+      "correcta": true
+    },
+    {
+      "numero": 2,
+      "codigo": "AIService.generateQuestions( currentDocument.content, // Contenido del documento completo numberOfQuestions, questionTypeCounts, // 🎯 APLICAR configuraciones guardadas optionLength, undefined, // modelOverride customTitleParam || customTitle // título personalizado )",
+      "correcta": true
+    }
+  ]
+}

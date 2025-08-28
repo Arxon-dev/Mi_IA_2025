@@ -1,0 +1,513 @@
+import { PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
+
+type TransactionClient = Omit<
+  PrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
+
+export interface TelegramUserStats {
+  telegramUserId: string;
+  username?: string;
+  firstName?: string;
+  totalPoints: number;
+  level: number;
+  streak: number;
+  bestStreak: number;
+  totalResponses: number;
+  correctResponses: number;
+  accuracy: number;
+  rank: number;
+  lastActivity?: Date;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  user: {
+    telegramUserId: string;
+    username?: string;
+    firstName?: string;
+  };
+  points: number;
+  level: number;
+  streak: number;
+}
+
+export interface UserResponse {
+  telegramUserId: string;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  questionId: string;
+  telegramMsgId?: string;
+  isCorrect: boolean;
+  responseTime?: number;
+}
+
+export class GamificationService {
+  /**
+   * Procesa la respuesta de un usuario y actualiza su progreso
+   * @param response La respuesta del usuario
+   */
+  static async processUserResponse(response: UserResponse): Promise<TelegramUserStats> {
+    return await prisma.$transaction(async (tx) => {
+      return await this._processUserResponseWithinTransaction(response, tx);
+    });
+  }
+
+  /**
+   * Lógica interna para procesar la respuesta de un usuario dentro de una transacción existente.
+   * @param response La respuesta del usuario.
+   * @param tx El cliente de la transacción de Prisma.
+   */
+  static async _processUserResponseWithinTransaction(
+    response: UserResponse,
+    tx: TransactionClient
+  ): Promise<TelegramUserStats> {
+    // 1. Buscar o crear usuario
+    let user = await tx.telegramuser.findUnique({
+      where: { telegramuserid: response.telegramUserId },
+    });
+
+    if (!user) {
+      // Generar un ID único para el usuario
+      const userId = `user_${response.telegramUserId}_${Date.now()}`;
+      
+      user = await tx.telegramuser.create({
+        data: {
+          id: userId,
+          telegramuserid: response.telegramUserId,
+          username: response.username,
+          firstname: response.firstName,
+          lastname: response.lastName,
+          lastactivity: new Date(),
+          totalpoints: 0,
+          level: 1,
+          streak: 0,
+          beststreak: 0,
+        },
+      });
+    }
+
+    // 2. Guardar la respuesta
+    const responseId = `response_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    const telegramResponse = await tx.telegramresponse.create({
+      data: {
+        id: responseId,
+        userid: user.id,
+        questionid: response.questionId,
+        telegrammsgid: response.telegramMsgId,
+        iscorrect: response.isCorrect,
+        responsetime: response.responseTime,
+        answeredat: new Date(),
+        points: response.isCorrect ? 10 : 0, // 10 puntos por respuesta correcta
+      },
+    });
+
+    // 3. Actualizar estadísticas del usuario
+    const pointsToAdd = response.isCorrect ? 10 : 0;
+    const newStreak = response.isCorrect ? user.streak + 1 : 0;
+    const newBestStreak = Math.max(user.beststreak, newStreak);
+    const newTotalPoints = user.totalpoints + pointsToAdd;
+    const newLevel = this.calculateLevel(newTotalPoints);
+
+    const updatedUser = await tx.telegramuser.update({
+      where: { id: user.id },
+      data: {
+        totalpoints: newTotalPoints,
+        level: newLevel,
+        streak: newStreak,
+        beststreak: newBestStreak,
+        lastactivity: new Date(),
+      },
+    });
+
+    // 4. Obtener estadísticas completas
+    const responses = await tx.telegramresponse.findMany({
+      where: { userid: user.id }
+    });
+
+    const totalResponses = responses.length;
+    const correctResponses = responses.filter(r => r.iscorrect).length;
+    const accuracy = totalResponses > 0 ? (correctResponses / totalResponses) * 100 : 0;
+
+    // 5. Calcular ranking
+    const rank = await this.getUserRank(response.telegramUserId);
+
+    // 6. Verificar y desbloquear logros
+    await this.checkAndUnlockAchievements(tx, user.id.toString(), updatedUser);
+
+    return {
+      telegramUserId: updatedUser.telegramuserid,
+      username: updatedUser.username || undefined,
+      firstName: updatedUser.firstname || undefined,
+      totalPoints: updatedUser.totalpoints,
+      level: updatedUser.level,
+      streak: updatedUser.streak,
+      bestStreak: updatedUser.beststreak,
+      totalResponses,
+      correctResponses,
+      accuracy,
+      rank,
+      lastActivity: updatedUser.lastactivity || undefined,
+    };
+  }
+
+  /**
+   * Calcula el nivel basado en los puntos totales
+   */
+  static calculateLevel(points: number): number {
+    if (points < 100) return 1;
+    if (points < 300) return 2;
+    if (points < 600) return 3;
+    if (points < 1000) return 4;
+    if (points < 1500) return 5;
+    if (points < 2100) return 6;
+    if (points < 2800) return 7;
+    if (points < 3600) return 8;
+    if (points < 4500) return 9;
+    return 10;
+  }
+
+  /**
+   * Obtiene las estadísticas completas de un usuario
+   */
+  static async getUserStats(telegramUserId: string): Promise<TelegramUserStats | null> {
+    const user = await prisma.telegramuser.findUnique({
+      where: { telegramuserid: telegramUserId }
+    });
+
+    if (!user) return null;
+
+    // Obtener respuestas por separado ya que no hay relación definida en el esquema
+    const responses = await prisma.telegramresponse.findMany({
+      where: { userid: user.id }
+    });
+
+    const totalResponses = responses.length;
+    const correctResponses = responses.filter(r => r.iscorrect).length;
+    const accuracy = totalResponses > 0 ? (correctResponses / totalResponses) * 100 : 0;
+
+    // Calcular ranking
+    const rank = await this.getUserRank(telegramUserId);
+
+    return {
+      telegramUserId: user.telegramuserid,
+      username: user.username || undefined,
+      firstName: user.firstname || undefined,
+      totalPoints: user.totalpoints,
+      level: user.level,
+      streak: user.streak,
+      bestStreak: user.beststreak,
+      totalResponses,
+      correctResponses,
+      accuracy,
+      rank,
+      lastActivity: user.lastactivity || undefined,
+    };
+  }
+
+  /**
+   * Obtiene el ranking de un usuario específico
+   */
+  static async getUserRank(telegramUserId: string): Promise<number> {
+    const user = await prisma.telegramuser.findUnique({
+      where: { telegramuserid: telegramUserId },
+      select: { totalpoints: true }
+    });
+
+    if (!user) return 0;
+
+    const usersAbove = await prisma.telegramuser.count({
+      where: {
+        totalpoints: {
+          gt: user.totalpoints
+        }
+      }
+    });
+
+    return usersAbove + 1;
+  }
+
+  /**
+   * Obtiene el leaderboard general
+   */
+  static async getLeaderboard(limit: number = 10): Promise<LeaderboardEntry[]> {
+    const users = await prisma.telegramuser.findMany({
+      orderBy: [
+        { totalpoints: 'desc' },
+        { level: 'desc' },
+        { streak: 'desc' }
+      ],
+      take: limit,
+      select: {
+        telegramuserid: true,
+        username: true,
+        firstname: true,
+        totalpoints: true,
+        level: true,
+        streak: true
+      }
+    });
+
+    return users.map((user, index) => ({
+      rank: index + 1,
+      user: {
+        telegramUserId: user.telegramuserid,
+        username: user.username || undefined,
+        firstName: user.firstname || undefined
+      },
+      points: user.totalpoints,
+      level: user.level,
+      streak: user.streak
+    }));
+  }
+
+  /**
+   * Obtiene el leaderboard semanal (semana fija: lunes a domingo)
+   */
+  static async getWeeklyLeaderboard(limit: number = 10): Promise<LeaderboardEntry[]> {
+    // 🔧 FIX: Usar semana fija en lugar de móvil
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    
+    const mondayOfWeek = new Date(now);
+    mondayOfWeek.setDate(now.getDate() - daysFromMonday);
+    mondayOfWeek.setHours(0, 0, 0, 0);
+    
+    const sundayOfWeek = new Date(mondayOfWeek);
+    sundayOfWeek.setDate(mondayOfWeek.getDate() + 6);
+    sundayOfWeek.setHours(23, 59, 59, 999);
+
+    const weeklyStats = await prisma.telegramresponse.groupBy({
+      by: ['userid'],
+      where: {
+        answeredat: {
+          gte: mondayOfWeek,
+          lte: sundayOfWeek
+        }
+      },
+      _sum: {
+        points: true
+      },
+      _count: {
+        id: true
+      },
+      orderBy: {
+        _sum: {
+          points: 'desc'
+        }
+      },
+      take: limit
+    });
+
+    const leaderboard: LeaderboardEntry[] = [];
+
+    for (let i = 0; i < weeklyStats.length; i++) {
+      const stat = weeklyStats[i];
+      const user = await prisma.telegramuser.findUnique({
+        where: { id: stat.userid },
+        select: {
+          telegramuserid: true,
+          username: true,
+          firstname: true,
+          level: true,
+          streak: true
+        }
+      });
+
+      if (user) {
+        leaderboard.push({
+          rank: i + 1,
+          user: {
+            telegramUserId: user.telegramuserid,
+            username: user.username || undefined,
+            firstName: user.firstname || undefined
+          },
+          points: stat._sum.points || 0,
+          level: user.level,
+          streak: user.streak
+        });
+      }
+    }
+
+    return leaderboard;
+  }
+
+  /**
+   * Obtiene el leaderboard mensual
+   */
+  static async getMonthlyLeaderboard(limit: number = 10): Promise<LeaderboardEntry[]> {
+    const firstDayOfMonth = new Date();
+    firstDayOfMonth.setDate(1);
+    firstDayOfMonth.setHours(0, 0, 0, 0);
+
+    const monthlyStats = await prisma.telegramresponse.groupBy({
+      by: ['userid'],
+      where: {
+        answeredat: {
+          gte: firstDayOfMonth
+        }
+      },
+      _sum: {
+        points: true
+      },
+      _count: {
+        id: true
+      },
+      orderBy: {
+        _sum: {
+          points: 'desc'
+        }
+      },
+      take: limit
+    });
+
+    const leaderboard: LeaderboardEntry[] = [];
+
+    for (let i = 0; i < monthlyStats.length; i++) {
+      const stat = monthlyStats[i];
+      const user = await prisma.telegramuser.findUnique({
+        where: { id: stat.userid },
+        select: {
+          telegramuserid: true,
+          username: true,
+          firstname: true,
+          level: true,
+          streak: true
+        }
+      });
+
+      if (user) {
+        leaderboard.push({
+          rank: i + 1,
+          user: {
+            telegramUserId: user.telegramuserid,
+            username: user.username || undefined,
+            firstName: user.firstname || undefined
+          },
+          points: stat._sum.points || 0,
+          level: user.level,
+          streak: user.streak
+        });
+      }
+    }
+
+    return leaderboard;
+  }
+
+  /**
+   * Verifica y desbloquea logros para un usuario
+   */
+  static async checkAndUnlockAchievements(tx: any, userId: string, user: any): Promise<void> {
+    // Implementación básica de logros
+    // Aquí puedes agregar lógica para verificar diferentes tipos de logros
+    
+    try {
+      // Logro por primera respuesta correcta
+      if (user.totalpoints >= 10) {
+        await this.unlockAchievement(tx, userId, 'first_correct', 'Primera Respuesta Correcta');
+      }
+
+      // Logro por 10 respuestas correctas
+      if (user.totalpoints >= 100) {
+        await this.unlockAchievement(tx, userId, 'ten_correct', '10 Respuestas Correctas');
+      }
+
+      // Logro por racha de 5
+      if (user.streak >= 5) {
+        await this.unlockAchievement(tx, userId, 'streak_5', 'Racha de 5');
+      }
+
+      // Logro por racha de 10
+      if (user.streak >= 10) {
+        await this.unlockAchievement(tx, userId, 'streak_10', 'Racha de 10');
+      }
+
+      // Logro por alcanzar nivel 5
+      if (user.level >= 5) {
+        await this.unlockAchievement(tx, userId, 'level_5', 'Nivel 5 Alcanzado');
+      }
+
+      // Logro por alcanzar nivel 10
+      if (user.level >= 10) {
+        await this.unlockAchievement(tx, userId, 'level_10', 'Nivel Máximo');
+      }
+
+    } catch (error) {
+      console.error('Error verificando logros:', error);
+      // No lanzamos el error para no interrumpir el flujo principal
+    }
+  }
+
+  /**
+   * Desbloquea un logro específico para un usuario
+   */
+  static async unlockAchievement(tx: any, userId: string, achievementId: string, achievementName: string): Promise<void> {
+    try {
+      // Verificar si el usuario ya tiene este logro
+      const existingAchievement = await tx.userachievement.findFirst({
+        where: {
+          userid: userId,
+          achievementid: achievementId
+        }
+      });
+
+      if (!existingAchievement) {
+        // Generar un ID único para el achievement del usuario
+        const userAchievementId = `userachievement_${userId}_${achievementId}_${Date.now()}`;
+        
+        // Crear el logro
+        await tx.userachievement.create({
+          data: {
+            id: userAchievementId,
+            userid: userId,
+            achievementid: achievementId,
+            unlockedat: new Date(),
+          }
+        });
+
+        console.log(`🏆 Logro desbloqueado para usuario ${userId}: ${achievementName}`);
+      }
+    } catch (error) {
+      console.error(`Error desbloqueando logro ${achievementId}:`, error);
+    }
+  }
+
+  /**
+   * Inicializa los logros básicos en la base de datos
+   */
+  static async initializeBasicAchievements(): Promise<void> {
+    const achievements = [
+      { id: 'first_correct', name: 'Primera Respuesta Correcta', description: 'Responde correctamente tu primera pregunta' },
+      { id: 'ten_correct', name: '10 Respuestas Correctas', description: 'Responde correctamente 10 preguntas' },
+      { id: 'streak_5', name: 'Racha de 5', description: 'Consigue una racha de 5 respuestas correctas' },
+      { id: 'streak_10', name: 'Racha de 10', description: 'Consigue una racha de 10 respuestas correctas' },
+      { id: 'level_5', name: 'Nivel 5 Alcanzado', description: 'Alcanza el nivel 5' },
+      { id: 'level_10', name: 'Nivel Máximo', description: 'Alcanza el nivel máximo (10)' }
+    ];
+
+    for (const achievement of achievements) {
+      try {
+        await prisma.achievement.upsert({
+          where: { id: achievement.id },
+          update: {},
+          create: {
+            id: achievement.id,
+            name: achievement.name,
+            description: achievement.description,
+            createdat: new Date(),
+            isactive: true
+          }
+        });
+      } catch (error) {
+        console.error(`Error inicializando logro ${achievement.id}:`, error);
+      }
+    }
+
+    console.log('✅ Logros básicos inicializados');
+  }
+} 

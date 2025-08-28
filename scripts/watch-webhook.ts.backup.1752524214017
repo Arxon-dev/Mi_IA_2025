@@ -1,0 +1,144 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function watchRecentActivity() {
+  console.log('👀 MONITOR DE ACTIVIDAD EN TIEMPO REAL');
+  console.log('======================================');
+  console.log('');
+  
+  try {
+    // Buscar actividad de los últimos 5 minutos
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    
+    // Respuestas recientes
+    const recentResponses = await prisma.telegramResponse.findMany({
+      where: {
+        answeredAt: { gte: fiveMinutesAgo }
+      },
+      include: {
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+            username: true
+          }
+        }
+      },
+      orderBy: { answeredAt: 'desc' },
+      take: 10
+    });
+    
+    // Polls recientes
+    const recentPolls = await prisma.telegramPoll.findMany({
+      where: {
+        sentAt: { gte: fiveMinutesAgo }
+      },
+      orderBy: { sentAt: 'desc' },
+      take: 5
+    });
+    
+    // Logs de envío recientes
+    const recentSendLogs = await prisma.telegramSendLog.findMany({
+      where: {
+        sendTime: { gte: fiveMinutesAgo }
+      },
+      orderBy: { sendTime: 'desc' },
+      take: 5
+    });
+    
+    console.log('⏰ ACTIVIDAD ÚLTIMOS 5 MINUTOS:');
+    console.log('--------------------------------');
+    console.log(`📊 Fecha actual: ${new Date().toLocaleString()}`);
+    console.log(`🔍 Buscando desde: ${fiveMinutesAgo.toLocaleString()}`);
+    console.log('');
+    
+    if (recentResponses.length > 0) {
+      console.log('💬 RESPUESTAS RECIENTES:');
+      console.log('------------------------');
+      recentResponses.forEach((response, index) => {
+        const userName = `${response.user.firstName} ${response.user.lastName || ''}`.trim() || response.user.username || 'Usuario';
+        const status = response.isCorrect ? '✅ CORRECTO' : '❌ INCORRECTO';
+        console.log(`${index + 1}. ${userName}`);
+        console.log(`   ${status} | +${response.points} puntos`);
+        console.log(`   ⏰ ${response.answeredAt.toLocaleString()}`);
+        console.log('');
+      });
+    } else {
+      console.log('💬 No hay respuestas en los últimos 5 minutos');
+      console.log('');
+    }
+    
+    if (recentPolls.length > 0) {
+      console.log('🗳️  POLLS ENVIADOS RECIENTEMENTE:');
+      console.log('---------------------------------');
+      recentPolls.forEach((poll, index) => {
+        console.log(`${index + 1}. Poll ID: ${poll.pollId}`);
+        console.log(`   📋 Pregunta: ${poll.questionId}`);
+        console.log(`   ⏰ ${poll.sentAt.toLocaleString()}`);
+        console.log('');
+      });
+    } else {
+      console.log('🗳️  No hay polls enviados en los últimos 5 minutos');
+      console.log('');
+    }
+    
+    if (recentSendLogs.length > 0) {
+      console.log('📤 LOGS DE ENVÍO RECIENTES:');
+      console.log('---------------------------');
+      recentSendLogs.forEach((log, index) => {
+        const status = log.success ? '✅ ÉXITO' : '❌ ERROR';
+        console.log(`${index + 1}. ${status} | Pregunta: ${log.questionId.substring(0, 8)}...`);
+        console.log(`   ⏰ ${log.sendTime.toLocaleString()}`);
+        if (log.errorMessage) {
+          console.log(`   ❌ Error: ${log.errorMessage}`);
+        }
+        console.log('');
+      });
+    }
+    
+    // Estadísticas rápidas
+    const totalUsers = await prisma.telegramUser.count();
+    const totalResponses = await prisma.telegramResponse.count();
+    
+    console.log('📊 ESTADÍSTICAS ACTUALES:');
+    console.log('-------------------------');
+    console.log(`👥 Total usuarios: ${totalUsers}`);
+    console.log(`💬 Total respuestas: ${totalResponses}`);
+    console.log(`🗳️  Polls activos: ${recentPolls.length}`);
+    console.log('');
+    
+    console.log('🔄 Para monitorear de nuevo: npx tsx scripts/watch-webhook.ts');
+    console.log('📊 Para ver estadísticas completas: npx tsx scripts/monitor-system.ts');
+    
+  } catch (error) {
+    console.error('❌ Error monitoreando actividad:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  
+  if (args.includes('--help')) {
+    console.log('👀 MONITOR DE ACTIVIDAD:');
+    console.log('');
+    console.log('  🔍 Ver actividad reciente (últimos 5 minutos):');
+    console.log('     npx tsx scripts/watch-webhook.ts');
+    console.log('');
+    console.log('  📋 Mostrar ayuda:');
+    console.log('     npx tsx scripts/watch-webhook.ts --help');
+    console.log('');
+    console.log('🎯 QUÉ MONITOREA:');
+    console.log('   • Respuestas de usuarios a polls');
+    console.log('   • Polls enviados recientemente');
+    console.log('   • Logs de envío y errores');
+    console.log('   • Estadísticas actuales');
+    return;
+  }
+  
+  await watchRecentActivity();
+}
+
+main(); 

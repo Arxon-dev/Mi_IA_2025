@@ -1,0 +1,258 @@
+export interface QuizData {
+  questionText: string;
+  options: string[];
+  correctOptionIndex: number;
+  explanationText?: string;
+}
+
+// ✅ LÍMITES REALES DE TELEGRAM CORREGIDOS
+const TELEGRAM_QUIZ_QUESTION_MAX_LENGTH = 1024; // Límite real de Telegram para preguntas de polls
+const TELEGRAM_QUIZ_OPTION_MAX_LENGTH = 100;     // Límite real de Telegram para opciones
+const TELEGRAM_QUIZ_EXPLANATION_MAX_LENGTH = 2048; // Límite de Telegram para explicaciones de quizzes
+
+// ✅ FUNCIÓN DE SANITIZACIÓN PARA TELEGRAM
+function sanitizeForTelegram(text: string): string {
+  if (!text) return '';
+  
+  // Limpiar caracteres especiales problemáticos para la API de Telegram
+  return text
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') // Eliminar caracteres de espacio en blanco invisibles
+    .replace(/[^\x00-\x7F]/g, (char) => {   // Manejar caracteres Unicode problemáticos
+      // Mantener caracteres UTF-8 comunes pero problemáticos
+      const safeUnicode = 'áéíóúñÁÉÍÓÚÑ¿¡üÜ€';
+      return safeUnicode.includes(char) ? char : '';
+    })
+    .replace(/[`*_\[\]()~>#+=|{}.!-]/g, '') // Eliminar caracteres que pueden interferir con Markdown
+    .replace(/\s+/g, ' ')                   // Normalizar espacios múltiples
+    .trim();
+}
+
+// Función auxiliar para limpiar HTML
+function stripHtml(html: string): string {
+  if (!html) return '';
+  return html.replace(/<[^>]*>/g, '');
+}
+
+export function prepareQuizData(questionContent: string): QuizData | null {
+  // Modified regex to be more flexible in parsing the preamble and allowing content after the closing brace.
+  const mainStructureRegex = /^([\s\S]*?)\{([\s\S]*?)\}[\s\S]*$/; // Modified regex: allow any content before {, inside {}, and any content after }
+  const mainMatch = questionContent.match(mainStructureRegex);
+
+  console.log('[prepareQuizData] mainMatch[1] (texto antes de {):', mainMatch ? mainMatch[1]?.substring(0, 200) + (mainMatch[1]?.length > 200 ? '...' : '') : 'No match');
+  console.log('[prepareQuizData] mainMatch[2] (texto dentro de {):', mainMatch ? mainMatch[2]?.substring(0, 200) + (mainMatch[2]?.length > 200 ? '...' : '') : 'No match'); // Log actual content of mainMatch[2]
+  console.log('[prepareQuizData] mainMatch[4] (Retroalimentación - original regex match):', mainMatch && mainMatch[4] ? mainMatch[4]?.substring(0, 200) + (mainMatch[4]?.length > 200 ? '...' : '') : 'No match');
+
+  if (!mainMatch || !mainMatch[1] || !mainMatch[2]) {
+    console.warn('[prepareQuizData] Estructura de pregunta no coincide con regex inicial:', questionContent.substring(0, 200) + '...');
+    console.warn('[prepareQuizData] Contenido completo que falló el regex inicial:', questionContent);
+    return null;
+  }
+
+  let preambleCandidate = mainMatch[1]; // Capture everything before the first {
+  console.log('[prepareQuizData] Initial Preamble Candidate (texto antes de {):', preambleCandidate.substring(0, 200) + (preambleCandidate.length > 200 ? '...' : ''));
+
+  // 1. Limpiar comentarios iniciales y líneas vacías del preambleCandidate
+  const preambleLines = preambleCandidate.split(/\r?\n/);
+  let preambleStartLine = 0;
+  for (let i = 0; i < preambleLines.length; i++) {
+    const trimmedLine = preambleLines[i].trim();
+    // Stop at the first line that is neither a comment nor empty
+    if (trimmedLine.length > 0 && !trimmedLine.startsWith('//')) {
+      preambleStartLine = i;
+      break;
+    }
+    // If all lines are comments or empty, preamble will be effectively empty later
+  }
+
+  // Join relevant lines and trim again
+  let preamble = preambleLines.slice(preambleStartLine).join('\n').trim();
+
+  console.log('[prepareQuizData] Preamble después de limpiar comentarios iniciales y líneas vacías:', preamble.substring(0, 200) + (preamble.length > 200 ? '...' : ''));
+
+  // Eliminar patrón tipo "// ... :: " del inicio si persiste después de la limpieza inicial
+  preamble = preamble.replace(/^\s*\/\/.*::\s*/, '');
+  console.log('[prepareQuizData] Preamble después de limpiar patrón // ... ::', preamble.substring(0, 200) + (preamble.length > 200 ? '...' : ''));
+
+  // 2. Limpiar <br> y luego todas las demás etiquetas HTML del preamble
+  console.log('[prepareQuizData] Preamble antes de limpieza 2 (HTML, \\n, \\):', preamble.substring(0, 200) + (preamble.length > 200 ? '...' : ''));
+  preamble = preamble.replace(/<br\s*\/?>/gi, '\n'); // Reemplaza <br> por \n literal (para convertir a salto de línea real)
+  console.log('[prepareQuizData] Preamble después de reemplazar <br> por \\n literal:', preamble.substring(0, 200) + (preamble.length > 200 ? '...' : ''));
+  preamble = stripHtml(preamble).trim();
+  console.log('[prepareQuizData] Preamble después de stripHtml:', preamble.substring(0, 200) + (preamble.length > 200 ? '...' : ''));
+
+  // La limpieza de \n y \ debe ser cuidadosa. \n literal de <br> debe quedar como un salto de línea real (\n).
+
+  // Reemplaza \n literales por saltos de línea reales (\n)
+  preamble = preamble.replace(/\\n/g, '\n');
+  console.log('[prepareQuizData] Preamble después de reemplazar \\n literales por saltos de línea reales:', preamble.substring(0, 200) + (preamble.length > 200 ? '...' : ''));
+
+  // Eliminar barras invertidas sueltas que no preceden caracteres que necesiten escape en texto plano.
+  // Primero, preservar los escapes importantes temporalmente
+  preamble = preamble.replace(/\\n/g, '###NEWLINE###');
+  preamble = preamble.replace(/\\{/g, '###LEFTBRACE###');
+  preamble = preamble.replace(/\\}/g, '###RIGHTBRACE###');
+  preamble = preamble.replace(/\\:/g, '###COLON###');
+  // Eliminar todas las barras invertidas restantes
+  preamble = preamble.replace(/\\/g, '');
+  // Restaurar los escapes importantes
+  preamble = preamble.replace(/###NEWLINE###/g, '\n');
+  preamble = preamble.replace(/###LEFTBRACE###/g, '{');
+  preamble = preamble.replace(/###RIGHTBRACE###/g, '}');
+  preamble = preamble.replace(/###COLON###/g, ':');
+  preamble = preamble.trim(); // Volver a trim después de la limpieza final
+
+  // ✅ APLICAR SANITIZACIÓN PARA TELEGRAM
+  preamble = sanitizeForTelegram(preamble);
+  console.log('[prepareQuizData] Preamble después de sanitización para Telegram:', preamble.substring(0, 200) + (preamble.length > 200 ? '...' : ''));
+
+  console.log('[prepareQuizData] Preamble final después de limpieza 2 (ajustada):', preamble.substring(0, 200) + (preamble.length > 200 ? '...' : ''));
+
+  // Validar longitud del preamble (enunciado)
+  if (preamble.length > TELEGRAM_QUIZ_QUESTION_MAX_LENGTH) {
+    console.warn(`[prepareQuizData] Enunciado (limpio) excede ${TELEGRAM_QUIZ_QUESTION_MAX_LENGTH} caracteres (${preamble.length}). Truncando...`);
+    preamble = preamble.substring(0, TELEGRAM_QUIZ_QUESTION_MAX_LENGTH - 3) + '...'; // Truncate and add ellipsis
+    console.log(`[prepareQuizData] Enunciado truncado a ${TELEGRAM_QUIZ_QUESTION_MAX_LENGTH} chars:`, preamble.substring(0, 200) + '...'); // Log truncated version for debugging
+  }
+  if (preamble.length === 0) {
+    console.warn('[prepareQuizData] Enunciado (limpio) vacío después del procesamiento.');
+    return null;
+  }
+
+  // --- TWO-STEP PARSING for Options and Explanation ---
+  const rawOptionsAndExplanation = mainMatch[2]; // This is the text inside the first {}
+  console.log('[prepareQuizData] Raw content inside {}:', rawOptionsAndExplanation.substring(0, 500) + (rawOptionsAndExplanation.length > 500 ? '... (truncado log)' : ''));
+  console.log('[prepareQuizData] Raw content inside {} length:', rawOptionsAndExplanation.length);
+
+  // Use a regex to find the explanation marker, making it more robust to character variations.
+  // Modified regex to match the marker and anything up to the FIRST colon on that line (non-greedy).
+  const explanationRegex = /####\s*RETROALIMENTACI[ôó]N.*?:\s*/i; // Matches #### RETROALIMENTACIÓN<any_text_until_first_colon>:\n  
+  const explanationMatch = rawOptionsAndExplanation.match(explanationRegex);
+
+  let optionsBlockText;
+  let rawExplanation: string | undefined = undefined;
+
+  if (explanationMatch) {
+    // If marker found, split into options (before marker) and explanation (after marker)
+    const explanationIndex = explanationMatch.index || 0; // Get the index where the regex matched
+    optionsBlockText = rawOptionsAndExplanation.substring(0, explanationIndex).trim();
+    // Extract everything AFTER the matched marker string (including content up to the first colon and the colon itself)
+    rawExplanation = rawOptionsAndExplanation.substring(explanationIndex + explanationMatch[0].length).trim();
+    console.log('[prepareQuizData] Explanation marker found using regex:', explanationMatch[0]); // Log the exact matched marker string
+    console.log('[prepareQuizData] Extracted options block (before marker):', optionsBlockText.substring(0, 200) + (optionsBlockText.length > 200 ? '...' : ''));
+    console.log('[prepareQuizData] Extracted raw explanation (after marker):', rawExplanation.substring(0, 500) + (rawExplanation.length > 500 ? '... (truncado log)' : ''));
+    console.log('[prepareQuizData] Extracted raw explanation length:', rawExplanation.length);
+  } else {
+    // If marker not found, the entire content inside {} is considered options
+    optionsBlockText = rawOptionsAndExplanation.trim();
+    console.log('[prepareQuizData] Explanation marker NOT found. Treating entire content inside {} as options block:', optionsBlockText.substring(0, 500) + (optionsBlockText.length > 500 ? '... (truncado log)' : ''));
+    console.log('[prepareQuizData] Options block text length (no explanation found):', optionsBlockText.length);
+  }
+  // --- END TWO-STEP PARSING ---
+
+  const optionLines = optionsBlockText.split('\n').map(line => line.trim()).filter(line => line);
+  const parsedQuizOptions: { text: string; iscorrect: boolean }[] = [];
+  // Actualizado para soportar formato con porcentajes: =%100% y ~%-33.33333%
+  // Mantiene compatibilidad con formato antiguo: = y ~
+  const optionRegex = /^([=~])(%[-+]?\d*\.?\d*%)?(.*)$/;
+
+  for (const line of optionLines) {
+    const optionMatch = line.match(optionRegex);
+    if (optionMatch) {
+      // optionMatch[1] = = o ~
+      // optionMatch[2] = porcentaje (opcional): %100%, %-33.33333%, etc.
+      // optionMatch[3] = texto de la opción
+      let optionText = optionMatch[3].trim();
+      console.log('[prepareQuizData] Raw Option Text:', optionText.substring(0, 200) + (optionText.length > 200 ? '... (truncado log)' : ''));
+      console.log('[prepareQuizData] Raw Option Text length:', optionText.length);
+
+      // Limpiar HTML de la opción
+      optionText = stripHtml(optionText).trim();
+      console.log('[prepareQuizData] Cleaned Option Text (stripHtml + trim):', optionText.substring(0, 200) + (optionText.length > 200 ? '... (truncado log)' : ''));
+      console.log('[prepareQuizData] Cleaned Option Text length:', optionText.length);
+
+      // Reemplaza \n literales por espacios y elimina otras barras invertidas
+      optionText = optionText.replace(/\\n/g, ' ').replace(/\\/g, ''); // Keep original logic for options for now
+      
+      // ✅ APLICAR SANITIZACIÓN PARA TELEGRAM
+      optionText = sanitizeForTelegram(optionText);
+      console.log('[prepareQuizData] Final Option Text (backslash cleanup + sanitized):', optionText.substring(0, 200) + (optionText.length > 200 ? '... (truncado log)' : ''));
+      console.log('[prepareQuizData] Final Option Text length:', optionText.length);
+
+      if (optionText.length > TELEGRAM_QUIZ_OPTION_MAX_LENGTH) {
+        console.warn(`[prepareQuizData] Opción (limpia) excede ${TELEGRAM_QUIZ_OPTION_MAX_LENGTH} caracteres (${optionText.length}). Omitiendo pregunta:`, optionText.substring(0, 50) + "...");
+        return null;
+      }
+      if (optionText.length === 0) {
+        console.warn('[prepareQuizData] Opción (limpia) vacía encontrada.');
+        return null;
+      }
+      parsedQuizOptions.push({
+        text: optionText, // Usar texto limpio
+        iscorrect: optionMatch[1] === '=',
+      });
+    }
+  }
+
+  if (parsedQuizOptions.length < 2 || parsedQuizOptions.length > 10) {
+    console.warn(`[prepareQuizData] Número de opciones no válido (${parsedQuizOptions.length}). Se requieren 2-10.`);
+    return null;
+  }
+  if (parsedQuizOptions.filter(opt => opt.iscorrect).length !== 1) {
+    console.warn('[prepareQuizData] No hay exactamente una opción correcta.', parsedQuizOptions);
+    return null;
+  }
+
+  for (let i = parsedQuizOptions.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [parsedQuizOptions[i], parsedQuizOptions[j]] = [parsedQuizOptions[j], parsedQuizOptions[i]];
+  }
+
+  const finalOptionsTexts = parsedQuizOptions.map(opt => opt.text);
+  const correctOptionIndex = parsedQuizOptions.findIndex(opt => opt.iscorrect);
+
+  if (correctOptionIndex === -1) {
+    console.error('[prepareQuizData] Error crítico: Opción correcta no encontrada después de mezclar.');
+    return null;
+  }
+
+  let finalExplanationText = rawExplanation;
+
+  if (finalExplanationText) {
+    // 1. Reemplazar <br> por saltos de línea reales
+    finalExplanationText = finalExplanationText.replace(/<br\s*\/?>/gi, '\n');
+    console.log('[prepareQuizData] Retroalimentación - Paso 1 (reemplazar <br>):', finalExplanationText.substring(0, 500) + (finalExplanationText.length > 500 ? '... (truncado log)' : ''));
+    console.log('[prepareQuizData] Retroalimentación - Paso 1 length:', finalExplanationText.length);
+
+    // 2. Reemplazar \n literales por saltos de línea reales
+    finalExplanationText = finalExplanationText.replace(/\\n/g, '\n');
+     console.log('[prepareQuizData] Retroalimentación - Paso 2 (reemplazar \\n):', finalExplanationText.substring(0, 500) + (finalExplanationText.length > 500 ? '... (truncado log)' : ''));
+     console.log('[prepareQuizData] Retroalimentación - Paso 2 length:', finalExplanationText.length);
+
+    // 3. Limpiar HTML residual (si lo hay) y trim
+    finalExplanationText = stripHtml(finalExplanationText).trim();
+    console.log('[prepareQuizData] Retroalimentación - Paso 3 (stripHtml + trim):', finalExplanationText.substring(0, 500) + (finalExplanationText.length > 500 ? '... (truncado log)' : ''));
+    console.log('[prepareQuizData] Retroalimentación - Paso 3 length:', finalExplanationText.length);
+
+    // 5. Aplicar truncado si excede el límite de Telegram
+    if (finalExplanationText.length > TELEGRAM_QUIZ_EXPLANATION_MAX_LENGTH) {
+      console.warn(`[prepareQuizData] Retroalimentación excede ${TELEGRAM_QUIZ_EXPLANATION_MAX_LENGTH} caracteres (${finalExplanationText.length}). Truncando...`);
+      finalExplanationText = finalExplanationText.substring(0, TELEGRAM_QUIZ_EXPLANATION_MAX_LENGTH - 3) + "...";
+       console.log('[prepareQuizData] Retroalimentación - Paso 5 (truncada):', finalExplanationText.substring(0, 500) + (finalExplanationText.length > 500 ? '... (truncado log)' : ''));
+       console.log('[prepareQuizData] Retroalimentación - Paso 5 length (truncada):', finalExplanationText.length);
+    } else {
+       console.log('[prepareQuizData] Retroalimentación - Paso 5 (no truncada):', finalExplanationText.substring(0, 500) + (finalExplanationText.length > 500 ? '... (truncado log)' : ''));
+        console.log('[prepareQuizData] Retroalimentación - Paso 5 length (no truncada):', finalExplanationText.length);
+    }
+
+  } else {
+     console.log('[prepareQuizData] Retroalimentación vacía o no encontrada.');
+     finalExplanationText = undefined;
+  }
+
+  return {
+    questionText: preamble, // Preamble ya está limpio y validado
+    options: finalOptionsTexts, // Opciones ya están limpias y validadas
+    correctOptionIndex: correctOptionIndex,
+    explanationText: finalExplanationText, // Explicación puede tener HTML y está truncada si es necesario
+  };
+} 

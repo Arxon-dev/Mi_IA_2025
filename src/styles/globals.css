@@ -1,0 +1,118 @@
+/* Scrollbar para navegadores Webkit */
+::-webkit-scrollbar {
+  width: 8px;
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #18181b; /* Color similar a bg-background dark de Tailwind */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #27272a;
+}
+
+/* Scrollbar para Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #18181b transparent;
+}
+
+/* Scrollbar para navegadores Webkit solo en el panel izquierdo */
+.panel-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  background: rgba(24,24,27,0.1); /* track sutil */
+}
+
+.panel-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #6366f1 40%, #818cf8 100%); /* gradiente azul-violeta */
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  border: 2px solid rgba(24,24,27,0.4); /* borde sutil para contraste */
+}
+
+.panel-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
+}
+
+/* Scrollbar para Firefox solo en el panel izquierdo */
+.panel-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #6366f1 rgba(24,24,27,0.1);
+}
+
+/* Scrollbar personalizada solo para el panel derecho de configuración */
+.question-config-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  background: transparent;
+}
+
+.question-config-scrollbar::-webkit-scrollbar-thumb {
+  background: #23272f; /* Color oscuro acorde al panel */
+  border-radius: 6px;
+  border: 2px solid #18181b; /* Borde para contraste */
+}
+
+.question-config-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #31343b;
+}
+
+.question-config-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #23272f #18181b;
+}
+
+/* Scrollbar personalizada para preguntas generadas en pantalla completa */
+.questions-fullscreen-scrollbar::-webkit-scrollbar {
+  width: 12px;
+  background: rgba(0,0,0,0.05); /* Fondo sutil y translúcido */
+}
+
+.questions-fullscreen-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.03);
+  border-radius: 6px;
+  margin: 4px;
+}
+
+.questions-fullscreen-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #6366f1 0%, #8b5cf6 50%, #06b6d4 100%);
+  border-radius: 6px;
+  border: 2px solid rgba(255,255,255,0.1);
+  box-shadow: 
+    0 2px 4px rgba(0,0,0,0.1),
+    inset 0 1px 0 rgba(255,255,255,0.2);
+  transition: all 0.2s ease;
+}
+
+.questions-fullscreen-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #4f46e5 0%, #7c3aed 50%, #0891b2 100%);
+  border: 2px solid rgba(255,255,255,0.2);
+  box-shadow: 
+    0 4px 8px rgba(0,0,0,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+  transform: scale(1.05);
+}
+
+.questions-fullscreen-scrollbar::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(180deg, #3730a3 0%, #581c87 50%, #155e75 100%);
+  box-shadow: 
+    0 1px 2px rgba(0,0,0,0.2),
+    inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+/* Scrollbar para Firefox - preguntas en pantalla completa */
+.questions-fullscreen-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #6366f1 rgba(0,0,0,0.05);
+}
+
+/* Estilo para menús expandibles */
+.expandable-menu {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+html {
+  overflow-y: scroll;
+} 

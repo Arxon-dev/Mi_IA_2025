@@ -1,0 +1,157 @@
+import { GamificationService, LeaderboardEntry } from '../src/services/gamificationService';
+
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
+const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002352049779';
+
+interface MonthlyRankingUser {
+  telegramUserId: string;
+  firstName: string;
+  username?: string;
+  monthlyPoints: number;
+  position: number;
+}
+
+async function fetchMonthlyRankingData(): Promise<MonthlyRankingUser[]> {
+  console.log('📊 Obteniendo datos del ranking mensual...');
+  
+  const monthlyLeaderboard: LeaderboardEntry[] = await GamificationService.getMonthlyLeaderboard(10);
+  
+  return monthlyLeaderboard.map((user: LeaderboardEntry, index: number) => ({
+    telegramUserId: user.user.telegramUserId,
+    firstName: user.user.firstName || 'Usuario',
+    username: user.user.username,
+    monthlyPoints: user.points,
+    position: index + 1
+  }));
+}
+
+function generateMonthlyRankingMessage(users: MonthlyRankingUser[], isNewMonth: boolean = false): string {
+  const now = new Date();
+  const monthName = now.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+  const timeStr = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  
+  let message = `📆 <b>RANKING MENSUAL ${monthName.toUpperCase()}</b> 📆\n`;
+  
+  if (isNewMonth) {
+    message += `🎉 <b>¡NUEVO MES, NUEVAS OPORTUNIDADES!</b> 🎉\n`;
+    message += `🔄 Todos empiezan desde cero en julio 2025\n\n`;
+  } else {
+    message += `📅 Actualizado: ${timeStr}\n\n`;
+  }
+
+  if (users.length === 0) {
+    message += '📊 <i>¡Sé el primero en aparecer en el ranking de julio!</i>\n\n';
+    message += '🎯 ¡Responde preguntas para liderar este mes!';
+    return message;
+  }
+
+  users.forEach((user: MonthlyRankingUser, index: number) => {
+    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : 
+                 index === 3 ? '🏅' : '🔸';
+    const name = user.username ? `@${user.username}` : user.firstName;
+    
+    message += `${medal} <b>${index + 1}.</b> ${name}\n`;
+    message += `   📊 ${user.monthlyPoints} pts en julio\n\n`;
+  });
+
+  // Estadísticas del mes
+  const totalActiveUsers = users.length;
+  const totalMonthlyPoints = users.reduce((sum: number, user: MonthlyRankingUser) => sum + user.monthlyPoints, 0);
+  
+  message += `📈 <b>ESTADÍSTICAS DE JULIO 2025:</b>\n`;
+  message += `👥 ${totalActiveUsers} usuarios activos este mes\n`;
+  message += `📊 ${totalMonthlyPoints} puntos totales generados\n`;
+  
+  if (users.length > 0) {
+    const leader = users[0];
+    const leaderName = leader.username ? `@${leader.username}` : leader.firstName;
+    message += `🏆 Líder actual: ${leaderName} (${leader.monthlyPoints} pts)\n`;
+  }
+  
+  message += '\n';
+
+  // Frases motivacionales para nuevo mes
+  const monthlyPhrases = [
+    '🚀 ¡Julio 2025: Tu mes para brillar!',
+    '⭐ ¡Nuevas oportunidades, nuevos triunfos!',
+    '🎯 ¡Este mes puedes ser el #1!',
+    '🔥 ¡Comienza julio con toda la energía!',
+    '💎 ¡Cada respuesta te acerca al podio mensual!'
+  ];
+  
+  const randomPhrase = monthlyPhrases[Math.floor(Math.random() * monthlyPhrases.length)];
+  message += randomPhrase + '\n\n';
+
+  // CTAs específicos para ranking mensual
+  message += `🎯 <b>COMANDOS PARA DOMINAR JULIO:</b>\n`;
+  message += `• <code>/ranking mensual</code> - Ver este ranking\n`;
+  message += `• <code>/ranking</code> - Ranking general (histórico)\n`;
+  message += `• <code>/ranking semanal</code> - Ranking de la semana\n\n`;
+
+  message += `🔥 <b>¡Aprovecha el reinicio mensual!</b>\n`;
+  message += `💡 Cada mes todos empiezan desde cero en el ranking mensual`;
+
+  return message;
+}
+
+async function sendMonthlyRankingMessage(message: string): Promise<boolean> {
+  try {
+    console.log('📤 Enviando ranking mensual...');
+    
+    const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        text: message,
+        parse_mode: 'HTML'
+      })
+    });
+
+    const result = await response.json() as any;
+    
+    if (result.ok) {
+      console.log(`✅ Ranking mensual enviado exitosamente (ID: ${result.result.message_id})`);
+      return true;
+    } else {
+      console.error('❌ Error en respuesta de Telegram:', result);
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Error enviando ranking mensual:', error);
+    return false;
+  }
+}
+
+async function generateAndSendMonthlyRanking(isNewMonth: boolean = false): Promise<void> {
+  try {
+    console.log('\n📆 ===== GENERANDO RANKING MENSUAL =====');
+    console.log(`🎊 ¿Nuevo mes?: ${isNewMonth ? 'SÍ - ¡Anuncio especial!' : 'No'}`);
+    
+    const users = await fetchMonthlyRankingData();
+    const message = generateMonthlyRankingMessage(users, isNewMonth);
+    const success = await sendMonthlyRankingMessage(message);
+    
+    if (success) {
+      console.log('🎉 Ranking mensual completado exitosamente');
+    } else {
+      console.error('❌ Fallo en el envío del ranking mensual');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error en generateAndSendMonthlyRanking:', error);
+  }
+}
+
+// Ejecutar según argumentos
+const args = process.argv.slice(2);
+
+if (args.includes('--new-month') || args.includes('-n')) {
+  console.log('🎊 Forzando anuncio de nuevo mes...');
+  generateAndSendMonthlyRanking(true).then(() => process.exit(0));
+} else {
+  console.log('📅 Ejecutando ranking mensual normal...');
+  generateAndSendMonthlyRanking(false).then(() => process.exit(0));
+}
+
+export { generateAndSendMonthlyRanking }; 

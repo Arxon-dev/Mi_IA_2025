@@ -1,0 +1,6 @@
+{
+  "questions": "<b>Pregunta de prueba 1</b><br><br>\n¿Cuál es la capital de España?\n{\n=Madrid\n~Barcelona\n~Valencia\n~Sevilla\n#### RETROALIMENTACIÓN:\nMadrid es la capital de España desde 1561.\n}\n\n<b>Pregunta de prueba 2</b><br><br>\n¿En qué año se promulgó la Constitución Española?\n{\n=1978\n~1975\n~1980\n~1982\n#### RETROALIMENTACIÓN:\nLa Constitución Española fue promulgada el 6 de diciembre de 1978.\n}",
+  "tableName": "Constitucion",
+  "sourceText": "Texto de prueba para verificar el guardado",
+  "normativa": "Prueba de guardado"
+}

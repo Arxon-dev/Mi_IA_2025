@@ -1,0 +1,1994 @@
+import { PrismaClient } from '@prisma/client';
+import { TelegramService } from './telegramService';
+import { GamificationService, UserResponse } from './gamificationService';
+
+const prisma = new PrismaClient();
+
+// Declarar tipos globales para notificaciones
+declare global {
+  var graduationNotifications: Array<{
+    userId: string;
+    subject: string;
+    questionId: string;
+    timestamp: Date;
+  }> | undefined;
+}
+
+// Instancia del servicio de Telegram (requerirá token del entorno)
+const telegramService = new TelegramService(process.env.TELEGRAM_BOT_TOKEN || '');
+
+// Importar scheduler de forma lazy para evitar dependencias circulares
+let studyTimeoutScheduler: any = null;
+const getScheduler = async () => {
+  if (!studyTimeoutScheduler) {
+    const { studyTimeoutScheduler: scheduler } = await import('./studyTimeoutScheduler');
+    studyTimeoutScheduler = scheduler;
+  }
+  return studyTimeoutScheduler;
+};
+
+// ==============================================
+// 🎯 SERVICIO DE SESIONES DE ESTUDIO PRIVADAS
+// ==============================================
+
+// Mapeo de comandos de estudio a tablas de base de datos (CORREGIDO)
+export const STUDY_COMMANDS = {
+  '/constitucion': 'Constitucion',
+  '/defensanacional': 'DefensaNacional',
+  '/rjsp': 'Rio',
+  '/rio': 'Rio',
+  '/minsdef': 'Minsdef',
+  '/organizacionfas': 'OrganizacionFas',
+  '/emad': 'Emad',
+  '/et': 'Et',
+  '/armada': 'Armada',
+  '/aire': 'Aire',
+  '/carrera': 'Carrera',
+  '/tropa': 'TropaMarineria',
+  '/rroo': 'Rroo',
+  '/derechosydeberes': 'DerechosYDeberes',
+  '/regimendisciplinario': 'RegimenDisciplinario',
+  '/iniciativasyquejas': 'IniciativasQuejas',
+  '/igualdad': 'Igualdad',
+  '/omi': 'Omi',
+  '/pac': 'Pac',
+  '/seguridadnacional': 'SeguridadNacional',
+  '/pdc': 'Pdc',
+  '/onu': 'Onu',
+  '/otan': 'Otan',
+  '/osce': 'Osce',
+  '/ue': 'Ue',
+  '/proteccioncivil': 'ProteccionCivil',
+  '/misionesinternacionales': 'MisionesInternacionales'
+} as const;
+
+interface StudyQuestion {
+  id: string;
+  questionNumber: number;
+  question: string;
+  options: string[];
+  correctAnswerIndex: number;
+  category?: string;
+  difficulty?: string;
+  originalSubject?: string; // Para preguntas de falladas, mantener el subject original
+}
+
+export class StudySessionService {
+
+  // ==========================================
+  // 📋 MAPEO DE COMANDOS A NOMBRES DE TABLAS
+  // ==========================================
+  
+  private static TABLE_MAPPING: Record<string, string> = {
+    // ✅ Tablas con preguntas confirmadas
+    'constitucion': 'Constitucion',        // 280 preguntas
+    'defensanacional': 'DefensaNacional',  // 121 preguntas
+    'aire': 'Aire',                        // 602 preguntas
+    
+    // 🔧 FIX: Mapeos que faltaban y causaban errores
+    'rjsp': 'Rio',                         // ⚖️ RJSP → Rio
+    'rio': 'Rio',                          // 🌊 Rio → Rio 
+    'tropa': 'TropaMarineria',            // 👥 Tropa y Marinería
+    'rroo': 'Rroo',                       // 📋 RR.OO.
+    'seguridadnacional': 'SeguridadNacional', // 🔒 Seguridad Nacional
+    'ue': 'Ue',                           // 🇪🇺 UE
+    'proteccioncivil': 'ProteccionCivil',  // 🚨 Protección Civil
+    
+    // 🔄 Tablas que existen pero pueden estar vacías
+    'armada': 'Armada',
+    'carrera': 'Carrera', 
+    'derechosydeberes': 'DerechosYDeberes',
+    'regimendisciplinario': 'RegimenDisciplinario',
+    'igualdad': 'Igualdad',
+    
+    // 📋 Otras tablas disponibles
+    'minsdef': 'Minsdef',
+    'organizacionfas': 'OrganizacionFas',
+    'emad': 'Emad',
+    'et': 'Et',
+    'iniciativasyquejas': 'IniciativasQuejas',
+    'omi': 'Omi',
+    'pac': 'Pac',
+    'pdc': 'Pdc',
+    'onu': 'Onu',
+    'otan': 'Otan',
+    'osce': 'Osce',
+    'misiones': 'MisionesInternacionales'
+  };
+
+  private static TABLE_DISPLAY_NAMES: Record<string, string> = {
+    'constitucion': '📜 Constitución',
+    'defensanacional': '🛡️ Defensa Nacional',
+    'rjsp': '⚖️ RJSP',
+    'rio': '🌊 RIO',
+    'minsdef': '🏛️ MINSDEF',
+    'organizacionfas': '🎖️ Organización FAS',
+    'emad': '⭐ EMAD',
+    'et': '🪖 Ejército de Tierra',
+    'armada': '⚓ Armada',
+    'aire': '✈️ Ejército del Aire',
+    'carrera': '📈 Carrera Militar',
+    'tropa': '👥 Tropa y Marinería',
+    'rroo': '📋 RR.OO.',
+    'derechosydeberes': '⚖️ Derechos y Deberes',
+    'regimendisciplinario': '🚫 Régimen Disciplinario',
+    'iniciativasyquejas': '📝 Iniciativas y Quejas',
+    'igualdad': '🏳️‍🌈 Igualdad',
+    'omi': '🌍 OMI',
+    'pac': '🕊️ PAC',
+    'seguridadnacional': '🔒 Seguridad Nacional',
+    'pdc': '📊 PDC',
+    'onu': '🌐 ONU',
+    'otan': '🛡️ OTAN',
+    'osce': '🤝 OSCE',
+    'ue': '🇪🇺 UE',
+    'proteccioncivil': '🚨 Protección Civil',
+    'misiones': '🌍 Misiones Internacionales'
+  };
+
+  // ==========================================
+  // 🎯 PARSEAR COMANDO DE ESTUDIO
+  // ==========================================
+  
+  static parseStudyCommand(command: string): { subject: string; quantity: number; type?: 'normal' | 'failed' } | null {
+    // 🔍 COMANDOS DE PREGUNTAS FALLADAS
+    // Formato: /falladas15, /constitucionfalladas5, etc.
+    const failedMatch = command.match(/^\/(?:([a-zA-Z]+)falladas|falladas)(\d*)$/);
+    
+    if (failedMatch) {
+      const [, subjectRaw, quantityStr] = failedMatch;
+      const quantity = quantityStr ? parseInt(quantityStr, 10) : 5; // Default 5 preguntas
+      
+      // Validar cantidad (1-50)
+      if (quantity < 1 || quantity > 50) return null;
+      
+      if (subjectRaw) {
+        // Comando específico de materia (/constitucionfalladas5)
+        const commandKey = `/${subjectRaw.toLowerCase()}`;
+        if (!STUDY_COMMANDS[commandKey as keyof typeof STUDY_COMMANDS]) return null;
+        return { subject: subjectRaw.toLowerCase(), quantity, type: 'failed' };
+      } else {
+        // Comando general (/falladas15)
+        return { subject: 'all', quantity, type: 'failed' };
+      }
+    }
+    
+    // 🔍 COMANDOS NORMALES EXISTENTES
+    // Formato: /constitucion10, /defensanacional5, etc.
+    const normalMatch = command.match(/^\/([a-zA-Z]+)(\d+)$/);
+    
+    if (!normalMatch) return null;
+    
+    const [, subjectRaw, quantityStr] = normalMatch;
+    const commandKey = `/${subjectRaw.toLowerCase()}`;
+    const quantity = parseInt(quantityStr, 10);
+    
+    // Validar que la materia existe en STUDY_COMMANDS
+    if (!STUDY_COMMANDS[commandKey as keyof typeof STUDY_COMMANDS]) return null;
+    
+    // Validar cantidad (1-50)
+    if (quantity < 1 || quantity > 50) return null;
+    
+    return { subject: subjectRaw.toLowerCase(), quantity, type: 'normal' };
+  }
+
+  // ==========================================
+  // 🎓 SISTEMA DE PREGUNTAS FALLADAS
+  // ==========================================
+  
+  /**
+   * Verificar si el usuario ha estudiado alguna vez
+   */
+  private async hasUserEverStudied(userId: string, subject?: string): Promise<boolean> {
+    try {
+      const subjectFilter = subject && subject !== 'all' ? `AND subject = '${subject}'` : '';
+      
+      const query = `
+        SELECT COUNT(*) as count 
+        FROM "StudyResponse" 
+        WHERE "userId" = $1 
+          AND "answeredAt" IS NOT NULL
+          ${subjectFilter}
+        LIMIT 1
+      `;
+      
+      const result = await prisma.$queryRawUnsafe(query, userId) as any[];
+      const count = parseInt(result[0]?.count || '0');
+      
+      console.log(`🔍 [hasUserEverStudied] Usuario ${userId}, materia: ${subject || 'todas'}, respuestas: ${count}`);
+      return count > 0;
+      
+    } catch (error) {
+      console.error('❌ Error verificando si el usuario ha estudiado:', error);
+      return false; // En caso de error, asumir que no ha estudiado
+    }
+  }
+
+  /**
+   * Obtener preguntas falladas del usuario (que aún no han "graduado")
+   */
+  private async getFailedQuestions(userId: string, subject?: string, limit: number = 10): Promise<StudyQuestion[]> {
+    try {
+      console.log(`🔍 [FailedQuestions] Buscando preguntas falladas para usuario ${userId}, materia: ${subject || 'todas'}, límite: ${limit}`);
+      
+      // Construir filtro por materia
+      const subjectFilter = subject && subject !== 'all' ? `AND sr.subject = '${subject}'` : '';
+      
+      // Query para obtener preguntas falladas que no han "graduado" (menos de 3 aciertos totales desde el último fallo)
+      const query = `
+        WITH failed_questions AS (
+          -- Obtener todas las preguntas que el usuario ha fallado alguna vez
+          SELECT DISTINCT 
+            sr."questionId",
+            sr.subject,
+            MAX(sr."answeredAt") as last_failed_at  -- 🔧 FIX: Último fallo, no el primero
+          FROM "StudyResponse" sr 
+          WHERE sr."userId" = $1 
+            AND sr."isCorrect" = false 
+            AND sr."answeredAt" IS NOT NULL
+            ${subjectFilter}
+          GROUP BY sr."questionId", sr.subject
+        ),
+        total_successes AS (
+          -- 🔧 FIX: Contar aciertos TOTALES desde el último fallo (no necesariamente consecutivos)
+          SELECT 
+            fq."questionId",
+            fq.subject,
+            fq.last_failed_at,
+            COUNT(sr2.id) as total_successes_since_last_fail
+          FROM failed_questions fq
+          LEFT JOIN "StudyResponse" sr2 ON sr2."questionId" = fq."questionId" 
+            AND sr2."userId" = $1 
+            AND sr2."isCorrect" = true 
+            AND sr2."answeredAt" > fq.last_failed_at
+            AND sr2.subject = fq.subject  -- 🔧 FIX CRÍTICO: Solo aciertos de la misma materia
+          GROUP BY fq."questionId", fq.subject, fq.last_failed_at
+        )
+        SELECT 
+          ts."questionId",
+          ts.subject,
+          ts.total_successes_since_last_fail,
+          ts.last_failed_at
+        FROM total_successes ts
+        WHERE ts.total_successes_since_last_fail < 1  -- Solo preguntas que NO han graduado
+        ORDER BY ts.last_failed_at ASC  -- Las más antiguas primero
+        LIMIT $2
+      `;
+      
+      const failedQuestionIds = await prisma.$queryRawUnsafe(query, userId, limit) as any[];
+      
+      console.log(`📊 [FailedQuestions] Encontradas ${failedQuestionIds.length} preguntas falladas sin graduar`);
+      
+      if (failedQuestionIds.length === 0) {
+        return [];
+      }
+      
+      // Obtener los detalles completos de las preguntas de todas las materias
+      const questions: StudyQuestion[] = [];
+      
+      for (const row of failedQuestionIds) {
+        const questionDetails = await this.getQuestionById(row.subject, row.questionId);
+        if (questionDetails) {
+          questions.push(questionDetails);
+          console.log(`✅ [FailedQuestions] Añadida pregunta ${row.questionId} de ${row.subject} (${row.total_successes_since_last_fail}/1 aciertos totales)`);
+        }
+      }
+      
+      console.log(`🎯 [FailedQuestions] Total preguntas falladas obtenidas: ${questions.length}`);
+      return questions;
+      
+    } catch (error) {
+      console.error('❌ Error obteniendo preguntas falladas:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Método público para obtener el conteo de preguntas falladas por materia
+   */
+  async getFailedQuestionsCount(userId: string, subject: string): Promise<number> {
+    try {
+      const result = await this.getFailedQuestions(userId, subject, 1000); // Usar límite alto para contar todas
+      return result.length;
+    } catch (error) {
+      console.error(`❌ Error contando preguntas falladas para ${subject}:`, error);
+      return 0;
+    }
+  }
+
+  /**
+   * Método estático para obtener el mapeo de comandos a materias
+   */
+  static getSubjectMappings(): Record<string, string> {
+    return STUDY_COMMANDS;
+  }
+
+  /**
+   * 🎓 Verificar si una pregunta se acaba de graduar (1+ aciertos desde último fallo)
+   */
+  private async checkIfQuestionJustGraduated(tx: any, userId: string, subject: string, questionId: string): Promise<boolean> {
+    try {
+      // Contar aciertos totales desde el último fallo
+      const result = await tx.$queryRaw`
+        SELECT 
+          COALESCE(
+            (SELECT COUNT(*) 
+             FROM "StudyResponse" sr2 
+             WHERE sr2."userId" = ${userId}
+               AND sr2."questionId" = ${questionId}
+               AND sr2.subject = ${subject}
+               AND sr2."isCorrect" = true 
+               AND sr2."answeredAt" > COALESCE(
+                 (SELECT MAX(sr3."answeredAt") 
+                  FROM "StudyResponse" sr3 
+                  WHERE sr3."userId" = ${userId}
+                    AND sr3."questionId" = ${questionId}
+                    AND sr3.subject = ${subject}
+                    AND sr3."isCorrect" = false), 
+                 '1970-01-01'::timestamp)
+            ), 0) as total_successes_since_last_fail
+      `;
+
+      const successCount = Number((result as any[])[0]?.total_successes_since_last_fail || 0);
+      
+      // La pregunta se gradúa exactamente cuando alcanza 1 acierto desde el último fallo
+      const isGraduated = successCount === 1;
+      
+      if (isGraduated) {
+        console.log(`🎓 checkIfQuestionJustGraduated: Pregunta ${questionId} graduada con ${successCount} acierto(s)`);
+      }
+      
+      return isGraduated;
+    } catch (error) {
+      console.error('❌ Error verificando graduación de pregunta:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Iniciar sesión de estudio con preguntas falladas
+   */
+  async startFailedStudySession(userId: string, subject: string, totalQuestions: number): Promise<{ success: boolean; message: string; sessionId?: string }> {
+    try {
+      console.log(`🎓 [FailedSession] Iniciando sesión de preguntas falladas - Usuario: ${userId}, Materia: ${subject}, Cantidad: ${totalQuestions}`);
+      
+      // Obtener preguntas falladas
+      const failedQuestions = await this.getFailedQuestions(userId, subject, totalQuestions);
+      
+      if (failedQuestions.length === 0) {
+        // 🔍 Verificar si el usuario ha estudiado alguna vez
+        const hasEverStudied = await this.hasUserEverStudied(userId, subject);
+        const subjectName = subject === 'all' ? 'todas las materias' : StudySessionService.getDisplayName(subject);
+        
+        if (!hasEverStudied) {
+          // Usuario nuevo que nunca ha estudiado
+          return { 
+            success: false, 
+            message: `🆕 **¡Bienvenido al sistema de repaso!**\n\n` +
+                    `Para usar \`/falladas\`, primero necesitas estudiar algunas preguntas y fallar alguna.\n\n` +
+                    `🎯 **¿Por dónde empezar?**\n` +
+                    `• \`/constitucion5\` - 5 preguntas de Constitución\n` +
+                    `• \`/defensanacional3\` - 3 preguntas de Defensa Nacional\n` +
+                    `• \`/pdc5\` - 5 preguntas de PDC\n\n` +
+                    `💡 **Una vez que falles algunas preguntas, podrás repasarlas con \`/falladas\`!**`
+          };
+        } else {
+          // Usuario experimentado sin preguntas falladas pendientes
+          return { 
+            success: false, 
+            message: `🎉 ¡Excelente! No tienes preguntas falladas pendientes en **${subjectName}**.\n\n` +
+                    `🎓 **¡Has graduado todas tus preguntas falladas!**\n` +
+                    `Esto significa que has acertado 1 vez cada pregunta que habías fallado previamente.\n\n` +
+                    `¡Sigue estudiando para mantener tu nivel! 💪`
+          };
+        }
+      }
+      
+      // Si hay menos preguntas falladas que las solicitadas, ajustar la cantidad
+      const actualQuantity = Math.min(totalQuestions, failedQuestions.length);
+      
+      // Crear sesión especial para preguntas falladas
+      const session = await prisma.$transaction(async (tx) => {
+        // Eliminar sesiones previas del usuario
+        await tx.userStudySession.deleteMany({
+          where: { userId }
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Crear nueva sesión marcada como "falladas"
+        const newSession = await tx.userStudySession.create({
+          data: {
+            userId,
+            subject: subject === 'all' ? 'falladas' : `${subject}_falladas`, // Marcar como sesión de falladas
+            totalQuestions: actualQuantity,
+            currentIndex: 0,
+            questionsAsked: failedQuestions.map(q => q.id), // Pre-llenar con las preguntas falladas específicas
+            status: 'active',
+            timeoutAt: new Date(Date.now() + 60000)
+          }
+        });
+        
+        console.log(`✅ [FailedSession] Sesión de falladas creada: ${newSession.id}`);
+        return newSession;
+      });
+      
+      // Mensaje de confirmación personalizado
+      const subjectDisplayName = subject === 'all' ? '🔄 Repaso General' : `🔄 ${StudySessionService.getDisplayName(subject)}`;
+      const confirmationMessage = 
+        `🎓 ¡Sesión de REPASO iniciada!\n\n` +
+        `🎯 Tipo: **Preguntas Falladas**\n` +
+        `📚 Materia: ${subjectDisplayName}\n` +
+        `📊 Preguntas disponibles: ${failedQuestions.length}\n` +
+        `🎲 Preguntas en esta sesión: ${actualQuantity}\n\n` +
+        `🏆 **Sistema de graduación:**\n` +
+        `• Acierta 1 vez una pregunta = ¡Graduada! 🎓\n` +
+        `• Las preguntas graduadas no aparecerán más\n\n` +
+        `⏱️ Tienes 1 minuto por pregunta\n` +
+        `⚡ Usa /stop para cancelar`;
+      
+      // Programar envío de primera pregunta
+      setTimeout(async () => {
+        const firstQuestionSent = await this.sendNextFailedQuestion(session.id, failedQuestions);
+        
+        if (!firstQuestionSent.success) {
+          await this.cancelSession(session.id);
+          const { TelegramService } = await import('./telegramService');
+          const telegramService = new TelegramService(process.env.TELEGRAM_BOT_TOKEN || '');
+          await telegramService.sendMessage(userId, '❌ Error al enviar la primera pregunta de repaso');
+        }
+      }, 500);
+      
+      return { 
+        success: true, 
+        message: confirmationMessage,
+        sessionId: session.id 
+      };
+      
+    } catch (error) {
+      console.error('❌ Error iniciando sesión de preguntas falladas:', error);
+      return { success: false, message: '❌ Error interno del sistema' };
+    }
+  }
+  
+  /**
+   * Enviar siguiente pregunta fallada específica
+   */
+  private async sendNextFailedQuestion(sessionId: string, failedQuestions: StudyQuestion[]): Promise<{ success: boolean; message?: string; completed?: boolean }> {
+    try {
+      const session = await prisma.userStudySession.findUnique({
+        where: { id: sessionId }
+      });
+      
+      if (!session || session.status !== 'active') {
+        return { success: false, message: 'Sesión no encontrada o inactiva' };
+      }
+      
+      if (session.currentIndex >= session.totalQuestions || session.currentIndex >= failedQuestions.length) {
+        await this.completeSession(session.id);
+        return { success: true, completed: true };
+      }
+      
+      // Obtener la pregunta específica para este índice
+      const question = failedQuestions[session.currentIndex];
+      
+      if (!question) {
+        await this.cancelSession(sessionId);
+        return { success: false, message: '❌ No se pudo obtener la pregunta de repaso' };
+      }
+      
+      return await this.sendQuestionToUser(session, question);
+      
+    } catch (error) {
+      console.error('❌ Error enviando pregunta fallada:', error);
+      return { success: false, message: 'Error enviando pregunta de repaso' };
+    }
+  }
+
+  // ==========================================
+  // 🎯 INICIAR SESIÓN DE ESTUDIO
+  // ==========================================
+  
+  async startStudySession(userId: string, subject: string, totalQuestions: number, sessionType: 'normal' | 'failed' = 'normal'): Promise<{ success: boolean; message: string; sessionId?: string }> {
+    try {
+      // 🎓 Si es sesión de preguntas falladas, usar el método especializado
+      if (sessionType === 'failed') {
+        return await this.startFailedStudySession(userId, subject, totalQuestions);
+      }
+      
+      // ✅ Sesión normal: Verificar que el subject es válido y obtener el nombre de tabla correcto
+      const commandKey = `/${subject}`;
+      const tableName = STUDY_COMMANDS[commandKey as keyof typeof STUDY_COMMANDS];
+      if (!tableName) {
+        return { success: false, message: '❌ Materia no válida' };
+      }
+
+      // Usar transacción para asegurar atomicidad
+      const session = await prisma.$transaction(async (tx) => {
+        // Eliminar TODAS las sesiones del usuario (no solo activas)
+        const deletedCount = await tx.userStudySession.deleteMany({
+          where: { userId }
+        });
+        console.log(`🗑️ ${deletedCount.count} sesiones eliminadas para usuario ${userId}`);
+
+        // Esperar un momento para asegurar que la eliminación se complete
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Verificar que no queden sesiones
+        const remainingSessions = await tx.userStudySession.count({
+          where: { userId }
+        });
+        
+        if (remainingSessions > 0) {
+          throw new Error(`Aún existen ${remainingSessions} sesiones para el usuario ${userId}`);
+        }
+
+        // Crear nueva sesión
+        const newSession = await tx.userStudySession.create({
+          data: {
+            userId,
+            subject,
+            totalQuestions,
+            currentIndex: 0,
+            questionsAsked: [],
+            status: 'active',
+            timeoutAt: new Date(Date.now() + 60000) // 1 minuto para la primera pregunta
+          }
+        });
+
+        console.log(`✅ Nueva sesión creada: ${newSession.id} para usuario ${userId}`);
+        return newSession;
+      });
+
+      console.log(`✅ Transacción completada exitosamente para usuario ${userId}`);
+
+      // PRIMERO: Retornar mensaje de confirmación (se enviará inmediatamente)
+      const confirmationMessage = `📚 ¡Sesión de estudio iniciada!\n\n🎯 Materia: ${subject.toUpperCase()}\n📊 Preguntas: ${totalQuestions}\n\n⏱️ Tienes 1 minuto por pregunta\n⚡ Usa /stop para cancelar\n📈 Usa /progreso para ver tu estado`;
+
+      // SEGUNDO: Programar envío de primera pregunta con un pequeño delay
+      setTimeout(async () => {
+        const firstQuestionSent = await this.sendNextQuestion(session.id);
+        
+        if (!firstQuestionSent.success) {
+          await this.cancelSession(session.id);
+          // Enviar mensaje de error si falla
+          const { TelegramService } = await import('./telegramService');
+          const telegramService = new TelegramService(process.env.TELEGRAM_BOT_TOKEN || '');
+          await telegramService.sendMessage(userId, '❌ Error al enviar la primera pregunta');
+        }
+      }, 500); // Esperar 500ms para asegurar que el mensaje de confirmación se envíe primero
+
+      return { 
+        success: true, 
+        message: confirmationMessage,
+        sessionId: session.id 
+      };
+
+    } catch (error) {
+      console.error('Error iniciando sesión de estudio:', error);
+      return { success: false, message: '❌ Error interno del sistema' };
+    }
+  }
+
+  // ==========================================
+  // 🎯 OBTENER PRÓXIMA PREGUNTA
+  // ==========================================
+  
+  async sendNextQuestion(sessionId: string): Promise<{ success: boolean; message?: string; completed?: boolean }> {
+    try {
+      const session = await prisma.userStudySession.findUnique({
+        where: { id: sessionId }
+      });
+
+      if (!session || session.status !== 'active') {
+        return { success: false, message: 'Sesión no encontrada o inactiva' };
+      }
+
+      // 🎓 Si es una sesión de preguntas falladas, usar el método especializado
+      if (session.subject === 'falladas' || session.subject.endsWith('_falladas')) {
+        // Para sesiones de falladas, las preguntas ya están pre-seleccionadas en questionsAsked
+        const failedQuestions: StudyQuestion[] = [];
+        
+        // Recuperar las preguntas basándose en los IDs almacenados
+        if (session.questionsAsked && session.questionsAsked.length > 0) {
+          for (const questionId of session.questionsAsked) {
+            // Extraer el subject original del session.subject 
+            const originalSubject = session.subject === 'falladas' ? 'all' : session.subject.replace('_falladas', '');
+            
+            // Para 'all', necesitamos buscar en todas las materias
+            if (originalSubject === 'all') {
+              // Buscar la pregunta en todas las materias posibles
+              let found = false;
+              for (const subject of Object.keys(STUDY_COMMANDS).map(s => s.replace('/', ''))) {
+                const question = await this.getQuestionById(subject, questionId);
+                if (question) {
+                  failedQuestions.push(question);
+                  found = true;
+                  break;
+                }
+              }
+              if (!found) {
+                console.warn(`⚠️ No se pudo encontrar la pregunta ${questionId} en ninguna materia`);
+              }
+            } else {
+              // Buscar en la materia específica
+              const question = await this.getQuestionById(originalSubject, questionId);
+              if (question) {
+                failedQuestions.push(question);
+              }
+            }
+          }
+        }
+        
+        return await this.sendNextFailedQuestion(sessionId, failedQuestions);
+      }
+
+      // Verificar si ya completó todas las preguntas
+      if (session.currentIndex >= session.totalQuestions) {
+        await this.completeSession(session.id);
+        return { success: true, completed: true };
+      }
+
+      // Obtener estadísticas para evitar repetición
+      const stats = await this.getUserStats(session.userId, session.subject);
+      
+      // Obtener nombre de tabla correcto
+      const commandKey = `/${session.subject}`;
+      const tableName = STUDY_COMMANDS[commandKey as keyof typeof STUDY_COMMANDS];
+      if (!tableName) {
+        await this.cancelSession(sessionId);
+        return { success: false, message: '❌ Materia no válida' };
+      }
+
+      // Obtener pregunta que no haya sido respondida (usar nombre de tabla correcto)
+      const question = await this.getRandomQuestion(tableName, stats.questionsCompleted);
+      
+      if (!question) {
+        // Si no hay más preguntas únicas, reiniciar el pool
+        await this.resetQuestionPool(session.userId, session.subject);
+        const retryQuestion = await this.getRandomQuestion(tableName, []);
+        
+        if (!retryQuestion) {
+          await this.cancelSession(sessionId);
+          return { success: false, message: '❌ No hay preguntas disponibles para esta materia' };
+        }
+        
+        return await this.sendQuestionToUser(session, retryQuestion);
+      }
+
+      return await this.sendQuestionToUser(session, question);
+
+    } catch (error) {
+      console.error('Error enviando siguiente pregunta:', error);
+      return { success: false, message: 'Error enviando pregunta' };
+    }
+  }
+
+  // ==========================================
+  // 🎯 PROCESAR RESPUESTA DEL POLL
+  // ==========================================
+  
+  async processPollAnswer(pollId: string, userId: string, selectedOption: number): Promise<void> {
+    try {
+      let shouldSendNextQuestion = false;
+      let sessionIdForNext = '';
+      
+      await prisma.$transaction(async (tx) => {
+        // 1. Encontrar la pregunta correspondiente al poll
+        const pollMapping = await tx.telegramPollMapping.findUnique({
+          where: { pollId },
+        });
+
+        if (!pollMapping) {
+          console.error(`[StudySession] No se encontró mapeo para el pollId: ${pollId}`);
+          return;
+        }
+        
+        const { questionId, subject } = pollMapping;
+
+        // 2. Encontrar la sesión de estudio activa del usuario
+        // 🔧 FIX: Para sesiones de falladas, el subject del poll mapping es diferente al subject de la sesión
+        let session = await tx.userStudySession.findFirst({
+          where: { userId, status: 'active', subject: subject },
+        });
+
+        // Si no se encuentra, podría ser una sesión de falladas
+        if (!session) {
+          // Buscar sesión de falladas generales
+          session = await tx.userStudySession.findFirst({
+            where: { userId, status: 'active', subject: 'falladas' },
+          });
+          
+          // Si no, buscar sesión de falladas específica de la materia
+          if (!session) {
+            session = await tx.userStudySession.findFirst({
+              where: { userId, status: 'active', subject: `${subject}_falladas` },
+            });
+          }
+        }
+
+        if (!session) {
+          console.error(`[StudySession] No se encontró sesión activa para el usuario ${userId}. Subject del poll: ${subject}`);
+          return;
+        }
+        
+        console.log(`✅ [StudySession] Sesión encontrada: ${session.id}, subject: ${session.subject}, currentIndex: ${session.currentIndex}`);
+        
+        // 3. Obtener los detalles completos de la pregunta
+        const question = await this.getQuestionById(subject, questionId);
+
+        if (!question) {
+          console.error(`[StudySession] No se pudo obtener la pregunta con ID ${questionId} para la materia ${subject} (sesión: ${session.subject})`);
+          return;
+        }
+
+        // 4. Determinar si la respuesta es correcta usando el índice correcto después del shuffle
+        let correctAnswerIndex = question.correctAnswerIndex; // Default from DB
+        
+        // Intentar obtener el correctAnswerIndex correcto del mapping (después del shuffle)
+        if (global.studyPollMappings && global.studyPollMappings.has(pollId)) {
+          const mapping = global.studyPollMappings.get(pollId);
+          correctAnswerIndex = mapping.correctAnswerIndex;
+          console.log(`🎲 Usando correctAnswerIndex del mapping: ${correctAnswerIndex} (original: ${question.correctAnswerIndex})`);
+        } else {
+          console.log(`⚠️ No se encontró mapping para pollId ${pollId}, usando correctAnswerIndex de DB: ${correctAnswerIndex}`);
+        }
+        
+        const isCorrect = selectedOption === correctAnswerIndex;
+        // Calcular tiempo de respuesta en milisegundos (no segundos)
+        const responseTime = session.timeoutAt ? Math.max(0, Math.round(Date.now() - (session.timeoutAt.getTime() - 60000))) : 1000;
+
+        // 5. Actualizar la sesión y las estadísticas de estudio
+        const updatedSession = await tx.userStudySession.update({
+          where: { id: session.id },
+          data: {
+            currentIndex: { increment: 1 }, // Incrementar después de procesar respuesta
+            timeoutAt: new Date(Date.now() + 60000), // Resetear timeout para la próxima pregunta
+          },
+        });
+
+        // 🔧 FIX CRÍTICO: Para sesiones de falladas, usar el subject original de la pregunta
+        // No el subject de la sesión ("falladas") sino el subject real ("defensanacional")
+        const actualSubject = subject; // subject viene del poll mapping y es el correcto
+        console.log(`🔧 [processPollAnswer] Guardando respuesta con subject: ${actualSubject} (sesión: ${session.subject})`);
+        
+        // Pasar el 'tx' a updateUserStats con todos los datos necesarios
+        await this.updateUserStats(tx, userId, actualSubject, isCorrect, responseTime, questionId, pollId, selectedOption, question.questionNumber || 0);
+
+        // 5.5. 🎓 TRIGGER NOTIFICACIONES: Si la respuesta es correcta, verificar graduación
+        if (isCorrect) {
+          // Verificar si esta pregunta se acaba de graduar
+          const wasGraduated = await this.checkIfQuestionJustGraduated(tx, userId, actualSubject, questionId);
+          if (wasGraduated) {
+            console.log(`🎓 Pregunta graduada detectada: ${questionId} en ${actualSubject} para usuario ${userId}`);
+            // ✅ Se graduó - el trigger de notificación se enviará después de la transacción
+            // Almacenar info para procesar notificación fuera de la transacción
+            if (!global.graduationNotifications) {
+              global.graduationNotifications = [];
+            }
+            global.graduationNotifications.push({
+              userId,
+              subject: actualSubject,
+              questionId,
+              timestamp: new Date()
+            });
+          }
+        }
+
+        // 6. Notificar al usuario sobre su respuesta
+        const feedbackMessage = StudySessionService.formatResponseFeedback(isCorrect, question, updatedSession);
+        const { TelegramService } = await import('./telegramService');
+        const telegramService = new TelegramService(process.env.TELEGRAM_BOT_TOKEN || '');
+        await telegramService.sendMessage(userId, feedbackMessage);
+        
+        // 7. Verificar si debemos finalizar la sesión
+        if (updatedSession.currentIndex >= updatedSession.totalQuestions) {
+          // Solo marcar la sesión como completada en la transacción
+          await tx.userStudySession.update({
+            where: { id: updatedSession.id },
+            data: { status: 'completed', timeoutAt: null },
+          });
+          console.log(`📝 Transacción completada. Sesión marcada como completada. Generando resumen...`);
+          // El resumen se generará DESPUÉS de la transacción
+          shouldSendNextQuestion = false;
+          sessionIdForNext = updatedSession.id; // Usar para generar resumen después
+        } else {
+          // NO enviar la siguiente pregunta dentro de la transacción
+          // Se enviará después de que la transacción se confirme
+          shouldSendNextQuestion = true;
+          sessionIdForNext = updatedSession.id;
+          console.log(`📝 Transacción completada. Programando envío de siguiente pregunta...`);
+        }
+      }, {
+        timeout: 15000, // 15 segundos de timeout
+      });
+      
+      // Realizar acciones DESPUÉS de que la transacción se confirme
+      if (shouldSendNextQuestion) {
+        console.log(`🚀 Enviando siguiente pregunta para sesión ${sessionIdForNext}...`);
+        await this.sendNextQuestion(sessionIdForNext);
+      } else if (sessionIdForNext) {
+        // La sesión ha terminado, generar resumen fuera de la transacción
+        console.log(`🏁 Generando resumen de sesión completada: ${sessionIdForNext}...`);
+        
+        // Cancelar timeout pendiente
+        try {
+          const scheduler = await getScheduler();
+          scheduler.cancelTimeout(sessionIdForNext);
+        } catch (error) {
+          console.error('Error cancelando timeout:', error);
+        }
+        
+        // Generar y enviar resumen DESPUÉS de confirmar la transacción
+        const summary = await this.generateSessionCompletionMessage(sessionIdForNext);
+        const { TelegramService } = await import('./telegramService');
+        const telegramService = new TelegramService(process.env.TELEGRAM_BOT_TOKEN || '');
+        await telegramService.sendMessage(userId, summary);
+      }
+
+      // 🎓 PROCESAR NOTIFICACIONES DE GRADUACIÓN (después de la transacción)
+      if (global.graduationNotifications && global.graduationNotifications.length > 0) {
+        const notificationsToProcess = [...global.graduationNotifications];
+        global.graduationNotifications = []; // Limpiar array global
+        
+        for (const notification of notificationsToProcess) {
+          try {
+            console.log(`🔔 Procesando notificación de graduación: ${notification.questionId} en ${notification.subject}`);
+            
+            // Importar dinámicamente para evitar dependencias circulares
+            const { NotificationService } = await import('./notificationService');
+            const notificationService = new NotificationService();
+            
+            // Configurar bot de Telegram si es necesario
+            const { TelegramService } = await import('./telegramService');
+            const telegramService = new TelegramService(process.env.TELEGRAM_BOT_TOKEN || '');
+            notificationService.setTelegramBot(telegramService);
+            
+            // Disparar notificaciones de graduación
+            await notificationService.onQuestionGraduated(notification.userId, notification.subject);
+            
+            console.log(`✅ Notificación de graduación procesada para usuario ${notification.userId}`);
+          } catch (error) {
+            console.error('❌ Error procesando notificación de graduación:', error);
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error al procesar la respuesta del poll:', error);
+    }
+  }
+
+  // ==========================================
+  // 🎯 CANCELAR SESIÓN ACTIVA
+  // ==========================================
+  
+  async cancelActiveSession(userId: string): Promise<void> {
+    try {
+      const activeSession = await prisma.userStudySession.findFirst({
+        where: { userId, status: 'active' }
+      });
+
+      if (activeSession) {
+        await this.cancelSession(activeSession.id);
+      }
+    } catch (error) {
+      console.error('Error cancelando sesión activa:', error);
+    }
+  }
+
+  // ==========================================
+  // 🎯 VER PROGRESO DE SESIÓN
+  // ==========================================
+  
+  async getSessionProgress(userId: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const session = await prisma.userStudySession.findFirst({
+        where: { userId, status: 'active' },
+        include: {
+          responses: {
+            where: { answeredAt: { not: null } }
+          }
+        }
+      });
+
+      if (!session) {
+        return { success: false, message: '❌ No tienes ninguna sesión de estudio activa' };
+      }
+
+      const answered = session.responses.length;
+      const correct = session.responses.filter(r => r.isCorrect).length;
+      const incorrect = session.responses.filter(r => !r.isCorrect || r.timedOut).length;
+      const percentage = answered > 0 ? Math.round((correct / answered) * 100) : 0;
+
+      const progress = `📊 **PROGRESO ACTUAL**\n\n` +
+        `🎯 Materia: ${session.subject.toUpperCase()}\n` +
+        `📈 Progreso: ${session.currentIndex}/${session.totalQuestions}\n\n` +
+        `✅ Correctas: ${correct}\n` +
+        `❌ Incorrectas: ${incorrect}\n` +
+        `📊 Porcentaje: ${percentage}%\n\n` +
+        `⏱️ Tiempo restante: ${Math.max(0, Math.ceil((session.timeoutAt!.getTime() - Date.now()) / 1000))}s`;
+
+      return { success: true, message: progress };
+
+    } catch (error) {
+      console.error('Error obteniendo progreso:', error);
+      return { success: false, message: '❌ Error obteniendo progreso' };
+    }
+  }
+
+  // ==========================================
+  // 🔧 FUNCIONES PÚBLICAS AUXILIARES
+  // ==========================================
+  
+  static getDisplayName(subject: string): string {
+    return this.TABLE_DISPLAY_NAMES[subject] || subject;
+  }
+
+  // ==========================================
+  // 🔧 FUNCIONES AUXILIARES PRIVADAS
+  // ==========================================
+  
+  private static async getAvailableQuestionsCount(userId: string, tableName: string): Promise<number> {
+    try {
+      const result = await prisma.$queryRawUnsafe(`
+        SELECT COUNT(*) as count FROM "${tableName}"
+      `);
+      
+      return parseInt((result as any)[0].count);
+    } catch (error) {
+      console.error('❌ Error contando preguntas:', error);
+      console.error('❌ Tabla consultada:', tableName);
+      return 0;
+    }
+  }
+  
+  private static async getRandomUnusedQuestion(userId: string, tableName: string, excludeIds: string[]): Promise<any> {
+    try {
+      const excludeClause = excludeIds.length > 0 
+        ? `AND id NOT IN (${excludeIds.map(id => `'${id}'`).join(',')})`
+        : '';
+      
+      const result = await prisma.$queryRawUnsafe(`
+        SELECT * FROM "${tableName}" 
+        WHERE 1=1 ${excludeClause}
+        ORDER BY RANDOM() 
+        LIMIT 1
+      `);
+      
+      return (result as any[])[0] || null;
+    } catch (error) {
+      console.error('❌ Error obteniendo pregunta aleatoria:', error);
+      return null;
+    }
+  }
+  
+  private static async findQuestionByPollId(pollId: string, tableName: string): Promise<any> {
+    try {
+      // Para sesiones de estudio, usar el mapping en memoria temporal
+      if (global.studyPollMappings && global.studyPollMappings.has(pollId)) {
+        const mapping = global.studyPollMappings.get(pollId);
+        
+        const result = await prisma.$queryRawUnsafe(`
+          SELECT * FROM "${tableName}" WHERE id = $1
+        `, mapping.questionId); // ✅ Pasar UUID directamente como string
+        
+        return (result as any[])[0] || null;
+      }
+      
+      // Fallback: buscar en el mapeo de polls existente (para compatibilidad)
+      const pollMapping = await prisma.telegramPoll.findFirst({
+        where: { 
+          pollId: pollId
+        }
+      });
+      
+      if (!pollMapping) return null;
+      
+      const result = await prisma.$queryRawUnsafe(`
+        SELECT * FROM "${tableName}" WHERE id = $1
+      `, pollMapping.questionId); // ✅ UUID como string, no parseInt
+      
+      return (result as any[])[0] || null;
+    } catch (error) {
+      console.error('❌ Error buscando pregunta por pollId:', error);
+      return null;
+    }
+  }
+  
+
+  
+  private async generateSessionCompletionMessage(sessionId: string): Promise<string> {
+    const session = await prisma.userStudySession.findUnique({
+      where: { id: sessionId },
+      include: {
+        responses: true,
+      },
+    });
+
+    if (!session) return 'Error: No se pudo generar el resumen de la sesión.';
+
+    // 🧹 LIMPIAR REGISTROS HUÉRFANOS ANTES DEL CONTEO
+    await this.cleanupOrphanedResponses(sessionId);
+
+    // Obtener responses actualizadas después de la limpieza
+    const cleanSession = await prisma.userStudySession.findUnique({
+      where: { id: sessionId },
+      include: {
+        responses: true,
+      },
+    });
+
+    if (!cleanSession) return 'Error: No se pudo generar el resumen de la sesión.';
+
+    // 🔧 FIX CRÍTICO: Para sesiones de falladas, usar estadísticas de la materia real
+    // No del subject "falladas" sino del subject real de las preguntas respondidas
+    let statsSubject = cleanSession.subject;
+    
+    // Si es sesión de falladas, obtener el subject de la primera respuesta real
+    if (cleanSession.subject === 'falladas' || cleanSession.subject.endsWith('_falladas')) {
+      const firstResponse = cleanSession.responses.find(r => r.answeredAt && r.subject !== 'falladas');
+      if (firstResponse) {
+        statsSubject = firstResponse.subject;
+        console.log(`🔧 [generateSessionCompletionMessage] Sesión de falladas: usando estadísticas de ${statsSubject} en lugar de ${cleanSession.subject}`);
+      }
+    }
+
+    const stats = await this.getUserStats(cleanSession.userId, statsSubject);
+
+    console.log(`📊 GENERANDO RESUMEN DE SESIÓN - ID: ${sessionId}`);
+    console.log(`📊 Total responses en BD: ${cleanSession.responses.length}`);
+    console.log(`📊 questionsAsked length: ${cleanSession.questionsAsked?.length || 0}`);
+    console.log(`📊 currentIndex: ${cleanSession.currentIndex}`);
+
+    // 🎯 USAR currentIndex COMO FUENTE DE VERDAD CONSISTENTE
+    // Durante la sesión usamos currentIndex en formatResponseFeedback, usemos eso mismo aquí
+    const totalQuestionsProcessed = cleanSession.currentIndex;
+    console.log(`📊 Total preguntas procesadas (currentIndex): ${totalQuestionsProcessed}`);
+
+    // Filtrar solo las respuestas válidas que tienen answeredAt
+    const validResponses = cleanSession.responses.filter(r => r.answeredAt !== null);
+    console.log(`📊 Responses con answeredAt: ${validResponses.length}`);
+
+    // Separar por tipo - basándose en respuestas reales del usuario
+    const actualUserResponses = validResponses.filter(r => r.timedOut !== true);
+    const timedOutResponses = validResponses.filter(r => r.timedOut === true);
+    
+    console.log(`📊 Respuestas reales del usuario: ${actualUserResponses.length}`);
+    console.log(`📊 Respuestas por timeout: ${timedOutResponses.length}`);
+
+    // 🔍 DEBUG DETALLADO: Mostrar cada respuesta individualmente
+    console.log(`🔍 DEBUGGING DETALLADO DE RESPUESTAS:`);
+    actualUserResponses.forEach((response, index) => {
+      console.log(`   📝 Respuesta ${index + 1}:`);
+      console.log(`      └─ ID: ${response.id}`);
+      console.log(`      └─ questionId: ${response.questionId}`);
+      console.log(`      └─ isCorrect: ${response.isCorrect} (type: ${typeof response.isCorrect})`);
+      console.log(`      └─ timedOut: ${response.timedOut}`);
+      console.log(`      └─ selectedOption: ${response.selectedOption}`);
+      console.log(`      └─ answeredAt: ${response.answeredAt}`);
+    });
+
+    const correctAnswers = actualUserResponses.filter(r => r.isCorrect === true).length;
+    const incorrectAnswers = actualUserResponses.filter(r => r.isCorrect === false).length;
+    const timedOutCount = timedOutResponses.length;
+
+    console.log(`📊 Correctas: ${correctAnswers}`);
+    console.log(`📊 Incorrectas: ${incorrectAnswers}`);
+    console.log(`📊 Timeouts: ${timedOutCount}`);
+
+    // 🎯 EL TOTAL EN BD DEBE IGUALAR LAS PREGUNTAS PROCESADAS
+    const totalResponsesInDB = correctAnswers + incorrectAnswers + timedOutCount;
+    console.log(`📊 Total respuestas en BD: ${totalResponsesInDB}`);
+
+    console.log(`📊 VERIFICACIÓN DE COHERENCIA:`);
+    console.log(`   └─ Preguntas procesadas (currentIndex): ${totalQuestionsProcessed}`);
+    console.log(`   └─ Respuestas registradas en BD: ${totalResponsesInDB}`);
+    console.log(`   └─ ¿Coinciden?: ${totalQuestionsProcessed === totalResponsesInDB ? '✅ SÍ' : '❌ NO'}`);
+
+    // Calcular precisión solo sobre respuestas reales (sin timeouts)
+    const accuracyBase = correctAnswers + incorrectAnswers;
+    const accuracy = accuracyBase > 0 ? Math.round((correctAnswers / accuracyBase) * 100) : 0;
+
+    console.log(`📊 CONTEO FINAL:`);
+    console.log(`   └─ Preguntas objetivo: ${cleanSession.totalQuestions}`);
+    console.log(`   └─ Preguntas procesadas: ${totalQuestionsProcessed}`);
+    console.log(`   └─ Respuestas en BD: ${totalResponsesInDB}`);
+    console.log(`   └─ Correctas: ${correctAnswers}`);
+    console.log(`   └─ Incorrectas: ${incorrectAnswers}`);
+    console.log(`   └─ Timeouts: ${timedOutCount}`);
+    console.log(`   └─ Precisión: ${accuracy}%`);
+
+    return this.generateCompletionMessage(stats, cleanSession.totalQuestions, correctAnswers, incorrectAnswers, accuracy, timedOutCount, totalQuestionsProcessed);
+  }
+  
+  private generateCompletionMessage(
+    stats: any, 
+    totalQuestions: number,
+    correctAnswers: number,
+    incorrectAnswers: number,
+    accuracy: number,
+    timedOutCount: number,
+    totalQuestionsProcessed: number
+  ): string {
+    const displayName = StudySessionService.getDisplayName(stats.subject);
+    let message = `🏁 **Sesión de estudio finalizada** 🏁\n\n`;
+    message += `📚 Materia: **${displayName}**\n`;
+    message += `📊 Preguntas de la sesión: ${totalQuestions}\n`;
+    message += `✅ Respuestas correctas: ${correctAnswers}\n`;
+    
+    // 🔧 FIX: Incluir timeouts en el conteo de respuestas incorrectas
+    // Un timeout es efectivamente una respuesta incorrecta desde el punto de vista del usuario
+    const totalIncorrect = incorrectAnswers + timedOutCount;
+    message += `❌ Respuestas incorrectas: ${totalIncorrect}\n`;
+    
+    // 🎯 USAR currentIndex COMO FUENTE DE VERDAD CONSISTENTE
+    // Ya no verificamos totalProcessed vs totalQuestions porque pueden ser diferentes
+    // por preguntas saltadas, pero todas las respuestas procesadas se contabilizan correctamente
+    const totalResponsesRegistered = correctAnswers + incorrectAnswers + timedOutCount;
+    console.log(`📊 [generateCompletionMessage] Respuestas registradas: ${totalResponsesRegistered}, Preguntas procesadas: ${totalQuestionsProcessed}`);
+    
+    // Solo mostrar "Procesadas" si hay una discrepancia real en los datos
+    if (totalResponsesRegistered !== totalQuestionsProcessed) {
+      console.log(`⚠️ [generateCompletionMessage] DISCREPANCIA: Respuestas en BD (${totalResponsesRegistered}) != Preguntas procesadas (${totalQuestionsProcessed})`);
+      message += `⚠️ Procesadas: ${totalResponsesRegistered}/${totalQuestionsProcessed}\n`;
+    }
+    
+    message += `🎯 Precisión: ${accuracy.toFixed(2)}%\n`;
+    
+    // Mensaje de racha más claro y contextual
+    if (stats.currentStreak > 0) {
+      message += `\n🔥 ¡Racha consecutiva activa: **${stats.currentStreak}** aciertos seguidos!`;
+    } else {
+      message += `\n💭 Tu racha consecutiva se reinició (${correctAnswers} aciertos en esta sesión).`;
+    }
+    
+    message += `\n\n💪 ¡Sigue estudiando!`;
+
+    return message;
+  }
+  
+  private static async updateUserStudyStats(userId: string, subject: string, isCorrect: boolean): Promise<void> {
+    try {
+      // Actualizar o crear estadísticas del usuario para esta materia
+      await prisma.studyStats.upsert({
+        where: {
+          userId_subject: {
+            userId,
+            subject
+          }
+        },
+        update: {
+          totalQuestions: { increment: 1 },
+          correctAnswers: isCorrect ? { increment: 1 } : undefined,
+          lastStudyAt: new Date()
+        },
+        create: {
+          userId,
+          subject,
+          totalQuestions: 1,
+          correctAnswers: isCorrect ? 1 : 0,
+          lastStudyAt: new Date()
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error actualizando estadísticas:', error);
+    }
+  }
+  
+  private static formatResponseFeedback(isCorrect: boolean, question: StudyQuestion, session: any): string {
+    // 🎯 USAR currentIndex como fuente de verdad - representa el progreso real después de procesar la respuesta
+    const progress = `(${session.currentIndex}/${session.totalQuestions})`;
+    console.log(`📊 Progreso mostrado en feedback: ${progress} (currentIndex: ${session.currentIndex})`);
+    
+    if (isCorrect) {
+      return `✅ ¡Correcto! ${progress}`;
+    } else {
+      const correctAnswer = question.options[question.correctAnswerIndex];
+      return `❌ Incorrecto ${progress}\n\nLa respuesta correcta era:\n*${correctAnswer}*`;
+    }
+  }
+
+  /**
+   * Enviar pregunta específica al usuario
+   */
+  /**
+   * Completar sesión (método de instancia)
+   */
+  async completeSession(sessionId: string): Promise<void> {
+    try {
+      await prisma.userStudySession.update({
+        where: { id: sessionId },
+        data: { status: 'completed' }
+      });
+
+      // Cancelar timeout pendiente
+      try {
+        const scheduler = await getScheduler();
+        scheduler.cancelTimeout(sessionId);
+      } catch (error) {
+        console.error('Error cancelando timeout:', error);
+      }
+    } catch (error) {
+      console.error('Error completando sesión:', error);
+    }
+  }
+
+  private async sendQuestionToUser(session: any, question: StudyQuestion): Promise<{ success: boolean; message?: string }> {
+    try {
+      // Calcular el número de pregunta a mostrar basado en preguntas ya enviadas + 1
+      const questionNumber = session.questionsAsked ? session.questionsAsked.length + 1 : session.currentIndex + 1;
+      console.log(`📚 Enviando pregunta ${questionNumber}/${session.totalQuestions} al usuario ${session.userId}`);
+      console.log(`📋 ID de pregunta: ${question.id}`);
+
+      const timeoutAt = new Date(Date.now() + 60000); // 1 minuto para responder
+
+      // 🔧 FIX: Para sesiones de falladas, usar el subject original de la pregunta
+      // para que processPollAnswer pueda encontrar la pregunta correctamente
+      const questionSubject = question.originalSubject || session.subject;
+      
+      // Preparar datos de la pregunta para el poll SIN responseId inicial
+      const questionData: any = {
+        id: question.id,
+        question: question.question,
+        options: question.options,
+        correctAnswerIndex: question.correctAnswerIndex,
+        subject: questionSubject, // Usar originalSubject si está disponible
+        currentIndex: questionNumber, // Usar el número calculado correctamente
+        totalQuestions: session.totalQuestions,
+        questionNumber: question.questionNumber
+      };
+
+      console.log(`🎯 Verificando viabilidad del poll para pregunta ${question.id}...`);
+
+      // Enviar poll PRIMERO para verificar si es viable
+      const pollResult = await this.sendStudyPoll(session.userId, questionData);
+
+      if (!pollResult.success) {
+        console.error(`❌ Poll RECHAZADO para pregunta ${question.id} - opciones muy largas o error de envío`);
+        console.log(`⚠️ Pregunta ${question.id} saltada - NO se crea ningún registro en BD`);
+
+        // Intentar con otra pregunta recursivamente sin incrementar currentIndex
+        // Obtener estadísticas actualizadas para evitar repetición
+        const stats = await this.getUserStats(session.userId, session.subject);
+        const commandKey = `/${session.subject}`;
+        const tableName = STUDY_COMMANDS[commandKey as keyof typeof STUDY_COMMANDS];
+        
+        if (tableName) {
+          console.log(`🔄 Buscando pregunta alternativa para reemplazar ${question.id}...`);
+          const nextQuestion = await this.getRandomQuestion(tableName, stats.questionsCompleted);
+          if (nextQuestion) {
+            console.log(`✅ Pregunta alternativa encontrada: ${nextQuestion.id}`);
+            return await this.sendQuestionToUser(session, nextQuestion);
+          } else {
+            console.error(`❌ No se encontró pregunta alternativa para ${question.id}`);
+          }
+        }
+        
+        return { success: false, message: 'No se pudo encontrar pregunta válida' };
+      }
+
+      console.log(`✅ Poll ENVIADO exitosamente para pregunta ${question.id} - PollID: ${pollResult.pollId}`);
+
+      // SOLO SI EL POLL SE ENVIÓ EXITOSAMENTE, crear el registro de respuesta
+      const response = await prisma.studyResponse.create({
+        data: {
+          sessionId: session.id,
+          userId: session.userId,
+          subject: questionSubject, // Usar el subject correcto
+          questionId: question.id,
+          questionNumber: question.questionNumber,
+          pollId: pollResult.pollId || '' // Usar el pollId devuelto
+        }
+      });
+
+      console.log(`📝 Registro StudyResponse creado: ${response.id} para pregunta ${question.id}`);
+
+      // ✅ SOLO SI EL POLL SE ENVIÓ EXITOSAMENTE, agregar a questionsAsked
+      // NO INCREMENTAR currentIndex aquí - se hará en processPollAnswer
+      await prisma.userStudySession.update({
+        where: { id: session.id },
+        data: {
+          questionsAsked: [...session.questionsAsked, question.id],
+          lastActivityAt: new Date(),
+          timeoutAt
+        }
+      });
+
+      console.log(`📋 Pregunta ${question.id} agregada a questionsAsked. Total: ${session.questionsAsked.length + 1}`);
+
+      // Programar timeout automático
+      try {
+        const scheduler = await getScheduler();
+        scheduler.scheduleTimeout(session.id, timeoutAt);
+        console.log(`⏰ Timeout programado para sesión ${session.id} a las ${timeoutAt.toISOString()}`);
+      } catch (error) {
+        console.error('Error programando timeout:', error);
+      }
+
+      return { success: true };
+
+    } catch (error) {
+      console.error(`❌ Error CRÍTICO enviando pregunta ${question.id} al usuario:`, error);
+      return { success: false, message: 'Error enviando pregunta' };
+    }
+  }
+
+  /**
+   * Manejar timeout de pregunta
+   */
+  async handleQuestionTimeout(sessionId: string): Promise<void> {
+    let shouldCompleteSession = false;
+    let sessionIdForCompletion = '';
+    let userId = '';
+
+    await prisma.$transaction(async (tx) => {
+      const session = await tx.userStudySession.findUnique({ where: { id: sessionId } });
+
+      if (!session || session.status !== 'active' || !session.timeoutAt || session.timeoutAt > new Date()) {
+        return; // Sesión no activa o no ha expirado
+      }
+      
+      console.log(`[StudySession] Timeout detectado para sesión ${session.id}`);
+
+      // Incrementar currentIndex solo si es necesario para el timeout
+      const questionsAnswered = session.questionsAsked ? session.questionsAsked.length : 0;
+      
+      const updatedSession = await tx.userStudySession.update({
+        where: { id: session.id },
+        data: {
+          currentIndex: { increment: 1 }, // Contar como pregunta procesada por timeout
+          timeoutAt: new Date(Date.now() + 60000), // Resetear para la siguiente
+        },
+      });
+
+      // Crear registro de timeout
+      await tx.studyResponse.create({
+          data: {
+              sessionId: session.id,
+              userId: session.userId,
+              subject: session.subject,
+              questionId: "timeout", // ID genérico para timeouts
+              questionNumber: questionsAnswered + 1,
+              pollId: "timeout",
+              timedOut: true,
+              answeredAt: new Date()
+          }
+      });
+      
+      const { TelegramService } = await import('./telegramService');
+      const telegramService = new TelegramService(process.env.TELEGRAM_BOT_TOKEN || '');
+      await telegramService.sendMessage(session.userId, '⏰ ¡Tiempo agotado! Pasando a la siguiente pregunta.');
+
+      if (updatedSession.currentIndex >= updatedSession.totalQuestions) {
+        // Solo marcar la sesión como completada en la transacción
+        await tx.userStudySession.update({
+          where: { id: updatedSession.id },
+          data: { status: 'completed', timeoutAt: null },
+        });
+        shouldCompleteSession = true;
+        sessionIdForCompletion = sessionId;
+        userId = session.userId;
+      } else {
+        // No hacer sendNextQuestion dentro de la transacción
+        // Se hará después
+      }
+    }, {
+      timeout: 15000, // 15 segundos de timeout
+    });
+
+    // Realizar acciones después de la transacción
+    if (shouldCompleteSession) {
+      console.log(`🏁 Generando resumen de sesión completada por timeout: ${sessionIdForCompletion}...`);
+      
+      // Cancelar timeout pendiente
+      try {
+        const scheduler = await getScheduler();
+        scheduler.cancelTimeout(sessionIdForCompletion);
+      } catch (error) {
+        console.error('Error cancelando timeout:', error);
+      }
+      
+      // Generar y enviar resumen DESPUÉS de confirmar la transacción
+      const summary = await this.generateSessionCompletionMessage(sessionIdForCompletion);
+      const { TelegramService } = await import('./telegramService');
+      const telegramService = new TelegramService(process.env.TELEGRAM_BOT_TOKEN || '');
+      await telegramService.sendMessage(userId, summary);
+    } else {
+      // Enviar siguiente pregunta fuera de la transacción
+      await this.sendNextQuestion(sessionId);
+    }
+  }
+
+  /**
+   * Cancelar sesión específica
+   */
+  async cancelSession(sessionId: string): Promise<void> {
+    try {
+      await prisma.userStudySession.update({
+        where: { id: sessionId },
+        data: { status: 'cancelled' }
+      });
+
+      // Cancelar timeout pendiente
+      try {
+        const scheduler = await getScheduler();
+        scheduler.cancelTimeout(sessionId);
+      } catch (error) {
+        console.error('Error cancelando timeout:', error);
+      }
+    } catch (error) {
+      console.error('Error cancelando sesión:', error);
+    }
+  }
+
+  /**
+   * Obtener pregunta aleatoria de una materia
+   */
+  private async getRandomQuestion(tableName: string, excludeIds: string[]): Promise<StudyQuestion | null> {
+    try {
+      // Construir query dinámicamente basado en el nombre de la tabla
+      let query = `
+        SELECT id, "questionNumber", question, options, "correctAnswerIndex", category, difficulty
+        FROM "${tableName}" 
+        WHERE "isActive" = true
+      `;
+      
+      // Agregar exclusiones si las hay
+      if (excludeIds.length > 0) {
+        const placeholders = excludeIds.map((_, index) => `$${index + 1}`).join(',');
+        query += ` AND id NOT IN (${placeholders})`;
+      }
+      
+      query += ` ORDER BY RANDOM() LIMIT 1`;
+
+      const result = excludeIds.length > 0 
+        ? await prisma.$queryRawUnsafe(query, ...excludeIds)
+        : await prisma.$queryRawUnsafe(query);
+      const questions = result as any[];
+
+      if (questions.length === 0) {
+        console.log(`❌ No se encontraron preguntas en tabla ${tableName} con exclusiones: ${excludeIds.length}`);
+        return null;
+      }
+
+      console.log(`✅ Pregunta aleatoria obtenida de tabla ${tableName}: ${questions[0].id}`);
+      return {
+        id: questions[0].id,
+        questionNumber: questions[0].questionNumber,
+        question: questions[0].question,
+        options: questions[0].options,
+        correctAnswerIndex: questions[0].correctAnswerIndex,
+        category: questions[0].category,
+        difficulty: questions[0].difficulty
+      };
+
+    } catch (error) {
+      console.error('Error obteniendo pregunta aleatoria:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Obtener pregunta por ID de una materia específica
+   */
+  private async getQuestionById(subject: string, questionId: string): Promise<StudyQuestion | null> {
+    try {
+      // 🔧 FIX: Usar TABLE_MAPPING para obtener el nombre correcto de la tabla
+      const tableName = StudySessionService.TABLE_MAPPING[subject];
+      if (!tableName) {
+        console.error(`❌ Tabla no encontrada para subject: ${subject}`);
+        return null;
+      }
+
+      const query = `
+        SELECT id, "questionNumber", question, options, "correctAnswerIndex", category, difficulty
+        FROM "${tableName}" 
+        WHERE id = $1
+      `;
+
+      const result = await prisma.$queryRawUnsafe(query, questionId);
+      const questions = result as any[];
+
+      if (questions.length === 0) {
+        console.log(`❌ Pregunta con ID ${questionId} no encontrada en tabla ${tableName}`);
+        return null;
+      }
+
+      console.log(`✅ Pregunta encontrada: ${questions[0].id} en tabla ${tableName}`);
+      return {
+        id: questions[0].id,
+        questionNumber: questions[0].questionNumber,
+        question: questions[0].question,
+        options: questions[0].options,
+        correctAnswerIndex: questions[0].correctAnswerIndex,
+        category: questions[0].category,
+        difficulty: questions[0].difficulty,
+        originalSubject: subject // Preservar el subject original para sesiones de falladas
+      };
+
+    } catch (error) {
+      console.error('Error obteniendo pregunta por ID:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Obtener estadísticas del usuario para una materia
+   */
+  private async getUserStats(userId: string, subject: string): Promise<any> {
+    try {
+      let stats = await prisma.studyStats.findUnique({
+        where: { 
+          userId_subject: { userId, subject } 
+        }
+      });
+
+      if (!stats) {
+        stats = await prisma.studyStats.create({
+          data: {
+            userId,
+            subject,
+            questionsCompleted: []
+          }
+        });
+      }
+
+      return stats;
+    } catch (error) {
+      console.error('Error obteniendo estadísticas de usuario:', error);
+      return { questionsCompleted: [] };
+    }
+  }
+
+  /**
+   * Actualizar estadísticas del usuario
+   */
+  private async updateUserStats(
+    tx: any, // Acepta el cliente de transacción
+    userId: string,
+    subject: string,
+    isCorrect: boolean,
+    responseTime: number,
+    questionId: string,
+    pollId: string,
+    selectedOption: number,
+    questionNumber: number
+  ): Promise<void> {
+    
+    // 🔍 DEBUG: Log entrada de función
+    console.log(`🔧 [updateUserStats] INICIANDO para:`);
+    console.log(`   └─ userId: ${userId}`);
+    console.log(`   └─ questionId: ${questionId}`);
+    console.log(`   └─ pollId: ${pollId}`);
+    console.log(`   └─ isCorrect: ${isCorrect} (type: ${typeof isCorrect})`);
+    console.log(`   └─ selectedOption: ${selectedOption}`);
+    console.log(`   └─ questionNumber: ${questionNumber}`);
+    // Buscar o crear estadísticas de estudio para la materia
+    let stats = await tx.studyStats.findFirst({
+      where: { userId, subject },
+    });
+
+    if (!stats) {
+      stats = await tx.studyStats.create({
+        data: {
+          userId,
+          subject,
+          questionsCompleted: [],
+        },
+      });
+    }
+
+    // Actualizar estadísticas
+    const newCorrectAnswers = stats.correctAnswers + (isCorrect ? 1 : 0);
+    const newTotalQuestions = stats.totalQuestions + 1;
+    const newCurrentStreak = isCorrect ? stats.currentStreak + 1 : 0;
+    
+    // Evitar añadir duplicados
+    const newQuestionsCompleted = Array.from(new Set([...stats.questionsCompleted, questionId]));
+
+    await tx.studyStats.update({
+      where: { id: stats.id },
+      data: {
+        totalQuestions: newTotalQuestions,
+        correctAnswers: newCorrectAnswers,
+        currentStreak: newCurrentStreak,
+        bestStreak: Math.max(stats.bestStreak, newCurrentStreak),
+        questionsCompleted: newQuestionsCompleted,
+      },
+    });
+
+    // ESTRATEGIA MEJORADA: Buscar registro existente primero para debugging
+    const existingResponse = await tx.studyResponse.findFirst({
+      where: {
+        userId,
+        questionId,
+        answeredAt: null
+      }
+    });
+
+    console.log(`🔍 BUSCANDO REGISTRO - userId: ${userId}, questionId: ${questionId}`);
+    console.log(`📝 Registro encontrado:`, existingResponse ? { 
+      id: existingResponse.id, 
+      pollId: existingResponse.pollId, 
+      answeredAt: existingResponse.answeredAt 
+    } : 'NO ENCONTRADO');
+
+    let updateResult: any = { count: 0 };
+
+    if (existingResponse) {
+      // Actualizar el registro existente usando el ID específico
+      updateResult = await tx.studyResponse.updateMany({
+        where: {
+          id: existingResponse.id, // Usar ID específico en lugar de criterios múltiples
+          answeredAt: null // Verificación adicional de seguridad
+        },
+        data: {
+          pollId: pollId,
+          selectedOption: selectedOption,
+          isCorrect,
+          responseTime,
+          answeredAt: new Date(),
+        },
+      });
+      
+      console.log(`✅ ACTUALIZACIÓN EXITOSA - Registros actualizados: ${updateResult.count}`);
+    } else {
+      console.log(`⚠️ NO SE ENCONTRÓ REGISTRO PARA ACTUALIZAR - userId: ${userId}, questionId: ${questionId}`);
+      
+      // FALLBACK: Crear un nuevo registro si no se encontró uno existente
+      // Esto asegura que la respuesta se registre independientemente
+      console.log(`🔧 CREANDO REGISTRO FALLBACK para asegurar que la respuesta se registre`);
+      
+      try {
+        const fallbackResponse = await tx.studyResponse.create({
+          data: {
+            sessionId: existingResponse?.sessionId || 'fallback',
+            userId,
+            subject,
+            questionId,
+            questionNumber,
+            pollId,
+            selectedOption,
+            isCorrect,
+            responseTime,
+            answeredAt: new Date(),
+          }
+        });
+        
+        console.log(`✅ REGISTRO FALLBACK CREADO EXITOSAMENTE - ID: ${fallbackResponse.id}`);
+        updateResult = { count: 1 }; // Simular éxito para logging
+      } catch (fallbackError) {
+        console.error(`❌ ERROR CREANDO REGISTRO FALLBACK:`, fallbackError);
+      }
+    }
+    
+    // Logging detallado del resultado
+    console.log(`📊 RESULTADO FINAL - userId: ${userId}, questionId: ${questionId}, isCorrect: ${isCorrect}, registrosActualizados: ${updateResult.count}`);
+    
+    // 🚨 ALERTA SI TODAVÍA NO SE PROCESÓ CORRECTAMENTE
+    if (updateResult.count === 0) {
+      console.error(`❌ FALLO CRÍTICO: NO SE PUDO REGISTRAR LA RESPUESTA - userId: ${userId}, questionId: ${questionId}, pollId: ${pollId}`);
+      
+      // Debug adicional: Buscar TODOS los registros para este usuario/pregunta
+      const allUserResponses = await tx.studyResponse.findMany({
+        where: { userId, questionId },
+        select: { id: true, pollId: true, answeredAt: true, isCorrect: true, sessionId: true }
+      });
+      console.log(`🔍 TODOS los registros para userId ${userId} + questionId ${questionId}:`, allUserResponses);
+      
+      // Debug adicional: Buscar por pollId
+      const pollResponses = await tx.studyResponse.findMany({
+        where: { pollId },
+        select: { id: true, userId: true, questionId: true, answeredAt: true, isCorrect: true }
+      });
+      console.log(`🔍 TODOS los registros para pollId ${pollId}:`, pollResponses);
+    }
+
+    // Integración de Gamificación - Intentar pero no fallar si hay error
+    try {
+      const userResponseForGamification: UserResponse = {
+        telegramUserId: userId, // userId ya es el telegramUserId en este contexto
+        questionId,
+        isCorrect,
+        responseTime,
+      };
+      await GamificationService._processUserResponseWithinTransaction(userResponseForGamification, tx);
+      console.log(`✅ Gamificación procesada para usuario ${userId}`);
+    } catch (error) {
+      console.error('⚠️ Error en gamificación (no afecta al estudio):', error);
+      // No relanzar el error para que no afecte al sistema de estudio
+    }
+  }
+
+  /**
+   * Reiniciar pool de preguntas para una materia
+   */
+  private async resetQuestionPool(userId: string, subject: string): Promise<void> {
+    try {
+      await prisma.studyStats.update({
+        where: { 
+          userId_subject: { userId, subject } 
+        },
+        data: {
+          questionsCompleted: []
+        }
+      });
+    } catch (error) {
+      console.error('Error reiniciando pool de preguntas:', error);
+    }
+  }
+
+  /**
+   * Limpiar metadatos de la pregunta (formato: // contenido :: más contenido ::)
+   */
+  private cleanQuestionMetadata(questionText: string): string {
+    if (!questionText) return questionText;
+    
+    // Eliminar el patrón: // [contenido] :: [más contenido] ::
+    // Usar greedy match (.*) para ir hasta el último "::" 
+    // Ejemplo: "// Pregunta 3. Constitución Española ::Artículo 76.2::  ¿qué establece..."
+    // Resultado: "¿qué establece..."
+    const cleanedQuestion = questionText.replace(/^\/\/.*::\s*/, '').trim();
+    
+    return cleanedQuestion;
+  }
+
+  /**
+   * Enviar poll de estudio a Telegram
+   */
+  private async sendStudyPoll(userId: string, questionData: any): Promise<{ success: boolean; pollId?: string }> {
+    try {
+      console.log(`📊 ENVIANDO POLL DE ESTUDIO - Usuario: ${userId}, Pregunta: ${questionData.id}`);
+
+      // 🧹 LIMPIAR METADATOS ANTES DE USAR LA PREGUNTA
+      const rawQuestion = questionData.question || 'Pregunta no disponible';
+      const question = this.cleanQuestionMetadata(rawQuestion);
+      
+      // 🔍 DEBUG: Mostrar antes y después de la limpieza si hay cambios
+      if (rawQuestion !== question) {
+        console.log(`🧹 PREGUNTA LIMPIADA:`);
+        console.log(`   📝 Antes: ${rawQuestion.substring(0, 100)}...`);
+        console.log(`   ✨ Después: ${question.substring(0, 100)}...`);
+      }
+      
+      // Las opciones pueden venir como array de strings
+      let options: string[] = [];
+      if (Array.isArray(questionData.options)) {
+        // Limpiar opciones eliminando porcentajes al inicio (ej: "%100%texto" -> "texto")
+        options = questionData.options.map((option: string) => {
+          // Eliminar porcentajes al inicio como "%100%" o "%-33.33333%"
+          return option.replace(/^%[-\d.]+%/, '').trim();
+        }).filter((option: string) => option && option.length > 0);
+      }
+
+      if (options.length < 2) {
+        console.error('❌ Opciones insuficientes para la pregunta:', questionData.id);
+        return { success: false };
+      }
+
+      // Verificar límite de caracteres de Telegram (100 caracteres por opción)
+      const maxOptionLength = options.reduce((max, option) => Math.max(max, option.length), 0);
+      if (maxOptionLength > 100) {
+        console.log(`⚠️ PREGUNTA SALTADA: Opción muy larga (${maxOptionLength} caracteres, máximo 100) - ID: ${questionData.id}`);
+        return { success: false };
+      }
+
+      // El correctAnswerIndex ya viene 0-indexed desde la base de datos
+      const originalCorrectIndex = questionData.correctAnswerIndex !== undefined ? 
+        questionData.correctAnswerIndex : 0;
+
+      // Randomizar opciones para evitar que la respuesta correcta siempre sea la A
+      const optionsWithIndex = options.map((option: string, index: number) => ({
+        option,
+        originalIndex: index
+      }));
+
+      // Mezclar las opciones aleatoriamente
+      const shuffledOptions = [...optionsWithIndex].sort(() => Math.random() - 0.5);
+      
+      // Encontrar la nueva posición de la respuesta correcta después del shuffle
+      const newCorrectIndex = shuffledOptions.findIndex(
+        item => item.originalIndex === originalCorrectIndex
+      );
+
+      // Extraer solo las opciones mezcladas para el poll
+      const finalOptions = shuffledOptions.map(item => item.option);
+
+      console.log('🎲 Opciones randomizadas:', {
+        original: options,
+        shuffled: finalOptions,
+        originalCorrectIndex,
+        newCorrectIndex,
+        correctAnswer: finalOptions[newCorrectIndex]
+      });
+
+      // Formatear header con información de progreso
+      const header = `🎯 PREGUNTA ${questionData.currentIndex}/${questionData.totalQuestions}\n` +
+                    `📚 ${StudySessionService.getDisplayName(questionData.subject)}\n` +
+                    `⏱️ Tiempo límite: 1 minuto\n\n`;
+
+      const fullQuestion = this.truncatePollQuestion(header, question, 280);
+
+      const pollData = {
+        chat_id: userId,
+        question: fullQuestion,
+        options: JSON.stringify(finalOptions), // Usar opciones mezcladas
+        type: 'quiz',
+        correct_option_id: newCorrectIndex, // Usar nuevo índice después del shuffle
+        is_anonymous: false,
+        allows_multiple_answers: false,
+        explanation: `✅ La respuesta correcta es: ${finalOptions[newCorrectIndex]}`,
+        open_period: 60 // 1 minuto límite
+      };
+
+      const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+      if (!BOT_TOKEN) {
+        console.error('❌ TELEGRAM_BOT_TOKEN no configurado');
+        return { success: false };
+      }
+
+      const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPoll`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(pollData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ Error enviando poll de estudio:', errorData);
+        return { success: false };
+      }
+
+      const data = await response.json();
+      const pollId = data.result.poll.id;
+
+      // Actualizar el pollId en la respuesta si se proporcionó responseId
+      if (questionData.responseId) {
+        await prisma.studyResponse.update({
+          where: { id: questionData.responseId },
+          data: { pollId }
+        });
+      }
+
+      // Crear mapping en base de datos para persistencia entre requests
+      await prisma.telegramPollMapping.create({
+        data: {
+          pollId,
+          questionId: questionData.id,
+          subject: questionData.subject
+        }
+      });
+
+      // También mantener en memoria para compatibilidad
+      if (!global.studyPollMappings) {
+        global.studyPollMappings = new Map();
+      }
+      
+      global.studyPollMappings.set(pollId, {
+        questionId: questionData.id,
+        subject: questionData.subject,
+        correctAnswerIndex: newCorrectIndex,
+        responseId: questionData.responseId,
+        timestamp: Date.now()
+      });
+
+      console.log(`✅ Poll de estudio enviado - ID: ${pollId}`);
+      return { success: true, pollId };
+
+    } catch (error) {
+      console.error('❌ Error enviando poll de estudio:', error);
+      return { success: false };
+    }
+  }
+
+  /**
+   * Truncar pregunta para cumplir límites de Telegram
+   */
+  private truncatePollQuestion(header: string, question: string, maxLength: number = 300): string {
+    const fullText = header + question;
+    
+    if (fullText.length <= maxLength) {
+      return fullText;
+    }
+    
+    // Calcular espacio disponible para la pregunta
+    const availableSpace = maxLength - header.length - 3; // 3 para "..."
+    
+    if (availableSpace <= 0) {
+      // Si el header es muy largo, truncar todo
+      return fullText.substring(0, maxLength - 3) + '...';
+    }
+    
+    // Truncar solo la pregunta
+    const truncatedQuestion = question.substring(0, availableSpace) + '...';
+    return header + truncatedQuestion;
+  }
+
+  /**
+   * Cancelar sesión por comando /stop
+   */
+  async stopSession(userId: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const session = await prisma.userStudySession.findFirst({
+        where: { userId, status: 'active' }
+      });
+
+      if (!session) {
+        return { success: false, message: '❌ No tienes ninguna sesión activa' };
+      }
+
+      await this.cancelSession(session.id);
+
+      return { 
+        success: true, 
+        message: `🛑 **Sesión cancelada**\n\n📚 Materia: ${session.subject.toUpperCase()}\n📊 Progreso: ${session.currentIndex}/${session.totalQuestions}\n\n💡 Puedes iniciar una nueva sesión cuando quieras` 
+      };
+
+    } catch (error) {
+      console.error('Error deteniendo sesión:', error);
+      return { success: false, message: '❌ Error cancelando sesión' };
+    }
+  }
+
+  private async cleanupOrphanedResponses(sessionId: string): Promise<void> {
+    try {
+      // Buscar registros de la sesión que nunca fueron completados
+      // (no tienen answeredAt y no son timeouts legítimos)
+      const orphanedResponses = await prisma.studyResponse.findMany({
+        where: {
+          sessionId: sessionId,
+          answeredAt: null,
+          timedOut: { not: true }, // No son timeouts legítimos
+          createdAt: {
+            lte: new Date(Date.now() - 2 * 60 * 1000) // Creados hace más de 2 minutos
+          }
+        }
+      });
+
+      if (orphanedResponses.length > 0) {
+        const deleteCount = await prisma.studyResponse.deleteMany({
+          where: {
+            id: {
+              in: orphanedResponses.map(r => r.id)
+            }
+          }
+        });
+
+        console.log(`🧹 ${deleteCount.count} registros huérfanos eliminados de sesión ${sessionId}`);
+        orphanedResponses.forEach(r => {
+          console.log(`   - Registro huérfano: ${r.id} (pregunta: ${r.questionId})`);
+        });
+      } else {
+        console.log(`✅ No se encontraron registros huérfanos en sesión ${sessionId}`);
+      }
+    } catch (error) {
+      console.error('Error limpiando respuestas huérfanas:', error);
+    }
+  }
+}
+
+// Exportar instancia por defecto para facilitar el uso
+export const studySessionService = new StudySessionService(); 

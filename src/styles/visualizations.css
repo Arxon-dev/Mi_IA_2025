@@ -1,0 +1,575 @@
+/**
+ * 🎨 Estilos de Visualización OpositIA
+ * Integrado con el sistema de diseño y temas existentes
+ */
+
+/* ===== ANIMACIONES AVANZADAS ===== */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px hsl(var(--primary) / 0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ===== CLASES DE ANIMACIÓN ===== */
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slideInFromLeft 0.5s ease-out;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsl(var(--primary) / 0.1),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* ===== MEJORAS DE INTERACTIVIDAD ===== */
+
+.interactive-card {
+  @apply transition-all duration-300 ease-out;
+  @apply hover:shadow-lg hover:shadow-primary/10;
+  @apply hover:-translate-y-1;
+  @apply active:scale-[0.98];
+}
+
+.interactive-button {
+  @apply transition-all duration-200 ease-out;
+  @apply hover:scale-105 hover:shadow-md;
+  @apply active:scale-95;
+  @apply focus:ring-2 focus:ring-primary/50 focus:ring-offset-2;
+}
+
+/* ===== GRADIENTES TEMÁTICOS ===== */
+
+.gradient-primary {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--primary)),
+    hsl(var(--accent))
+  );
+}
+
+.gradient-success {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--success)),
+    hsl(var(--success) / 0.8)
+  );
+}
+
+.gradient-warning {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--warning)),
+    hsl(var(--warning) / 0.8)
+  );
+}
+
+.gradient-subtle {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--muted)),
+    hsl(var(--muted) / 0.5)
+  );
+}
+
+/* ===== EFECTOS DE VIDRIO ===== */
+
+.glass-effect {
+  background: hsl(var(--card) / 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border) / 0.5);
+}
+
+.glass-effect-strong {
+  background: hsl(var(--card) / 0.95);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid hsl(var(--border) / 0.8);
+}
+
+/* ===== ESTADOS DE CARGA ===== */
+
+.loading-skeleton {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted) / 0.2),
+    hsl(var(--muted) / 0.4),
+    hsl(var(--muted) / 0.2)
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.loading-dots::after {
+  content: '';
+  animation: loadingDots 1.5s steps(4, end) infinite;
+}
+
+@keyframes loadingDots {
+  0%, 20% { content: ''; }
+  40% { content: '.'; }
+  60% { content: '..'; }
+  80%, 100% { content: '...'; }
+}
+
+/* ===== INDICADORES DE ESTADO ===== */
+
+.status-indicator {
+  @apply relative;
+}
+
+.status-indicator::before {
+  content: '';
+  @apply absolute -top-1 -right-1 w-3 h-3 rounded-full;
+  @apply animate-pulse;
+}
+
+.status-indicator.status-active::before {
+  @apply bg-success;
+}
+
+.status-indicator.status-warning::before {
+  @apply bg-warning;
+}
+
+.status-indicator.status-error::before {
+  @apply bg-destructive;
+}
+
+.status-indicator.status-processing::before {
+  @apply bg-primary;
+  animation: pulseGlow 1.5s infinite;
+}
+
+/* ===== TOOLTIPS MEJORADOS ===== */
+
+.tooltip {
+  @apply relative;
+}
+
+.tooltip::after {
+  content: attr(data-tooltip);
+  @apply absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2;
+  @apply px-3 py-2 text-xs font-medium text-primary-foreground;
+  @apply bg-primary rounded-md shadow-lg;
+  @apply opacity-0 pointer-events-none transition-opacity duration-200;
+  @apply whitespace-nowrap z-50;
+}
+
+.tooltip:hover::after {
+  @apply opacity-100;
+}
+
+/* ===== RESPONSIVE BREAKPOINTS CUSTOM ===== */
+
+@media (max-width: 640px) {
+  .visualization-container {
+    @apply px-2;
+  }
+  
+  .stats-grid {
+    @apply grid-cols-1 gap-2;
+  }
+  
+  .controls-mobile {
+    @apply flex-col gap-2;
+  }
+}
+
+@media (max-width: 768px) {
+  .type-selector {
+    @apply flex-wrap;
+  }
+  
+  .type-button {
+    @apply min-w-0 flex-1;
+  }
+}
+
+/* ===== ACCESIBILIDAD ===== */
+
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2;
+}
+
+.high-contrast .visualization-node {
+  @apply border-2 border-foreground;
+}
+
+.reduce-motion .animate-fade-in-up,
+.reduce-motion .animate-slide-in-left,
+.reduce-motion .animate-pulse-glow,
+.reduce-motion .animate-shimmer {
+  animation: none;
+}
+
+/* ===== MODO OSCURO ESPECÍFICO ===== */
+
+.dark .glass-effect {
+  background: hsl(var(--card) / 0.7);
+  border: 1px solid hsl(var(--border) / 0.3);
+}
+
+.dark .visualization-container {
+  box-shadow: inset 0 1px 0 0 hsl(var(--border) / 0.1);
+}
+
+/* Mejoras específicas para modo oscuro */
+.dark .gradient-primary {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--primary) / 0.9),
+    hsl(var(--accent) / 0.8)
+  );
+}
+
+.dark .gradient-subtle {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--muted) / 0.3),
+    hsl(var(--muted) / 0.1)
+  );
+}
+
+/* Nodos de visualización en modo oscuro */
+.dark .visualization-node {
+  stroke: hsl(var(--border));
+  stroke-width: 1.5;
+  filter: brightness(1.1) contrast(1.05);
+}
+
+.dark .visualization-node[data-type="main"] {
+  fill: hsl(var(--primary) / 0.8);
+  stroke: hsl(var(--primary));
+  stroke-width: 2;
+  filter: drop-shadow(0 2px 8px hsl(var(--primary) / 0.3));
+}
+
+.dark .visualization-node[data-type="concept"] {
+  fill: hsl(var(--accent) / 0.6);
+  stroke: hsl(var(--accent));
+}
+
+.dark .visualization-node[data-type="detail"] {
+  fill: hsl(var(--muted) / 0.8);
+  stroke: hsl(var(--border));
+}
+
+.dark .visualization-node[data-type="process"] {
+  fill: hsl(var(--success) / 0.7);
+  stroke: hsl(var(--success));
+}
+
+.dark .visualization-node[data-type="decision"] {
+  fill: hsl(var(--warning) / 0.7);
+  stroke: hsl(var(--warning));
+}
+
+.dark .visualization-node[data-type="start"],
+.dark .visualization-node[data-type="end"] {
+  fill: hsl(var(--primary) / 0.9);
+  stroke: hsl(var(--primary));
+  stroke-width: 2.5;
+}
+
+/* Conexiones en modo oscuro */
+.dark .visualization-edge {
+  stroke: hsl(var(--border));
+  stroke-width: 1.5;
+  opacity: 0.8;
+}
+
+.dark .visualization-edge-animated {
+  stroke: hsl(var(--primary) / 0.8);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 4px hsl(var(--primary) / 0.4));
+}
+
+/* Texto en modo oscuro */
+.dark .visualization-text {
+  fill: hsl(var(--foreground));
+  text-shadow: 0 1px 2px hsl(var(--background) / 0.8);
+}
+
+.dark .visualization-text-secondary {
+  fill: hsl(var(--muted-foreground));
+}
+
+/* Cards en modo oscuro */
+.dark .card {
+  background: hsl(var(--card) / 0.95);
+  border: 1px solid hsl(var(--border) / 0.5);
+  box-shadow: 0 4px 12px hsl(var(--background) / 0.5);
+}
+
+.dark .card-elevated {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border) / 0.6);
+  box-shadow: 0 8px 25px hsl(var(--background) / 0.8);
+}
+
+/* Headers en modo oscuro */
+.dark .page-header {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--background)) 0%,
+    hsl(var(--card) / 0.5) 50%,
+    hsl(var(--background)) 100%
+  );
+  border-bottom: 1px solid hsl(var(--border) / 0.3);
+}
+
+/* Botones en modo oscuro */
+.dark .btn-primary {
+  background: hsl(var(--primary));
+  border: 1px solid hsl(var(--primary) / 0.8);
+  box-shadow: 0 2px 8px hsl(var(--primary) / 0.25);
+}
+
+.dark .btn-primary:hover {
+  background: hsl(var(--primary) / 0.9);
+  box-shadow: 0 4px 12px hsl(var(--primary) / 0.4);
+}
+
+.dark .btn-outline {
+  background: hsl(var(--background) / 0.5);
+  border: 1px solid hsl(var(--border));
+  backdrop-filter: blur(8px);
+}
+
+.dark .btn-outline:hover {
+  background: hsl(var(--accent) / 0.1);
+  border-color: hsl(var(--accent) / 0.5);
+}
+
+/* Panel de estadísticas en modo oscuro */
+.dark .stats-panel {
+  background: hsl(var(--card) / 0.9);
+  border: 1px solid hsl(var(--border) / 0.4);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 20px hsl(var(--background) / 0.6);
+}
+
+/* Indicadores de estado en modo oscuro */
+.dark .status-indicator.status-active::before {
+  background: hsl(var(--success));
+  box-shadow: 0 0 8px hsl(var(--success) / 0.5);
+}
+
+.dark .status-indicator.status-processing::before {
+  background: hsl(var(--primary));
+  box-shadow: 0 0 8px hsl(var(--primary) / 0.6);
+}
+
+.dark .status-indicator.status-warning::before {
+  background: hsl(var(--warning));
+  box-shadow: 0 0 8px hsl(var(--warning) / 0.5);
+}
+
+/* Animaciones específicas para modo oscuro */
+.dark .animate-pulse-glow {
+  animation: pulseGlowDark 2s infinite;
+}
+
+@keyframes pulseGlowDark {
+  0%, 100% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.6);
+  }
+  50% {
+    box-shadow: 0 0 0 15px hsl(var(--primary) / 0);
+  }
+}
+
+/* Scrollbars en modo oscuro */
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border) / 0.8);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.7);
+}
+
+/* Tooltips en modo oscuro */
+.dark .tooltip::after {
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border: 1px solid hsl(var(--border) / 0.5);
+  box-shadow: 0 4px 12px hsl(var(--background) / 0.8);
+}
+
+/* Gradientes de carga en modo oscuro */
+.dark .loading-skeleton {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted) / 0.1),
+    hsl(var(--muted) / 0.3),
+    hsl(var(--muted) / 0.1)
+  );
+}
+
+/* ===== UTILIDADES ESPECÍFICAS DE VISUALIZACIÓN ===== */
+
+.visualization-fullscreen {
+  @apply fixed inset-0 z-50 bg-background;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.visualization-fullscreen-content {
+  @apply flex-1 overflow-hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.visualization-fullscreen-viewer {
+  @apply flex-1 overflow-hidden;
+  min-height: 0;
+}
+
+/* Contenedor principal responsive para pantalla completa */
+.fullscreen-layout {
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.fullscreen-main {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+/* Mejoras para el viewport responsivo */
+.visualization-container {
+  @apply h-full overflow-auto;
+}
+
+.visualization-container.fullscreen {
+  @apply h-screen overflow-hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.visualization-viewer-fullscreen {
+  @apply flex-1 overflow-hidden;
+  min-height: 0;
+}
+
+.node-connection-highlight {
+  stroke: hsl(var(--primary));
+  stroke-width: 3;
+  filter: drop-shadow(0 0 4px hsl(var(--primary) / 0.4));
+}
+
+.node-selected {
+  filter: brightness(1.2) drop-shadow(0 0 8px hsl(var(--primary) / 0.6));
+  transform: scale(1.1);
+}
+
+.edge-animated {
+  stroke-dasharray: 5;
+  animation: dash 1s linear infinite;
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+/* ===== MEJORAS DE RENDIMIENTO ===== */
+
+.will-change-transform {
+  will-change: transform;
+}
+
+.will-change-opacity {
+  will-change: opacity;
+}
+
+.gpu-accelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* ===== MICRO-INTERACCIONES ===== */
+
+.micro-bounce {
+  @apply transition-transform duration-150 ease-out;
+}
+
+.micro-bounce:active {
+  @apply scale-95;
+}
+
+.micro-bounce:hover {
+  @apply scale-105;
+}
+
+/* ===== EFECTOS DE HOVER AVANZADOS ===== */
+
+.hover-lift {
+  @apply transition-all duration-300 ease-out;
+}
+
+.hover-lift:hover {
+  @apply -translate-y-1 shadow-lg shadow-primary/10;
+}
+
+.hover-glow {
+  @apply transition-all duration-300 ease-out;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+}

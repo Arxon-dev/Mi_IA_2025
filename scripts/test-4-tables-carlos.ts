@@ -1,0 +1,483 @@
+import { PrismaService } from '../src/services/prismaService';
+import { parseSectionQuestionContent } from './sectionquestion-parser';
+
+// Configuración de Telegram
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
+const CARLOS_CHAT_ID = '5793286375'; // Chat privado de Carlos_esp
+
+// Función para verificar si una pregunta cumple con los límites de Telegram
+function checkTelegramLimits(question: string, title: string): boolean {
+  const fullQuestion = `🧪 PRUEBA ${title.toUpperCase()}\n\n${question}`;
+  const MAX_LENGTH = 300;
+  
+  if (fullQuestion.length > MAX_LENGTH) {
+    console.log(`⚠️  Pregunta demasiado larga: ${fullQuestion.length}/300 caracteres`);
+    return false;
+  }
+  
+  return true;
+}
+
+// Función para enviar poll a Telegram
+async function sendTelegramPoll(
+  chatid: string, 
+  question: string, 
+  options: string[], 
+  correctanswerindex: number, 
+  questionid: string,
+  sourcemodel: string,
+  title: string
+): Promise<boolean> {
+  try {
+    console.log(`🗳️ Enviando ${title} a Carlos...`);
+    
+    // Verificar límites antes de enviar
+    if (!checkTelegramLimits(question, title)) {
+      console.error(`❌ ${title} supera el límite de 300 caracteres`);
+      return false;
+    }
+    
+    const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPoll`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        chat_id: chatid,
+        question: `🧪 PRUEBA ${title.toUpperCase()}\n\n${question}`,
+        options: options,
+        type: 'quiz',
+        correct_option_id: correctanswerindex,
+        is_anonymous: false,
+        explanation: `💡 Esta es una pregunta de prueba de la tabla ${sourcemodel}.`
+      }),
+    });
+
+    const result = await response.json() as any;
+    
+    if (!result.ok) {
+      console.error(`❌ Error enviando ${title}:`, result.description);
+      return false;
+    }
+
+    // Registrar el poll en la BD
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
+    
+    await prisma.telegrampoll.create({
+      data: {
+        pollid: result.result.poll.id,
+        questionid: questionid,
+        chatid: chatid,
+        correctanswerindex: correctanswerindex,
+        options: options,
+        sourcemodel: sourcemodel,
+        createdAt: new Date()
+      }
+    });
+
+    console.log(`✅ ${title} enviada exitosamente! Poll ID: ${result.result.poll.id}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Error enviando ${title}:`, error);
+    return false;
+  }
+}
+
+async function testFourTables() {
+  console.log('🧪 PRUEBA DE LAS 4 TABLAS PARA CARLOS_ESP');
+  console.log('='.repeat(50));
+  console.log(`👤 Enviando a: Carlos_esp (${CARLOS_CHAT_ID})`);
+  console.log(`🤖 Bot Token: ${BOT_TOKEN.substring(0, 20)}...`);
+  console.log('');
+
+  try {
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
+
+    // 1. 📄 VALIDQUESTION
+    console.log('1️⃣ Obteniendo pregunta de ValidQuestion...');
+    const validQuestion = await prisma.validQuestion.findFirst({
+      where: { isactive: true },
+      orderBy: { sendCount: 'asc' }
+    });
+
+    if (validQuestion) {
+      let parsedData;
+      try {
+        parsedData = JSON.parse(validQuestion.content);
+      } catch {
+        // Si no es JSON válido, usar los campos parseados de ValidQuestion
+        parsedData = {
+          question: validQuestion.parsedQuestion,
+          options: validQuestion.parsedOptions,
+          correctanswerindex: validQuestion.correctanswerindex
+        };
+      }
+      
+      await sendTelegramPoll(
+        CARLOS_CHAT_ID,
+        parsedData.question,
+        parsedData.options,
+        parsedData.correctanswerindex,
+        validQuestion.id,
+        'validQuestion',
+        'ValidQuestion'
+      );
+      
+      // Actualizar contador
+      await PrismaService.updateLastScheduledSendAt(validQuestion.id, 'validQuestion', true);
+    } else {
+      console.log('❌ No se encontró pregunta en ValidQuestion');
+    }
+
+    console.log('⏳ Esperando 3 segundos...\n');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // 2. 🎯 EXAMEN OFICIAL 2018
+    console.log('2️⃣ Obteniendo pregunta de ExamenOficial2018...');
+    const examen2018 = await prisma.examenOficial2018.findFirst({
+      where: { isactive: true },
+      orderBy: { sendCount: 'asc' }
+    });
+
+    if (examen2018) {
+      await sendTelegramPoll(
+        CARLOS_CHAT_ID,
+        examen2018.question,
+        examen2018.options,
+        examen2018.correctanswerindex,
+        examen2018.id,
+        'examenOficial2018',
+        'Examen 2018'
+      );
+      
+      // Actualizar contador
+      await PrismaService.updateLastScheduledSendAt(examen2018.id, 'examenOficial2018', true);
+    } else {
+      console.log('❌ No se encontró pregunta en ExamenOficial2018');
+    }
+
+    console.log('⏳ Esperando 3 segundos...\n');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // 3. 🎯 EXAMEN OFICIAL 2024
+    console.log('3️⃣ Obteniendo pregunta de ExamenOficial2024...');
+    const examen2024 = await (prisma as any).examenOficial2024.findFirst({
+      where: { isactive: true },
+      orderBy: { sendCount: 'asc' }
+    });
+
+    if (examen2024) {
+      await sendTelegramPoll(
+        CARLOS_CHAT_ID,
+        examen2024.question,
+        examen2024.options,
+        examen2024.correctanswerindex,
+        examen2024.id,
+        'examenOficial2024',
+        'Examen 2024'
+      );
+      
+      // Actualizar contador
+      await PrismaService.updateLastScheduledSendAt(examen2024.id, 'examenOficial2024', true);
+    } else {
+      console.log('❌ No se encontró pregunta en ExamenOficial2024');
+    }
+
+    console.log('⏳ Esperando 3 segundos...\n');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // 4. 📚 SECTION QUESTION
+    console.log('4️⃣ Obteniendo pregunta de SectionQuestion...');
+    const sectionQuestion = await prisma.sectionQuestion.findFirst({
+      orderBy: { sendCount: 'asc' }
+    });
+
+    if (sectionQuestion) {
+      // Parsear contenido de SectionQuestion
+      let questionData;
+      try {
+        questionData = JSON.parse(sectionQuestion.content);
+      } catch {
+        // Si no es JSON, crear estructura básica
+        questionData = {
+          question: sectionQuestion.content,
+          options: ['Verdadero', 'Falso'],
+          correctanswerindex: 0
+        };
+      }
+
+      await sendTelegramPoll(
+        CARLOS_CHAT_ID,
+        questionData.question,
+        questionData.options,
+        questionData.correctanswerindex,
+        sectionQuestion.id,
+        'sectionQuestion',
+        'SectionQuestion'
+      );
+      
+      // Actualizar contador
+      await PrismaService.updateLastScheduledSendAt(sectionQuestion.id, 'sectionQuestion', true);
+    } else {
+      console.log('❌ No se encontró pregunta en SectionQuestion');
+    }
+
+    console.log('\n🎉 PRUEBA COMPLETADA');
+    console.log('📱 Revisa tu chat privado con el bot para ver las 4 preguntas!');
+    console.log('💡 Cada pregunta está marcada con su tabla de origen.');
+    
+    await prisma.$disconnect();
+
+  } catch (error) {
+    console.error('❌ Error en la prueba:', error);
+  }
+}
+
+// Funciones de reintento para buscar preguntas válidas
+
+// Función para buscar una pregunta válida de ValidQuestion
+async function getValidQuestionWithRetry(prisma: any, maxAttempts: number = 5) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    console.log(`🔍 ValidQuestion - Intento ${attempt}/${maxAttempts}`);
+    
+    const validQuestion = await prisma.validQuestion.findFirst({
+      where: { isactive: true },
+      orderBy: { sendCount: 'asc' },
+      skip: attempt - 1 // Saltear las ya probadas
+    });
+    
+    if (!validQuestion) {
+      console.log('❌ No se encontraron más preguntas en ValidQuestion');
+      return null;
+    }
+
+    let parsedData;
+    try {
+      parsedData = JSON.parse(validQuestion.content);
+    } catch {
+      parsedData = {
+        question: validQuestion.parsedQuestion,
+        options: validQuestion.parsedOptions,
+        correctanswerindex: validQuestion.correctanswerindex
+      };
+    }
+
+    if (checkTelegramLimits(parsedData.question, 'ValidQuestion')) {
+      return { validQuestion, parsedData };
+    }
+    
+    console.log(`⚠️  Pregunta ${validQuestion.id} muy larga (${parsedData.question.length + 35} chars), buscando otra...`);
+  }
+  
+  console.log(`❌ No se encontró pregunta válida de ValidQuestion después de ${maxAttempts} intentos`);
+  return null;
+}
+
+// Función para buscar una pregunta válida de ExamenOficial2018
+async function getExamen2018WithRetry(prisma: any, maxAttempts: number = 5) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    console.log(`🔍 ExamenOficial2018 - Intento ${attempt}/${maxAttempts}`);
+    
+    const examen2018 = await prisma.examenOficial2018.findFirst({
+      where: { isactive: true },
+      orderBy: { sendCount: 'asc' },
+      skip: attempt - 1
+    });
+    
+    if (!examen2018) {
+      console.log('❌ No se encontraron más preguntas en ExamenOficial2018');
+      return null;
+    }
+
+    if (checkTelegramLimits(examen2018.question, 'ExamenOficial2018')) {
+      return examen2018;
+    }
+    
+    console.log(`⚠️  Pregunta ${examen2018.id} muy larga (${examen2018.question.length + 40} chars), buscando otra...`);
+  }
+  
+  console.log(`❌ No se encontró pregunta válida de ExamenOficial2018 después de ${maxAttempts} intentos`);
+  return null;
+}
+
+// Función para buscar una pregunta válida de ExamenOficial2024
+async function getExamen2024WithRetry(prisma: any, maxAttempts: number = 5) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    console.log(`🔍 ExamenOficial2024 - Intento ${attempt}/${maxAttempts}`);
+    
+    const examen2024 = await (prisma as any).examenOficial2024.findFirst({
+      where: { isactive: true },
+      orderBy: { sendCount: 'asc' },
+      skip: attempt - 1
+    });
+    
+    if (!examen2024) {
+      console.log('❌ No se encontraron más preguntas en ExamenOficial2024');
+      return null;
+    }
+
+    if (checkTelegramLimits(examen2024.question, 'ExamenOficial2024')) {
+      return examen2024;
+    }
+    
+    console.log(`⚠️  Pregunta ${examen2024.id} muy larga (${examen2024.question.length + 40} chars), buscando otra...`);
+  }
+  
+  console.log(`❌ No se encontró pregunta válida de ExamenOficial2024 después de ${maxAttempts} intentos`);
+  return null;
+}
+
+// Función para buscar una pregunta válida de SectionQuestion
+async function getSectionQuestionWithRetry(prisma: any, maxAttempts: number = 5) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    console.log(`🔍 SectionQuestion - Intento ${attempt}/${maxAttempts}`);
+    
+    const sectionQuestion = await prisma.sectionQuestion.findFirst({
+      orderBy: { sendCount: 'asc' },
+      skip: attempt - 1
+    });
+    
+    if (!sectionQuestion) {
+      console.log('❌ No se encontraron más preguntas en SectionQuestion');
+      return null;
+    }
+
+    console.log(`📝 Parseando contenido de ${sectionQuestion.id} (${sectionQuestion.content.length} chars originales)...`);
+    
+    // Usar el parser inteligente para SectionQuestion
+    const parsed = parseSectionQuestionContent(sectionQuestion.content);
+    
+    if (!parsed.success) {
+      console.log(`❌ Error al parsear pregunta ${sectionQuestion.id}: ${parsed.error}`);
+      continue;
+    }
+
+    console.log(`✅ Parsing exitoso: pregunta de ${parsed.question.length} chars, ${parsed.options.length} opciones`);
+
+    if (checkTelegramLimits(parsed.question, 'SectionQuestion')) {
+      return { 
+        sectionQuestion, 
+        questionData: {
+          question: parsed.question,
+          options: parsed.options,
+          correctanswerindex: parsed.correctanswerindex
+        }
+      };
+    }
+    
+    console.log(`⚠️  Pregunta ${sectionQuestion.id} aún muy larga después del parsing (${parsed.question.length + 45} chars), buscando otra...`);
+  }
+  
+  console.log(`❌ No se encontró pregunta válida de SectionQuestion después de ${maxAttempts} intentos`);
+  return null;
+}
+
+// Nueva función principal con sistema de reintentos
+async function testFourTablesWithRetry() {
+  console.log('🧪 PRUEBA DE LAS 4 TABLAS CON SISTEMA DE REINTENTOS');
+  console.log('='.repeat(60));
+  console.log(`👤 Enviando a: Carlos_esp (${CARLOS_CHAT_ID})`);
+  console.log(`🤖 Bot Token: ${BOT_TOKEN.substring(0, 20)}...`);
+  console.log('📏 Límite de Telegram: 300 caracteres por pregunta');
+  console.log('');
+
+  try {
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
+
+    // 1. 📄 VALIDQUESTION CON REINTENTO
+    console.log('1️⃣ Buscando pregunta válida de ValidQuestion...');
+    const validResult = await getValidQuestionWithRetry(prisma);
+    if (validResult) {
+      await sendTelegramPoll(
+        CARLOS_CHAT_ID,
+        validResult.parsedData.question,
+        validResult.parsedData.options,
+        validResult.parsedData.correctanswerindex,
+        validResult.validQuestion.id,
+        'validQuestion',
+        'ValidQuestion'
+      );
+      
+      // Actualizar contador
+      await PrismaService.updateLastScheduledSendAt(validResult.validQuestion.id, 'validQuestion', true);
+    }
+
+    console.log('⏳ Esperando 3 segundos...\n');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // 2. 🎯 EXAMEN OFICIAL 2018 CON REINTENTO
+    console.log('2️⃣ Buscando pregunta válida de ExamenOficial2018...');
+    const examen2018 = await getExamen2018WithRetry(prisma);
+    if (examen2018) {
+      await sendTelegramPoll(
+        CARLOS_CHAT_ID,
+        examen2018.question,
+        examen2018.options,
+        examen2018.correctanswerindex,
+        examen2018.id,
+        'examenOficial2018',
+        'Examen 2018'
+      );
+      
+      // Actualizar contador
+      await PrismaService.updateLastScheduledSendAt(examen2018.id, 'examenOficial2018', true);
+    }
+
+    console.log('⏳ Esperando 3 segundos...\n');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // 3. 🎯 EXAMEN OFICIAL 2024 CON REINTENTO
+    console.log('3️⃣ Buscando pregunta válida de ExamenOficial2024...');
+    const examen2024 = await getExamen2024WithRetry(prisma);
+    if (examen2024) {
+      await sendTelegramPoll(
+        CARLOS_CHAT_ID,
+        examen2024.question,
+        examen2024.options,
+        examen2024.correctanswerindex,
+        examen2024.id,
+        'examenOficial2024',
+        'Examen 2024'
+      );
+      
+      // Actualizar contador
+      await PrismaService.updateLastScheduledSendAt(examen2024.id, 'examenOficial2024', true);
+    }
+
+    console.log('⏳ Esperando 3 segundos...\n');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // 4. 📚 SECTION QUESTION CON REINTENTO
+    console.log('4️⃣ Buscando pregunta válida de SectionQuestion...');
+    const sectionResult = await getSectionQuestionWithRetry(prisma);
+    if (sectionResult) {
+      await sendTelegramPoll(
+        CARLOS_CHAT_ID,
+        sectionResult.questionData.question,
+        sectionResult.questionData.options,
+        sectionResult.questionData.correctanswerindex,
+        sectionResult.sectionQuestion.id,
+        'sectionQuestion',
+        'SectionQuestion'
+      );
+      
+      // Actualizar contador
+      await PrismaService.updateLastScheduledSendAt(sectionResult.sectionQuestion.id, 'sectionQuestion', true);
+    }
+
+    console.log('\n🎉 PRUEBA CON REINTENTOS COMPLETADA');
+    console.log('📱 Revisa tu chat privado con el bot para ver las preguntas válidas!');
+    console.log('💡 El sistema ahora busca automáticamente preguntas que cumplan el límite de 300 chars.');
+    
+    await prisma.$disconnect();
+
+  } catch (error) {
+    console.error('❌ Error en la prueba:', error);
+  }
+}
+
+// Ejecutar la nueva función con reintentos
+testFourTablesWithRetry().catch(console.error); 

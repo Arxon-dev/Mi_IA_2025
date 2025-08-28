@@ -1,0 +1,143 @@
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import fetch from 'node-fetch';
+
+const prisma = new PrismaClient();
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
+
+async function checkSystemHealth() {
+  const health = {
+    database: false,
+    webhook: false,
+    telegram: false
+  };
+
+  // Check database
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    health.database = true;
+  } catch (error) {
+    console.error('Database health check failed:', error);
+  }
+
+  // Check webhook (localhost:3000)
+  try {
+    const webhookResponse = await fetch('http://localhost:3000/api/telegram/webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ test: 'health_check' })
+    });
+    health.webhook = webhookResponse.ok;
+  } catch (error) {
+    health.webhook = false;
+  }
+
+  // Check Telegram bot
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getMe`, {
+      timeout: 3000
+    } as any);
+    const data = await response.json() as any;
+    health.telegram = data.ok;
+  } catch (error) {
+    // Telegram bot not responding
+  }
+
+  return health;
+}
+
+export async function GET() {
+  try {
+    console.log('📊 Dashboard API: Fetching stats...');
+
+    // System health check
+    const systemHealth = await checkSystemHealth();
+
+    // Basic statistics
+    const totalUsers = await prisma.telegramUser.count();
+    const totalPolls = await prisma.telegramPoll.count();
+    const totalResponses = await prisma.telegramResponse.count();
+
+    // Recent activity (last 24 hours)
+    const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
+    const recentPollsSent = await prisma.telegramPoll.count({
+      where: { sentAt: { gte: last24Hours } }
+    });
+    
+    const recentResponses = await prisma.telegramResponse.count({
+      where: { answeredAt: { gte: last24Hours } }
+    });
+
+    // Top 5 users
+    const topUsersRaw = await prisma.telegramUser.findMany({
+      orderBy: { totalPoints: 'desc' },
+      take: 5,
+      select: {
+        firstName: true,
+        lastName: true,
+        totalPoints: true,
+        level: true,
+        responses: {
+          select: { id: true }
+        }
+      }
+    });
+
+    // Process top users
+    const topUsers = topUsersRaw.map(user => ({
+      name: `${user.firstName} ${user.lastName || ''}`.trim() || 'Usuario',
+      points: user.totalPoints,
+      level: user.level,
+      responses: user.responses.length
+    }));
+
+    const dashboardStats = {
+      totalUsers,
+      totalPolls,
+      totalResponses,
+      recentActivity: {
+        pollsSent: recentPollsSent,
+        responsesReceived: recentResponses
+      },
+      topUsers,
+      systemHealth,
+      lastUpdate: new Date().toISOString()
+    };
+
+    console.log('✅ Dashboard API: Stats fetched successfully');
+    console.log('📈 Stats:', {
+      users: totalUsers,
+      polls: totalPolls,
+      responses: totalResponses,
+      health: systemHealth
+    });
+
+    return NextResponse.json(dashboardStats);
+
+  } catch (error) {
+    console.error('❌ Dashboard API error:', error);
+    
+    // Return error response but still provide what we can
+    return NextResponse.json({
+      error: 'Error fetching dashboard stats',
+      totalUsers: 0,
+      totalPolls: 0,
+      totalResponses: 0,
+      recentActivity: {
+        pollsSent: 0,
+        responsesReceived: 0
+      },
+      topUsers: [],
+      systemHealth: {
+        database: false,
+        webhook: false,
+        telegram: false
+      },
+      lastUpdate: new Date().toISOString()
+    }, { status: 500 });
+
+  } finally {
+    await prisma.$disconnect();
+  }
+} 

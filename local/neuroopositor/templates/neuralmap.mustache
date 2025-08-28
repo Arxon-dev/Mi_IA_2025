@@ -1,0 +1,294 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_neuroopositor/neuralmap
+
+    Mapa neural interactivo del plugin NeuroOpositor
+
+    Context variables required for this template:
+    * temas - Array de temas con sus posiciones y datos
+    * connections - Array de conexiones entre temas
+    * user_progress - Progreso del usuario por tema
+    * view_mode - Modo de vista (2d/3d)
+    * courseid - ID del curso
+}}
+
+<div class="neuroopositor-neuralmap">
+    <!-- Header del Mapa Neural -->
+    <div class="neuralmap-header">
+        <div class="row">
+            <div class="col-md-8">
+                <h2 class="neuralmap-title">
+                    <i class="fa fa-project-diagram"></i>
+                    {{#str}}neural_map, local_neuroopositor{{/str}}
+                </h2>
+                <p class="neuralmap-subtitle">{{#str}}neural_map_description, local_neuroopositor{{/str}}</p>
+            </div>
+            <div class="col-md-4">
+                <div class="neuralmap-controls">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-primary {{#is_2d}}active{{/is_2d}}" id="view-2d">
+                            <i class="fa fa-map"></i> 2D
+                        </button>
+                        <button type="button" class="btn btn-outline-primary {{#is_3d}}active{{/is_3d}}" id="view-3d">
+                            <i class="fa fa-cube"></i> 3D
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controles del Mapa -->
+    <div class="neuralmap-toolbar">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="map-filters">
+                    <div class="filter-group">
+                        <label for="block-filter">{{#str}}filter_by_block, local_neuroopositor{{/str}}:</label>
+                        <select id="block-filter" class="form-control form-control-sm">
+                            <option value="all">{{#str}}all_blocks, local_neuroopositor{{/str}}</option>
+                            <option value="1">{{#str}}block, local_neuroopositor{{/str}} I</option>
+                            <option value="2">{{#str}}block, local_neuroopositor{{/str}} II</option>
+                            <option value="3">{{#str}}block, local_neuroopositor{{/str}} III</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="progress-filter">{{#str}}filter_by_progress, local_neuroopositor{{/str}}:</label>
+                        <select id="progress-filter" class="form-control form-control-sm">
+                            <option value="all">{{#str}}all_progress, local_neuroopositor{{/str}}</option>
+                            <option value="not-started">{{#str}}not_started, local_neuroopositor{{/str}}</option>
+                            <option value="in-progress">{{#str}}in_progress, local_neuroopositor{{/str}}</option>
+                            <option value="completed">{{#str}}completed, local_neuroopositor{{/str}}</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="map-actions">
+                    <button type="button" class="btn btn-sm btn-secondary" id="reset-view">
+                        <i class="fa fa-home"></i> {{#str}}reset_view, local_neuroopositor{{/str}}
+                    </button>
+                    <button type="button" class="btn btn-sm btn-info" id="auto-layout">
+                        <i class="fa fa-magic"></i> {{#str}}auto_layout, local_neuroopositor{{/str}}
+                    </button>
+                    <button type="button" class="btn btn-sm btn-success" id="find-path">
+                        <i class="fa fa-route"></i> {{#str}}find_optimal_path, local_neuroopositor{{/str}}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leyenda del Mapa -->
+    <div class="neuralmap-legend">
+        <div class="legend-section">
+            <h6>{{#str}}node_status, local_neuroopositor{{/str}}</h6>
+            <div class="legend-items">
+                <div class="legend-item">
+                    <div class="legend-node not-started"></div>
+                    <span>{{#str}}not_started, local_neuroopositor{{/str}}</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-node in-progress"></div>
+                    <span>{{#str}}in_progress, local_neuroopositor{{/str}}</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-node completed"></div>
+                    <span>{{#str}}completed, local_neuroopositor{{/str}}</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-node mastered"></div>
+                    <span>{{#str}}mastered, local_neuroopositor{{/str}}</span>
+                </div>
+            </div>
+        </div>
+        <div class="legend-section">
+            <h6>{{#str}}connection_types, local_neuroopositor{{/str}}</h6>
+            <div class="legend-items">
+                <div class="legend-item">
+                    <div class="legend-connection directa"></div>
+                    <span>{{#str}}direct_connection, local_neuroopositor{{/str}}</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-connection conceptual"></div>
+                    <span>{{#str}}conceptual_connection, local_neuroopositor{{/str}}</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-connection practica"></div>
+                    <span>{{#str}}practical_connection, local_neuroopositor{{/str}}</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-connection temporal"></div>
+                    <span>{{#str}}temporal_connection, local_neuroopositor{{/str}}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor del Mapa Neural -->
+    <div class="neuralmap-container">
+        <div id="neural-map-canvas" class="neural-canvas">
+            <!-- El mapa se renderizará aquí via JavaScript -->
+        </div>
+        
+        <!-- Loading Overlay -->
+        <div id="map-loading" class="map-loading">
+            <div class="loading-spinner">
+                <i class="fa fa-spinner fa-spin fa-3x"></i>
+                <p>{{#str}}loading_neural_map, local_neuroopositor{{/str}}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel de Información del Nodo -->
+    <div id="node-info-panel" class="node-info-panel">
+        <div class="panel-header">
+            <h5 id="node-title"></h5>
+            <button type="button" class="btn-close" id="close-panel">
+                <i class="fa fa-times"></i>
+            </button>
+        </div>
+        <div class="panel-content">
+            <div class="node-progress">
+                <div class="progress-info">
+                    <span class="progress-label">{{#str}}progress, local_neuroopositor{{/str}}:</span>
+                    <span class="progress-value" id="node-progress-value">0%</span>
+                </div>
+                <div class="progress">
+                    <div class="progress-bar" id="node-progress-bar" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <div class="node-stats">
+                <div class="stat-item">
+                    <i class="fa fa-question-circle"></i>
+                    <span id="node-questions">0</span> {{#str}}questions, local_neuroopositor{{/str}}
+                </div>
+                <div class="stat-item">
+                    <i class="fa fa-clock"></i>
+                    <span id="node-time">0m</span> {{#str}}study_time, local_neuroopositor{{/str}}
+                </div>
+                <div class="stat-item">
+                    <i class="fa fa-bullseye"></i>
+                    <span id="node-accuracy">0%</span> {{#str}}accuracy, local_neuroopositor{{/str}}
+                </div>
+            </div>
+            
+            <div class="node-description">
+                <p id="node-description-text"></p>
+            </div>
+            
+            <div class="node-connections">
+                <h6>{{#str}}connections, local_neuroopositor{{/str}}</h6>
+                <div id="node-connections-list"></div>
+            </div>
+            
+            <div class="node-actions">
+                <button type="button" class="btn btn-primary btn-sm" id="study-node">
+                    <i class="fa fa-play"></i> {{#str}}study_topic, local_neuroopositor{{/str}}
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="view-questions">
+                    <i class="fa fa-question"></i> {{#str}}view_questions, local_neuroopositor{{/str}}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Ruta Óptima -->
+    <div class="modal fade" id="optimal-path-modal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fa fa-route"></i>
+                        {{#str}}optimal_learning_path, local_neuroopositor{{/str}}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="path-selection">
+                        <div class="form-group">
+                            <label for="target-topic">{{#str}}select_target_topic, local_neuroopositor{{/str}}:</label>
+                            <select id="target-topic" class="form-control">
+                                <option value="">{{#str}}select_topic, local_neuroopositor{{/str}}</option>
+                                {{#temas}}
+                                <option value="{{id}}">{{bloque}}.{{numero}} - {{titulo}}</option>
+                                {{/temas}}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="path-type">{{#str}}path_type, local_neuroopositor{{/str}}:</label>
+                            <select id="path-type" class="form-control">
+                                <option value="optimal">{{#str}}optimal_path, local_neuroopositor{{/str}}</option>
+                                <option value="reinforcement">{{#str}}reinforcement_path, local_neuroopositor{{/str}}</option>
+                                <option value="exploration">{{#str}}exploration_path, local_neuroopositor{{/str}}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="path-result" class="path-result" style="display: none;">
+                        <h6>{{#str}}recommended_path, local_neuroopositor{{/str}}:</h6>
+                        <div id="path-steps"></div>
+                        <div class="path-stats">
+                            <div class="stat">
+                                <strong>{{#str}}estimated_time, local_neuroopositor{{/str}}:</strong>
+                                <span id="path-time"></span>
+                            </div>
+                            <div class="stat">
+                                <strong>{{#str}}difficulty_level, local_neuroopositor{{/str}}:</strong>
+                                <span id="path-difficulty"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        {{#str}}close, local_neuroopositor{{/str}}
+                    </button>
+                    <button type="button" class="btn btn-primary" id="calculate-path">
+                        <i class="fa fa-calculator"></i> {{#str}}calculate_path, local_neuroopositor{{/str}}
+                    </button>
+                    <button type="button" class="btn btn-success" id="start-path" style="display: none;">
+                        <i class="fa fa-play"></i> {{#str}}start_path, local_neuroopositor{{/str}}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Datos para JavaScript -->
+<script type="application/json" id="neuralmap-data">
+{
+    "temas": {{{temas_json}}},
+    "connections": {{{connections_json}}},
+    "user_progress": {{{user_progress_json}}},
+    "courseid": {{courseid}},
+    "view_mode": "{{view_mode}}",
+    "urls": {
+        "questions": "{{questions_url}}",
+        "statistics": "{{statistics_url}}",
+        "ajax": "{{ajax_url}}"
+    }
+}
+</script>
+
+{{#js}}
+require(['local_neuroopositor/neuralmap'], function(NeuralMap) {
+    NeuralMap.init();
+});
+{{/js}}

@@ -1,0 +1,109 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { StudyCommandHandler } from '@/services/studyCommandHandler';
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    
+    // Validar que viene del webhook de Telegram
+    if (!body.message) {
+      return NextResponse.json({ error: 'Invalid webhook data' }, { status: 400 });
+    }
+
+    const { message } = body;
+    const userid = message.from.id.toString();
+    const messageText = message.text;
+    const chatType = message.chat.type;
+
+    // Solo procesar mensajes privados (no de grupos)
+    if (chatType !== 'private') {
+      return NextResponse.json({ success: true, message: 'Ignored group message' });
+    }
+
+    let response: { success: boolean; message: string } | null = null;
+
+    // 1. Verificar comandos específicos de sesiones de estudio
+    if (messageText === '/stop') {
+      response = await StudyCommandHandler.handleStopCommand(userid);
+    } 
+    else if (messageText === '/progreso') {
+      response = await StudyCommandHandler.handleProgressCommand(userid);
+    }
+    else if (messageText === '/ayuda_estudio' || messageText === '/help_study') {
+      response = {
+        success: true,
+        message: StudyCommandHandler.getHelpMessage()
+      };
+    }
+    // 2. Verificar comandos de inicio de sesión de estudio
+    else if (StudyCommandHandler.isStudyCommand(messageText)) {
+      response = await StudyCommandHandler.handleStudyCommand(messageText, userid);
+    }
+    // 3. Verificar respuestas numéricas (1-4) para preguntas activas
+    else {
+      const wasProcessed = await StudyCommandHandler.handleUserResponse(userid, messageText);
+      
+      if (!wasProcessed) {
+        // No era una respuesta válida a una sesión de estudio
+        return NextResponse.json({ success: true, message: 'Message not related to study sessions' });
+      }
+      
+      // La respuesta fue procesada, no necesitamos enviar mensaje adicional
+      return NextResponse.json({ success: true, processed: true });
+    }
+
+    // Enviar respuesta al usuario si hay alguna
+    if (response) {
+      await sendTelegramMessage(userid, response.message);
+      
+      return NextResponse.json({
+        success: true,
+        commandProcessed: true,
+        userNotified: response.success
+      });
+    }
+
+    return NextResponse.json({ success: true, message: 'No response needed' });
+
+  } catch (error) {
+    console.error('Error en endpoint de sesiones de estudio:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * Enviar mensaje a través de la API de Telegram
+ */
+async function sendTelegramMessage(chatid: string, text: string): Promise<void> {
+  try {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    
+    if (!botToken) {
+      console.error('TELEGRAM_BOT_TOKEN no configurado');
+      return;
+    }
+
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        chat_id: chatid,
+        text: text,
+        parse_mode: 'Markdown'
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Error enviando mensaje de Telegram:', errorData);
+    }
+
+  } catch (error) {
+    console.error('Error enviando mensaje de Telegram:', error);
+  }
+} 

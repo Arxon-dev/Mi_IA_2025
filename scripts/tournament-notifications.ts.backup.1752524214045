@@ -1,0 +1,324 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
+const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002352049779';
+
+// Función para enviar mensaje a Telegram
+async function sendTelegramMessage(message: string): Promise<boolean> {
+  try {
+    const https = require('https');
+    const querystring = require('querystring');
+    
+    const postData = querystring.stringify({
+      chat_id: CHAT_ID,
+      text: message,
+      parse_mode: 'HTML'
+    });
+
+    const options = {
+      hostname: 'api.telegram.org',
+      port: 443,
+      path: `/bot${BOT_TOKEN}/sendMessage`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    return new Promise((resolve) => {
+      const req = https.request(options, (res: any) => {
+        let data = '';
+        res.on('data', (chunk: any) => data += chunk);
+        res.on('end', () => {
+          try {
+            const result = JSON.parse(data);
+            resolve(result.ok === true);
+          } catch {
+            resolve(false);
+          }
+        });
+      });
+
+      req.on('error', () => resolve(false));
+      req.write(postData);
+      req.end();
+    });
+  } catch (error) {
+    console.error('❌ Error enviando mensaje a Telegram:', error);
+    return false;
+  }
+}
+
+// Función para enviar notificación a participantes del torneo
+async function sendTournamentNotification(notification: any): Promise<boolean> {
+  try {
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: notification.tournamentId },
+      include: {
+        participants: {
+          include: {
+            user: true
+          }
+        }
+      }
+    });
+
+    if (!tournament) {
+      console.log(`⚠️ Torneo ${notification.tournamentId} no encontrado`);
+      return false;
+    }
+
+    const participantCount = tournament.participants.length;
+    const timeUntilStart = tournament.scheduledDate.getTime() - Date.now();
+    const minutesUntilStart = Math.ceil(timeUntilStart / (1000 * 60));
+
+    // Verificar cupos disponibles
+    const maxParticipants = tournament.maxParticipants || 50; // Default si no está definido
+    const availableSpots = maxParticipants - participantCount;
+    const hasAvailableSpots = availableSpots > 0;
+
+    // Construir mensaje personalizado según el tipo de notificación
+    let finalMessage = '';
+    
+    switch (notification.type) {
+      case 'REMINDER':
+        finalMessage = `⏰ <b>¡TORNEO MAÑANA!</b> ⏰
+
+🏆 <b>${tournament.name} #${tournament.id}</b>
+📅 ${tournament.scheduledDate.toLocaleString('es-ES')}
+👥 ${participantCount}/${maxParticipants} participantes ${hasAvailableSpots ? `(¡${availableSpots} cupos disponibles!)` : '(COMPLETO)'}
+📝 ${tournament.questionsCount} preguntas | 💰 ${tournament.prizePool} puntos en juego
+
+${hasAvailableSpots ? 
+  `🚀 <b>¿QUIERES PARTICIPAR?</b>
+  • <code>/torneo_unirse ${tournament.id}</code> - ¡Reservar tu lugar!
+  • <code>/torneos</code> - Ver detalles completos
+  • <code>/torneo_historial</code> - Tu rendimiento
+  
+  💡 <b>BENEFICIOS:</b>
+  • Los torneos dan puntos extras
+  • Mejoran tu ranking semanal
+  • Competición en tiempo real
+  
+  ⏰ Inscripciones cierran 1 hora antes` :
+  `🏆 <b>TORNEO COMPLETO</b>
+  • <code>/torneos</code> - Ver próximos torneos disponibles
+  • <code>/torneo_historial</code> - Tu rendimiento histórico`
+}
+
+💡 <b>PREPARATIVOS:</b>
+• Verifica que puedes recibir mensajes del bot
+• El torneo se ejecuta 100% por privado
+• ¡Sé puntual! Empieza exactamente a la hora
+
+🎯 ¡Que gane el mejor!`;
+        break;
+
+      case 'COUNTDOWN_60':
+        finalMessage = `🕒 <b>¡TORNEO EN 1 HORA!</b> 🕒
+
+🏆 <b>${tournament.name} #${tournament.id}</b>
+📅 ${tournament.scheduledDate.toLocaleString('es-ES')}
+👥 ${participantCount}/${maxParticipants} participantes ${hasAvailableSpots ? `(¡${availableSpots} cupos restantes!)` : '(COMPLETO)'}
+
+${hasAvailableSpots ? 
+  `🚨 <b>¡ÚLTIMA OPORTUNIDAD!</b>
+  • <code>/torneo_unirse ${tournament.id}</code> - ¡Únete ahora!
+  • <code>/torneos</code> - Ver detalles del torneo
+  
+  ⚠️ <b>¡Solo 1 hora para inscribirte!</b>` :
+  `🏆 <b>TORNEO COMPLETO</b>
+  • <code>/torneo_historial</code> - Ver tu historial
+  • <code>/torneos</code> - Próximos torneos`
+}
+
+⏰ <b>PREPARACIÓN FINAL:</b>
+• El torneo comenzará en exactamente 1 hora
+• Verifica tu dispositivo y conexión
+• Ten preparado un lugar tranquilo
+• ¡Recuerda que cada segundo cuenta!
+
+🎯 ¡La hora de la verdad se acerca!`;
+        break;
+
+      case 'COUNTDOWN_10':
+        finalMessage = `🚨 <b>¡TORNEO EN 10 MINUTOS!</b> 🚨
+
+🏆 <b>${tournament.name} #${tournament.id}</b>
+⏰ Inicio: ${tournament.scheduledDate.toLocaleTimeString('es-ES')}
+👥 ${participantCount}/${maxParticipants} participantes ${hasAvailableSpots ? `(¡${availableSpots} cupos disponibles!)` : '(COMPLETO)'}
+📝 ${tournament.questionsCount} preguntas | 💰 ${tournament.prizePool} puntos en juego
+
+${hasAvailableSpots ? 
+  `🚀 <b>¿QUIERES PARTICIPAR?</b>
+  • <code>/torneo_unirse ${tournament.id}</code> - ¡Únete ahora!
+  • <code>/torneos</code> - Ver todos los torneos
+  • <code>/torneo_historial</code> - Tu historial
+  
+  ⚠️ <b>¡Últimos minutos para unirse!</b>` :
+  `🏆 <b>TORNEO COMPLETO</b>
+  • <code>/torneos</code> - Ver próximos torneos disponibles
+  • <code>/torneo_historial</code> - Tu rendimiento histórico`
+}
+
+📱 <b>ÚLTIMO MOMENTO:</b>
+• Verifica que puedes recibir mensajes del bot
+• La primera pregunta se enviará automáticamente
+• Responde rápido para bonus de velocidad
+
+💡 <b>TIP:</b> Los torneos dan puntos extras y mejoran tu ranking
+¡Prepárate! 🔥`;
+        break;
+
+      case 'COUNTDOWN_5':
+        finalMessage = `🔥 <b>¡TORNEO EN 5 MINUTOS!</b> 🔥
+
+🏆 <b>${tournament.name} #${tournament.id}</b>
+⚡ ¡El momento ha llegado!
+
+🎯 <b>ÚLTIMA VERIFICACIÓN:</b>
+• ${participantCount} participantes confirmados
+• Sistema de preguntas activado
+• ¡Todo listo para la competición!
+
+📊 <b>COMANDOS ÚTILES:</b>
+• <code>/mi_stats</code> - Ver tus estadísticas actuales
+• <code>/torneo_historial</code> - Tu rendimiento histórico
+• <code>/ranking</code> - Tu posición actual
+
+💡 <b>TIP:</b> Responde rápido para bonus de velocidad
+💪 ¡Dale todo!`;
+        break;
+
+      case 'COUNTDOWN_3':
+        finalMessage = `⚡ <b>¡ÚLTIMOS 3 MINUTOS!</b> ⚡
+
+🏆 <b>${tournament.name} #${tournament.id}</b>
+🔥 El torneo está a punto de comenzar
+👥 ${participantCount} participantes listos
+
+🎯 ¡Concéntrate y da tu mejor esfuerzo!
+💡 <b>TIP:</b> Las preguntas llegan por privado automáticamente`;
+        break;
+
+      case 'COUNTDOWN_1':
+        finalMessage = `🏆 <b>¡1 MINUTO!</b> 🏆
+
+⚡ <b>${tournament.name} #${tournament.id}</b>
+🚀 El torneo comenzará muy pronto
+👥 ${participantCount} participantes confirmados
+
+🎯 <b>¡PREPÁRATE PARA LA ACCIÓN!</b>
+📱 Mantén tu Telegram abierto para recibir las preguntas`;
+        break;
+
+      case 'TOURNAMENT_START':
+        finalMessage = `🚀 <b>¡TORNEO INICIADO!</b> 🚀
+
+🏆 <b>${tournament.name} #${tournament.id}</b>
+📝 Las preguntas están siendo enviadas por privado
+👥 ${participantCount} participantes compitiendo
+💰 ${tournament.prizePool} puntos en juego
+
+⚡ <b>¡LA COMPETICIÓN HA COMENZADO!</b>
+
+📊 <b>DURANTE EL TORNEO:</b>
+• <code>/mi_stats</code> - Ver tus estadísticas
+• <code>/ranking</code> - Tu posición actual
+• <code>/torneos</code> - Información del torneo
+
+💡 <b>RECUERDA:</b> Responde rápido para bonus de velocidad
+🏆 ¡Buena suerte a todos!`;
+        break;
+
+      default:
+        finalMessage = notification.message || '🏆 Notificación de torneo';
+    }
+
+    // Enviar al grupo
+    const sent = await sendTelegramMessage(finalMessage);
+    
+    if (sent) {
+      console.log(`✅ Notificación ${notification.type} enviada para torneo ${tournament.name}`);
+      return true;
+    } else {
+      console.log(`❌ Error enviando notificación ${notification.type} para torneo ${tournament.name}`);
+      return false;
+    }
+
+  } catch (error) {
+    console.error(`❌ Error procesando notificación ${notification.id}:`, error);
+    return false;
+  }
+}
+
+// Función principal para procesar notificaciones pendientes
+async function processTournamentNotifications() {
+  try {
+    console.log('🔔 Procesando notificaciones de torneos...');
+    
+    const now = new Date();
+    
+    // Buscar notificaciones pendientes que ya deberían haberse enviado
+    const pendingNotifications = await prisma.tournamentNotification.findMany({
+      where: {
+        status: 'pending',
+        scheduledFor: {
+          lte: now
+        }
+      },
+      orderBy: {
+        scheduledFor: 'asc'
+      }
+    });
+
+    if (pendingNotifications.length === 0) {
+      console.log('📭 No hay notificaciones pendientes');
+      return;
+    }
+
+    console.log(`📬 Procesando ${pendingNotifications.length} notificación(es)...`);
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const notification of pendingNotifications) {
+      const sent = await sendTournamentNotification(notification);
+      
+      // Actualizar estado de la notificación
+      await prisma.tournamentNotification.update({
+        where: { id: notification.id },
+        data: {
+          status: sent ? 'sent' : 'failed',
+          sentAt: sent ? new Date() : undefined,
+          recipientCount: sent ? 1 : 0
+        }
+      });
+
+      if (sent) {
+        successCount++;
+      } else {
+        errorCount++;
+      }
+
+      // Pausa pequeña entre notificaciones para no sobrecargar Telegram
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    console.log(`📊 Resultado: ${successCount} enviadas, ${errorCount} errores`);
+
+  } catch (error) {
+    console.error('❌ Error general procesando notificaciones:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Ejecutar si se llama directamente
+if (require.main === module) {
+  processTournamentNotifications();
+}
+
+export default processTournamentNotifications; 

@@ -1,0 +1,87 @@
+import { PrismaClient } from '@prisma/client';
+import * as fs from 'fs';
+
+const prisma = new PrismaClient();
+
+interface AireRecord {
+    id: number;
+    questionNumber: number;
+    question: string;
+    options: string[];
+    correctAnswerIndex: number;
+    category: string;
+    difficulty: string;
+    isActive: boolean;
+    sendCount: number;
+    lastSuccessfulSendAt: Date | null;
+    lastUsedInTournament: boolean;
+    tournamentUsageCount: number;
+    lastTournamentId: string | null;
+    createdAt: Date;
+    bloomLevel: string | null;
+    documentId: string | null;
+    sectionId: string | null;
+    sourceSection: string | null;
+    type: string | null;
+    updatedAt: Date;
+    title: string | null;
+    titleQuestionNumber: number | null;
+    titleRawMetadata: string | null;
+    titleSourceDocument: string | null;
+    titleSourceReference: string | null;
+    feedback: string | null;
+}
+
+async function main() {
+    const jsonPath = 'scripts/data/Aire.json';
+    console.log(`Leyendo datos desde ${jsonPath}...`);
+
+    const fileContent = fs.readFileSync(jsonPath, 'utf-8');
+    const records: any[] = JSON.parse(fileContent);
+
+    console.log(`Se encontraron ${records.length} registros en el archivo JSON.`);
+
+    console.log('Vaciando la tabla "Aire" para una importación limpia...');
+    await prisma.$executeRawUnsafe('TRUNCATE TABLE "Aire" RESTART IDENTITY CASCADE;');
+    console.log('Tabla "Aire" vaciada.');
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    console.log('Iniciando la inserción de datos...');
+    for (const record of records) {
+        try {
+            // El id se genera automáticamente por la BD, por lo que lo omitimos
+            const { id, ...dataToInsert } = record;
+
+            await prisma.aire.create({
+                data: {
+                    ...dataToInsert,
+                    // Asegurarse de que las fechas son objetos Date válidos
+                    createdAt: new Date(record.createdAt),
+                    updatedAt: new Date(record.updatedAt),
+                    lastSuccessfulSendAt: record.lastSuccessfulSendAt ? new Date(record.lastSuccessfulSendAt) : null,
+                    lastUsedInTournament: record.lastUsedInTournament === true ? new Date() : null,
+                },
+            });
+            successCount++;
+            process.stdout.write(`\rRegistros insertados: ${successCount} de ${records.length}`);
+        } catch (e: any) {
+            errorCount++;
+            console.error(`\nError insertando registro (ID original del JSON: ${record.id}):`, e.message);
+        }
+    }
+
+    console.log(`\n\nImportación finalizada.`);
+    console.log(`Éxito: ${successCount} registros.`);
+    console.log(`Errores: ${errorCount} registros.`);
+}
+
+main()
+    .catch((e) => {
+        console.error(e);
+        process.exit(1);
+    })
+    .finally(async () => {
+        await prisma.$disconnect();
+    }); 

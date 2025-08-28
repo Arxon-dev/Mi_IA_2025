@@ -1,0 +1,504 @@
+import cron from 'node-cron';
+import { prisma } from '../src/lib/prisma';
+import fs from 'fs';
+import path from 'path';
+
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
+const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002352049779';
+
+interface WeeklyRankingUser {
+  telegramUserId: string;
+  firstName: string;
+  username?: string;
+  weeklyPoints: number;
+  weeklyResponses: number;
+  weeklyCorrect: number;
+  weeklyIncorrect: number;
+  weeklyAccuracy: number;
+  avgResponseTime: number;
+  level: number;
+  totalPoints: number;
+}
+
+interface SchedulerConfig {
+  rankings?: {
+    weekly?: {
+      enabled: boolean;
+      frequency: string;
+      cronExpression: string;
+      topUsersCount: number;
+      showAccuracy: boolean;
+      showAverageTime: boolean;
+      includeMemes: boolean;
+      showComparison: boolean;
+    };
+  };
+}
+
+type FrequencyKey = 'test' | 'hourly' | 'every3h' | 'every4h' | 'every6h' | 'daily' | 'evening' | 'weekly';
+
+let currentSchedule: any | null = null;
+
+// 🎯 FRASES MOTIVACIONALES SEMANALES
+const WEEKLY_MEMES = [
+  "🔥 ¡Esta semana fue intensa! ¿Quién dominó el juego?",
+  "⚡ ¡Los números semanales están calientes! 📊",
+  "🎯 Semana completada. ¿Quién se llevó la corona?",
+  "💪 7 días de pura acción intelectual. ¡Veamos los resultados!",
+  "🌟 Ranking semanal: donde las leyendas nacen cada 7 días",
+  "🏆 Una semana más en los libros. ¡Estos son sus campeones!",
+  "🎮 Game over para esta semana. ¡Aquí están los high scores!",
+  "📈 Los datos no mienten: esta semana tuvo nivel épico",
+  "⭐ Otra semana, otra oportunidad de brillar. ¡Y estos brillaron!",
+  "🚀 Houston, tenemos un ranking semanal. ¡Despegamos!"
+];
+
+// ⚙️ CARGAR CONFIGURACIÓN DEL SCHEDULER
+function loadSchedulerConfig(): SchedulerConfig {
+  try {
+    const configPath = path.join(process.cwd(), 'scheduler-config.json');
+    if (fs.existsSync(configPath)) {
+      const configData = fs.readFileSync(configPath, 'utf8');
+      return JSON.parse(configData);
+    }
+  } catch (error) {
+    console.error('❌ Error cargando configuración:', error);
+  }
+  
+  // Configuración por defecto
+  return {
+    rankings: {
+      weekly: {
+        enabled: true,
+        frequency: 'every4h',
+        cronExpression: '0 */4 * * *',
+        topUsersCount: 8,
+        showAccuracy: true,
+        showAverageTime: true,
+        includeMemes: true,
+        showComparison: true
+      }
+    }
+  };
+}
+
+function getFixedWeekDates(date: Date = new Date()) {
+  const currentDate = new Date(date);
+  
+  // Encontrar el lunes de esta semana
+  const dayOfWeek = currentDate.getDay();
+  const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Domingo = 0, convertir a 6
+  
+  const mondayOfWeek = new Date(currentDate);
+  mondayOfWeek.setDate(currentDate.getDate() - daysFromMonday);
+  mondayOfWeek.setHours(0, 0, 0, 0);
+  
+  // Domingo de esta semana
+  const sundayOfWeek = new Date(mondayOfWeek);
+  sundayOfWeek.setDate(mondayOfWeek.getDate() + 6);
+  sundayOfWeek.setHours(23, 59, 59, 999);
+  
+  return {
+    weekStart: mondayOfWeek,
+    weekEnd: sundayOfWeek,
+    weekLabel: `${mondayOfWeek.getDate()}/${mondayOfWeek.getMonth() + 1} - ${sundayOfWeek.getDate()}/${sundayOfWeek.getMonth() + 1}`
+  };
+}
+
+async function fetchWeeklyRankingData(): Promise<WeeklyRankingUser[]> {
+  console.log('📊 Obteniendo datos del ranking semanal FIJO...');
+
+  try {
+    // 🔧 FIX: Usar semana fija (lunes a domingo) en lugar de móvil
+    const { weekStart: currentWeekStart, weekEnd: currentWeekEnd, weekLabel } = getFixedWeekDates();
+    
+    console.log(`🗓️ Semana fija (${weekLabel}): ${currentWeekStart.toISOString()} hasta: ${currentWeekEnd.toISOString()}`);
+
+    // ENFOQUE SEGURO: Obtener usuarios con respuestas de la semana
+    const usersWithWeeklyResponses = await prisma.telegramUser.findMany({
+      where: {
+        responses: {
+          some: {
+            answeredAt: {
+              gte: currentWeekStart,
+              lte: currentWeekEnd
+            }
+          }
+        }
+      },
+      select: {
+        telegramUserId: true,
+        firstName: true,
+        username: true,
+        level: true,
+        totalPoints: true,
+        responses: {
+          where: {
+            answeredAt: {
+              gte: currentWeekStart,
+              lte: currentWeekEnd
+            }
+          },
+          select: {
+            points: true,
+            isCorrect: true,
+            responseTime: true
+          }
+        }
+      }
+    });
+
+    console.log(`👥 Encontrados ${usersWithWeeklyResponses.length} usuarios con actividad semanal`);
+
+    // Calcular estadísticas semanales por usuario
+    const weeklyUsers: WeeklyRankingUser[] = usersWithWeeklyResponses.map(user => {
+      const responses = user.responses;
+      
+      const weeklyPoints = responses.reduce((sum, r) => sum + (r.points || 0), 0);
+      const weeklyResponses = responses.length;
+      const weeklyCorrect = responses.filter(r => r.isCorrect).length;
+      const weeklyIncorrect = weeklyResponses - weeklyCorrect;
+      const weeklyAccuracy = weeklyResponses > 0 
+        ? Math.round((weeklyCorrect / weeklyResponses) * 100)
+        : 0;
+      
+      const totalResponseTime = responses.reduce((sum, r) => sum + (r.responseTime || 0), 0);
+      const avgResponseTime = weeklyResponses > 0 
+        ? Math.round(totalResponseTime / weeklyResponses)
+        : 0;
+
+      return {
+        telegramUserId: user.telegramUserId,
+        firstName: user.firstName || 'Usuario',
+        username: user.username || undefined,
+        weeklyPoints,
+        weeklyResponses,
+        weeklyCorrect,
+        weeklyIncorrect,
+        weeklyAccuracy,
+        avgResponseTime,
+        level: user.level,
+        totalPoints: user.totalPoints
+      };
+    });
+
+    // Ordenar por puntos semanales
+    const sortedUsers = weeklyUsers.sort((a, b) => b.weeklyPoints - a.weeklyPoints);
+    
+    console.log(`📊 Procesadas estadísticas de ${sortedUsers.length} usuarios`);
+    if (sortedUsers.length > 0) {
+      console.log(`🏆 Líder semanal: ${sortedUsers[0].firstName} con ${sortedUsers[0].weeklyPoints} puntos`);
+    }
+    
+    return sortedUsers;
+    
+  } catch (error) {
+    console.error('❌ Error obteniendo datos semanales:', error);
+    // Retornar array vacío en caso de error para que el mensaje se genere
+    return [];
+  }
+}
+
+function generateWeeklyRankingMessage(users: WeeklyRankingUser[]): string {
+  const schedulerConfig = loadSchedulerConfig();
+  const config = schedulerConfig.rankings?.weekly || {
+    enabled: true,
+    frequency: 'every4h',
+    cronExpression: '0 */4 * * *',
+    topUsersCount: 8,
+    showAccuracy: true,
+    showAverageTime: true,
+    includeMemes: true,
+    showComparison: true
+  };
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('es-ES', { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
+  const dateStr = now.toLocaleDateString('es-ES', { 
+    day: 'numeric', 
+    month: 'numeric', 
+    year: 'numeric' 
+  });
+
+  // Obtener información de la semana actual
+  const { weekLabel } = getFixedWeekDates();
+
+  // Emojis aleatorios para hacer más dinámico
+  const weeklyEmojis = ['📈', '🏃‍♂️', '⚡', '🔥', '📊', '🎯'];
+  const randomEmoji = weeklyEmojis[Math.floor(Math.random() * weeklyEmojis.length)];
+
+  let message = `🏆 <b>RANKING SEMANAL</b> 🏆\n`;
+  message += `📅 ${dateStr} - 🕐 ${timeStr}\n`;
+  message += `📊 <i>Semana del ${weekLabel}</i>\n\n`;
+
+  if (users.length === 0) {
+    message += '📊 <i>No hay actividad esta semana</i>\n\n';
+    message += '💡 ¡Responde preguntas para aparecer en el ranking semanal!';
+    return message;
+  }
+
+  const topUsers = users.slice(0, config.topUsersCount);
+  const totalWeeklyPoints = users.reduce((sum, user) => sum + user.weeklyPoints, 0);
+  const totalWeeklyResponses = users.reduce((sum, user) => sum + user.weeklyResponses, 0);
+
+  topUsers.forEach((user, index) => {
+    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : 
+                 index === 3 ? '🏅' : '🔸';
+    const name = user.username || user.firstName || 'Usuario';
+    
+    message += `${medal} <b>${index + 1}.</b> ${name}\n`;
+    message += `   📊 ${user.weeklyPoints} pts esta semana | ${getLevelEmoji(user.level)} Nv.${user.level}\n`;
+    message += `   📝 ${user.weeklyResponses} respuestas | ✅ ${user.weeklyCorrect} aciertos`;
+    
+    if (user.weeklyIncorrect > 0) {
+      message += ` | ❌ ${user.weeklyIncorrect} fallos`;
+    }
+    
+    if (config.showAccuracy && user.weeklyResponses > 0) {
+      const accuracyEmoji = user.weeklyAccuracy >= 80 ? '🎯' : user.weeklyAccuracy >= 60 ? '📈' : '📊';
+      message += ` | ${accuracyEmoji} ${user.weeklyAccuracy}%`;
+    }
+    
+    if (config.showAverageTime && user.avgResponseTime > 0) {
+      const speedEmoji = user.avgResponseTime <= 15 ? '⚡' : user.avgResponseTime <= 30 ? '🏃' : '🚶';
+      message += ` | ${speedEmoji} ${user.avgResponseTime}s`;
+    }
+    
+    message += '\n\n';
+  });
+
+  // Estadísticas generales de la semana
+  const activeUsers = users.length;
+  const topPerformer = users[0];
+  const avgAccuracy = users.length > 0 
+    ? Math.round(users.reduce((sum, u) => sum + u.weeklyAccuracy, 0) / users.length)
+    : 0;
+
+  message += `📈 <b>RESUMEN SEMANAL:</b>\n`;
+  message += `👥 ${activeUsers} usuarios activos esta semana\n`;
+  message += `📊 ${totalWeeklyResponses} respuestas totales\n`;
+  message += `🎯 ${avgAccuracy}% precisión promedio\n`;
+  message += `🏆 Líder: ${topPerformer.firstName} (${topPerformer.weeklyPoints} pts esta semana)\n\n`;
+
+  // Frases motivacionales aleatorias
+  if (config.includeMemes) {
+    const weeklyPhrases = [
+      '🔥 ¡Semana intensa de estudio!',
+      '📈 ¡El progreso semanal es excelente!',
+      '⚡ ¡Esta semana han volado las respuestas!',
+      '🎯 ¡Precisión semanal en aumento!',
+      '💪 ¡Una semana más cerca de la plaza!',
+      '🚀 ¡Despegue semanal hacia el éxito!',
+      '📚 ¡Semana de estudio intensivo!',
+      '🏆 ¡Champions de la semana!',
+      '⭐ ¡Semana estelar de preparación!',
+      '🎪 ¡El show semanal continúa!'
+    ];
+    
+    const randomPhrase = weeklyPhrases[Math.floor(Math.random() * weeklyPhrases.length)];
+    message += randomPhrase + '\n\n';
+  }
+
+  // CTAs ACCIONABLES MEJORADOS
+  message += `🎯 <b>VE TU POSICIÓN:</b>\n`;
+  message += `• <code>/ranking</code> - Ranking completo actual\n`;
+  message += `• <code>/mi_stats</code> - Tu rendimiento detallado\n`;
+  message += `• <code>/estadisticas</code> - Tus números completos\n\n`;
+
+  message += `💡 <b>¿QUIERES SUBIR EN EL RANKING?</b>\n`;
+  if (topPerformer) {
+    const topUserName = topPerformer.username || topPerformer.firstName;
+    message += `• <code>/duelo @${topUserName}</code> - Reta al #1 de la semana\n`;
+  }
+  message += `• <code>/torneo</code> - Únete al próximo torneo\n`;
+  message += `• <code>/torneos</code> - Ver torneos disponibles\n`;
+  message += `• <code>/simulacro</code> - Practica intensiva\n`;
+  message += `• <code>/falladas10</code> - Repasar errores\n\n`;
+
+  message += `🔥 <b>¡La próxima semana podrías ser tú el #1!</b>\n`;
+  message += `💪 Estudia, compite y supera tus límites`;
+
+  return message;
+}
+
+function getLevelEmoji(level: number): string {
+  if (level >= 10) return '💎';
+  if (level >= 8) return '👑';
+  if (level >= 6) return '🏆';
+  if (level >= 4) return '⭐';
+  if (level >= 2) return '🔥';
+  return '📖';
+}
+
+async function sendWeeklyRankingMessage(message: string): Promise<boolean> {
+  try {
+    console.log('📤 Enviando ranking semanal automático...');
+    
+    const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        text: message,
+        parse_mode: 'HTML'
+      })
+    });
+
+    const result = await response.json() as any;
+    
+    if (result.ok) {
+      console.log(`✅ Ranking semanal enviado exitosamente (ID: ${result.result.message_id})`);
+      return true;
+    } else {
+      console.error('❌ Error en respuesta de Telegram:', result);
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Error enviando ranking semanal:', error);
+    return false;
+  }
+}
+
+/**
+ * 🌙 Verificar si estamos en horario permitido (NO entre 22:00 y 08:00)
+ */
+function isAllowedHour(): boolean {
+  const now = new Date();
+  const hour = now.getHours();
+  
+  // NO enviar entre 22:00 (22) y 08:00 (8)
+  const isNightTime = hour >= 22 || hour < 8;
+  
+  return !isNightTime;
+}
+
+async function generateAndSendWeeklyRanking(): Promise<void> {
+  try {
+    const schedulerConfig = loadSchedulerConfig();
+    const config = schedulerConfig.rankings?.weekly;
+    
+    if (!config?.enabled) {
+      console.log('⏸️ Ranking semanal deshabilitado en configuración');
+      return;
+    }
+    
+    // 🌙 VERIFICAR HORARIO PERMITIDO
+    if (!isAllowedHour()) {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('es-ES', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      console.log(`🌙 Ranking semanal omitido - Horario nocturno (${timeStr})`);
+      console.log('💤 Respetando horas de descanso (22:00-08:00)');
+      return;
+    }
+    
+    console.log('\n📈 ===== GENERANDO RANKING SEMANAL AUTOMÁTICO =====');
+    console.log(`⏰ Frecuencia activa: ${config.frequency}`);
+    console.log(`🎯 Configuración: Top ${config.topUsersCount} usuarios`);
+    
+    const users = await fetchWeeklyRankingData();
+    const message = generateWeeklyRankingMessage(users);
+    const success = await sendWeeklyRankingMessage(message);
+    
+    if (success) {
+      console.log('🎉 Ranking semanal automático completado exitosamente');
+      
+      // Log de estadísticas para debugging
+      console.log('📊 Resumen semanal enviado:', {
+        activeUsers: users.length,
+        topUser: users[0] ? `${users[0].firstName} (${users[0].weeklyPoints} pts)` : 'No hay usuarios',
+        totalWeeklyPoints: users.reduce((sum, u) => sum + u.weeklyPoints, 0)
+      });
+    } else {
+      console.error('❌ Fallo en el envío del ranking semanal automático');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error en generateAndSendWeeklyRanking:', error);
+  }
+}
+
+function startWeeklyRankingScheduler(): void {
+  console.log('🚀 Iniciando Weekly Ranking Scheduler...');
+  
+  const updateScheduler = () => {
+    try {
+      // Detener scheduler actual si existe
+      if (currentSchedule) {
+        currentSchedule.stop();
+        currentSchedule = null;
+      }
+
+      const schedulerConfig = loadSchedulerConfig();
+      const config = schedulerConfig.rankings?.weekly;
+      
+      if (!config?.enabled) {
+        console.log('⏸️ Weekly Ranking Scheduler deshabilitado en configuración');
+        return;
+      }
+
+      const cronExpression = config.cronExpression || '0 */4 * * *';
+      
+      console.log(`⏰ Programando ranking semanal: ${cronExpression}`);
+      console.log(`📊 Top usuarios: ${config.topUsersCount}`);
+      
+      // Crear nuevo scheduler
+      currentSchedule = cron.schedule(cronExpression, async () => {
+        console.log('🔔 Ejecutando ranking semanal programado...');
+        await generateAndSendWeeklyRanking();
+      }, {
+        timezone: "America/Mexico_City"
+      });
+
+      console.log('✅ Weekly Ranking Scheduler iniciado correctamente');
+      
+    } catch (error) {
+      console.error('❌ Error configurando scheduler semanal:', error);
+    }
+  };
+
+  // Configurar scheduler inicial
+  updateScheduler();
+
+  // Vigilar cambios en configuración cada 30 segundos
+  setInterval(() => {
+    updateScheduler();
+  }, 30000);
+
+  console.log('👁️ Vigilancia de configuración activa (cada 30s)');
+}
+
+// 🏃‍♂️ PUNTO DE ENTRADA
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  
+  if (args.includes('--test')) {
+    console.log('🧪 Modo de prueba: ejecutando ranking semanal una vez...');
+    await generateAndSendWeeklyRanking();
+    process.exit(0);
+  } else {
+    console.log('🔄 Modo scheduler: iniciando servicio continuo...');
+    startWeeklyRankingScheduler();
+    
+    // Mantener el proceso vivo
+    process.on('SIGINT', () => {
+      console.log('\n⏹️ Deteniendo Weekly Ranking Scheduler...');
+      if (currentSchedule) {
+        currentSchedule.stop();
+      }
+      process.exit(0);
+    });
+
+    console.log('✅ Weekly Ranking Scheduler ejecutándose. Presiona Ctrl+C para detener.');
+  }
+}
+
+// 🚀 EJECUTAR
+main().catch(error => {
+  console.error('💥 Error fatal en Weekly Ranking Scheduler:', error);
+  process.exit(1);
+}); 

@@ -1,0 +1,176 @@
+import * as fs from 'fs';
+
+interface AireRecord {
+    id: number;
+    questionNumber: number;
+    question: string;
+    options: string[];
+    correctAnswerIndex: number;
+    category: string;
+    difficulty: string;
+    isActive: boolean;
+    sendCount: number;
+    lastSuccessfulSendAt: Date | null;
+    lastUsedInTournament: boolean;
+    tournamentUsageCount: number;
+    lastTournamentId: string | null;
+    createdAt: Date;
+    bloomLevel: string | null;
+    documentId: string | null;
+    sectionId: string | null;
+    sourceSection: string | null;
+    type: string | null;
+    updatedAt: Date;
+    title: string | null;
+    titleQuestionNumber: number | null;
+    titleRawMetadata: string | null;
+    titleSourceDocument: string | null;
+    titleSourceReference: string | null;
+    feedback: string | null;
+}
+
+function manualParse(valuesString: string): string[] {
+    const values = [];
+    let inQuote = false;
+    let currentVal = '';
+    let i = 0;
+
+    while (i < valuesString.length) {
+        const char = valuesString[i];
+
+        if (char === "'") {
+            if (inQuote && i + 1 < valuesString.length && valuesString[i + 1] === "'") {
+                // Es una comilla escapada (e.g., '')
+                currentVal += "'";
+                i++; // saltar la segunda comilla
+            } else {
+                inQuote = !inQuote;
+            }
+        } else if (char === ',' && !inQuote) {
+            values.push(currentVal.trim());
+            currentVal = '';
+        } else {
+            currentVal += char;
+        }
+        i++;
+    }
+    values.push(currentVal.trim()); //Añadir el último valor
+
+    return values;
+}
+
+function parseSqlInsert(sqlStatement: string): AireRecord | null {
+    // Limpiamos saltos de línea y otros caracteres extraños dentro de la sentencia
+    const cleanStatement = sqlStatement.replace(/\r?\n|\r/g, " ").trim();
+
+    const valuesRegex = /VALUES \((.*)\)/s;
+    const match = cleanStatement.match(valuesRegex);
+
+    if (!match || !match[1]) {
+        console.error("No se encontró el bloque VALUES en:", cleanStatement);
+        return null;
+    }
+
+    const values = manualParse(match[1]);
+
+    if (values.length !== 26) {
+        console.error(`Error: Se esperaban 26 valores, pero se encontraron ${values.length} en la sentencia: ${cleanStatement}`);
+        return null;
+    }
+    
+    const unquote = (str: string) => {
+        if (str === 'NULL') return null;
+        if (str.startsWith("'") && str.endsWith("'")) {
+            return str.slice(1, -1);
+        }
+        return str;
+    };
+
+    try {
+        const idVal = unquote(values[0]);
+        const questionNumberVal = unquote(values[1]);
+        const questionVal = unquote(values[2]);
+        const optionsVal = unquote(values[3]);
+        const correctIndexVal = unquote(values[4]);
+        const categoryVal = unquote(values[5]);
+        const difficultyVal = unquote(values[6]);
+        const isActiveVal = unquote(values[7]);
+        const sendCountVal = unquote(values[8]);
+        const lastSendVal = unquote(values[9]);
+        const lastUsedTournVal = unquote(values[10]);
+        const tournUsageVal = unquote(values[11]);
+        const lastTournIdVal = unquote(values[12]);
+        const createdAtVal = unquote(values[13]);
+        const bloomLevelVal = unquote(values[14]);
+        const docIdVal = unquote(values[15]);
+        const sectionIdVal = unquote(values[16]);
+        const sourceSectionVal = unquote(values[17]);
+        const typeVal = unquote(values[18]);
+        const updatedAtVal = unquote(values[19]);
+        const titleVal = unquote(values[20]);
+        const titleQuestionNumVal = unquote(values[21]);
+        const titleRawMetaVal = unquote(values[22]);
+        const titleSourceDocVal = unquote(values[23]);
+        const titleSourceRefVal = unquote(values[24]);
+        const feedbackVal = unquote(values[25]);
+
+        const record: AireRecord = {
+            id: idVal ? parseInt(idVal, 10) : 0,
+            questionNumber: questionNumberVal ? parseInt(questionNumberVal, 10) : 0,
+            question: questionVal || '',
+            options: optionsVal ? JSON.parse(optionsVal) : [],
+            correctAnswerIndex: correctIndexVal ? parseInt(correctIndexVal, 10) : 0,
+            category: categoryVal || '',
+            difficulty: difficultyVal || '',
+            isActive: isActiveVal === 'true',
+            sendCount: sendCountVal ? parseInt(sendCountVal, 10) : 0,
+            lastSuccessfulSendAt: lastSendVal ? new Date(lastSendVal) : null,
+            lastUsedInTournament: lastUsedTournVal === 'true',
+            tournamentUsageCount: tournUsageVal ? parseInt(tournUsageVal, 10) : 0,
+            lastTournamentId: lastTournIdVal,
+            createdAt: createdAtVal ? new Date(createdAtVal) : new Date(),
+            bloomLevel: bloomLevelVal,
+            documentId: docIdVal,
+            sectionId: sectionIdVal,
+            sourceSection: sourceSectionVal,
+            type: typeVal,
+            updatedAt: updatedAtVal ? new Date(updatedAtVal) : new Date(),
+            title: titleVal,
+            titleQuestionNumber: titleQuestionNumVal ? parseInt(titleQuestionNumVal, 10) : null,
+            titleRawMetadata: titleRawMetaVal,
+            titleSourceDocument: titleSourceDocVal,
+            titleSourceReference: titleSourceRefVal,
+            feedback: feedbackVal,
+        };
+        return record;
+    } catch (e) {
+        console.error(`Error procesando los valores para la sentencia: ${cleanStatement}`, e);
+        return null;
+    }
+}
+
+async function convertSqlToJson() {
+    const filePath = 'scripts/data/Aire.c';
+    const outputJsonPath = 'scripts/data/Aire.json';
+    const records: AireRecord[] = [];
+
+    // Leer el archivo completo
+    const fileContent = fs.readFileSync(filePath, 'utf-8');
+
+    // Dividir por 'INSERT INTO' y filtrar elementos vacíos
+    const statements = fileContent.split('INSERT INTO').filter(s => s.trim() !== '');
+
+    for (const statement of statements) {
+        // Re-añadir 'INSERT INTO' para que el parser funcione
+        const fullStatement = 'INSERT INTO' + statement;
+        const record = parseSqlInsert(fullStatement);
+        if (record) {
+            records.push(record);
+        }
+    }
+
+    fs.writeFileSync(outputJsonPath, JSON.stringify(records, null, 2));
+    console.log(`Conversion complete. ${records.length} de ${statements.length} registros guardados en ${outputJsonPath}`);
+}
+
+convertSqlToJson(); 

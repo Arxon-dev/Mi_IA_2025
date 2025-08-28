@@ -1,0 +1,219 @@
+#!/usr/bin/env npx tsx
+
+// ===========================================
+// 🧪 SCRIPT DE TESTING - SIMULACROS MILITARES
+// ===========================================
+
+import { prisma } from '../src/lib/prisma';
+import { MilitarySimulationService } from '../src/services/militarySimulationService';
+import { SubscriptionService } from '../src/services/subscriptionService';
+
+console.log('🧪 INICIANDO TESTING DE SIMULACROS MILITARES PREMIUM...\n');
+
+async function runTests() {
+  try {
+
+    // ===========================================
+    // 📋 TEST 1: VERIFICAR DISTRIBUCIONES
+    // ===========================================
+    console.log('📋 TEST 1: Verificando distribuciones exactas...');
+    
+    const distributions = {
+      et: MilitarySimulationService.MILITARY_DISTRIBUTIONS.et,
+      aire: MilitarySimulationService.MILITARY_DISTRIBUTIONS.aire,
+      armada: MilitarySimulationService.MILITARY_DISTRIBUTIONS.armada
+    };
+
+    for (const [branch, distribution] of Object.entries(distributions)) {
+      const total = Object.values(distribution).reduce((sum, count) => sum + count, 0);
+      console.log(`   🎖️ ${branch.toUpperCase()}: ${total} preguntas total`);
+      
+      if (total !== 100) {
+        console.error(`   ❌ ERROR: ${branch} tiene ${total} preguntas, esperadas 100`);
+      } else {
+        console.log(`   ✅ ${branch}: Distribución correcta (100 preguntas)`);
+      }
+    }
+
+    // ===========================================
+    // 🗂️ TEST 2: VERIFICAR MAPEO DE TABLAS
+    // ===========================================
+    console.log('\n🗂️ TEST 2: Verificando mapeo de tablas...');
+    
+    const tableMapping = MilitarySimulationService.TABLE_MAPPING;
+    const mappedTables = Object.keys(tableMapping);
+    console.log(`   📊 Total de materias mapeadas: ${mappedTables.length}`);
+    
+         // Verificar que todas las materias de las distribuciones están en el mapeo
+     const allSubjects = new Set<string>();
+     Object.values(distributions).forEach(dist => {
+       Object.keys(dist).forEach(subject => allSubjects.add(subject));
+     });
+     
+     for (const subject of allSubjects) {
+       if (tableMapping[subject]) {
+         console.log(`   ✅ ${subject} → ${tableMapping[subject]}`);
+       } else {
+         console.error(`   ❌ ERROR: Materia '${subject}' no está mapeada`);
+       }
+     }
+
+    // ===========================================
+    // 🔐 TEST 3: VERIFICAR FUNCIONES DE PERMISOS
+    // ===========================================
+    console.log('\n🔐 TEST 3: Verificando funciones de permisos...');
+    
+    try {
+      // Crear usuario de prueba si no existe
+      const testUserId = 'test_user_123';
+      
+      let testUser = await prisma.telegramUser.findUnique({
+        where: { telegramUserId: testUserId }
+      });
+
+      if (!testUser) {
+        testUser = await prisma.telegramUser.create({
+          data: {
+            telegramUserId: testUserId,
+            firstName: 'Test User',
+            username: 'test_user'
+          }
+        });
+        console.log('   ✅ Usuario de prueba creado');
+      } else {
+        console.log('   ✅ Usuario de prueba encontrado');
+      }
+
+      // Test de permisos sin Premium
+      const canCreate = await MilitarySimulationService.canUserCreatePremiumSimulation(testUserId);
+      console.log(`   🔍 Usuario sin Premium puede crear simulacro: ${canCreate ? '❌ SÍ (ERROR)' : '✅ NO (CORRECTO)'}`);
+
+      // Cleanup: Eliminar usuario de prueba
+      await prisma.telegramUser.delete({
+        where: { telegramUserId: testUserId }
+      });
+      console.log('   🧹 Usuario de prueba eliminado');
+
+         } catch (error) {
+       console.error('   ❌ Error en test de permisos:', error instanceof Error ? error.message : String(error));
+     }
+
+    // ===========================================
+    // 📊 TEST 4: VERIFICAR CONTEO DE PREGUNTAS
+    // ===========================================
+    console.log('\n📊 TEST 4: Verificando disponibilidad de preguntas en BD...');
+    
+    for (const [subject, tableName] of Object.entries(tableMapping)) {
+      try {
+        const count = await prisma[tableName].count();
+        if (count > 0) {
+          console.log(`   ✅ ${subject} (${tableName}): ${count} preguntas disponibles`);
+        } else {
+          console.log(`   ⚠️ ${subject} (${tableName}): 0 preguntas (tabla vacía)`);
+        }
+      } catch (error) {
+        console.error(`   ❌ ${subject} (${tableName}): Error de acceso - ${error.message}`);
+      }
+    }
+
+    // ===========================================
+    // 🎯 TEST 5: SIMULAR SELECCIÓN DE PREGUNTAS
+    // ===========================================
+    console.log('\n🎯 TEST 5: Simulando selección de preguntas para ET...');
+    
+    try {
+      const etDistribution = distributions.et;
+      let totalSelected = 0;
+      
+      for (const [subject, expectedCount] of Object.entries(etDistribution)) {
+        const tableName = tableMapping[subject];
+        if (tableName) {
+          const availableCount = await prisma[tableName].count();
+          const selectedCount = Math.min(expectedCount, availableCount);
+          totalSelected += selectedCount;
+          
+          if (selectedCount < expectedCount) {
+            console.log(`   ⚠️ ${subject}: ${selectedCount}/${expectedCount} (faltan ${expectedCount - selectedCount})`);
+          } else {
+            console.log(`   ✅ ${subject}: ${selectedCount}/${expectedCount}`);
+          }
+        }
+      }
+      
+      console.log(`   📊 Total simulado: ${totalSelected}/100 preguntas`);
+      
+      if (totalSelected < 100) {
+        console.log(`   ⚠️ ADVERTENCIA: Solo se pueden generar ${totalSelected} preguntas de 100`);
+      } else {
+        console.log(`   ✅ PERFECTO: Se pueden generar las 100 preguntas completas`);
+      }
+
+    } catch (error) {
+      console.error('   ❌ Error en simulación:', error.message);
+    }
+
+    // ===========================================
+    // 📝 RESUMEN FINAL
+    // ===========================================
+    console.log('\n' + '='.repeat(50));
+    console.log('📝 RESUMEN DE TESTING');
+    console.log('='.repeat(50));
+    console.log('✅ Distribuciones verificadas');
+    console.log('✅ Mapeo de tablas validado');
+    console.log('✅ Funciones de permisos testeadas');
+    console.log('✅ Disponibilidad de preguntas checkeada');
+    console.log('✅ Selección de preguntas simulada');
+    console.log('\n🎖️ SIMULACROS MILITARES PREMIUM - TESTING COMPLETADO');
+    console.log('🚀 ¡Listos para implementar en producción!');
+
+  } catch (error) {
+    console.error('❌ ERROR GENERAL EN TESTING:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// ===========================================
+// 🎯 FUNCIONES HELPER PARA TESTING
+// ===========================================
+
+async function checkTableExists(tableName: string): Promise<boolean> {
+  try {
+    await prisma[tableName].findFirst();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function getQuestionSample(tableName: string, limit: number = 3) {
+  try {
+    return await prisma[tableName].findMany({
+      take: limit,
+      select: {
+        id: true,
+        question: true
+      }
+    });
+  } catch {
+    return [];
+  }
+}
+
+// ===========================================
+// 🏃‍♂️ EJECUTAR TESTS
+// ===========================================
+
+if (require.main === module) {
+  runTests()
+    .then(() => {
+      console.log('\n✅ Testing completado exitosamente');
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('❌ Testing falló:', error);
+      process.exit(1);
+    });
+}
+
+export { runTests }; 

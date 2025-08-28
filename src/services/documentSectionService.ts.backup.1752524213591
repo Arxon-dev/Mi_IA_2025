@@ -1,0 +1,1786 @@
+import { StorageService, StoredDocument } from './storageService';
+import { Section } from '@prisma/client';
+
+/**
+ * Tipos de secciones que puede tener un documento
+ */
+export enum SectionType {
+  SECTION = 'Section',
+  PARAGRAPH = 'Paragraph',
+  GENERIC = 'Generic',
+  CHAPTER = 'Chapter',
+  ARTICLE = 'Article',
+  MAIN_SECTION = 'MainSection'  // Nuevo tipo para secciones principales
+}
+
+/**
+ * Interfaz para representar una sección de documento
+ */
+export interface DocumentSection {
+  id: string;
+  documentId: string;
+  title: string;
+  content: string;
+  type: SectionType;
+  order: number;
+  processed: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Información sobre el progreso de procesamiento de un documento
+ */
+export interface DocumentProgress {
+  processedSections: string[];
+  totalSections: number;
+}
+
+/**
+ * Modos de procesamiento de secciones disponibles
+ */
+export enum ProcessingMode {
+  NUMBERED = 'NUMBERED',
+  HIERARCHICAL = 'HIERARCHICAL',
+  PARAGRAPHS = 'paragraphs',    // Por párrafos
+  CUSTOM = 'CUSTOM',
+  GENERIC = 'GENERIC',
+  FULL = 'FULL', // Nuevo modo para mostrar el documento completo
+  MILITARY_DOCTRINE = 'MILITARY_DOCTRINE', // Nuevo modo para documentos de doctrina militar
+  PDC_01_DOCTRINE = 'PDC_01_DOCTRINE' // Modo específico para PDC-01 B Doctrina para el empleo de las FAS
+}
+
+/**
+ * Configuración para el procesamiento de secciones
+ */
+export interface ProcessingConfig {
+  mode: ProcessingMode;
+  options: {
+    // Opciones comunes
+    minSectionLength?: number;
+    maxSectionLength?: number;
+    
+    // Opciones específicas por modo
+    numbered?: {
+      pattern?: string;      // Patrón de números personalizado
+      includeSubsections?: boolean;
+    };
+    hierarchical?: {
+      levels?: string[];     // Nombres de los niveles jerárquicos
+      maxDepth?: number;     // Profundidad máxima de la jerarquía
+    };
+    paragraphs?: {
+      maxParagraphsPerSection?: number;
+      joinShortParagraphs?: boolean;
+    };
+    custom?: {
+      patterns?: string[];   // Patrones personalizados
+      caseSensitive?: boolean;
+    };
+    generic?: {
+      maxParagraphsPerSection?: number;
+    };
+    militaryDoctrine?: {
+      detectChapters?: boolean;        // Detectar CAPÍTULO X
+      detectMainSections?: boolean;    // Detectar secciones numeradas (1., 2., 3.)
+      detectSubSections?: boolean;     // Detectar subsecciones (3.1., 3.2.)
+      groupParagraphs?: boolean;       // Agrupar párrafos numerados
+      paragraphsPerGroup?: number;     // Párrafos por grupo
+    };
+    pdc01Doctrine?: {
+      useSpecificSections?: boolean;   // Usar apartados específicos predefinidos
+      includeSubParagraphs?: boolean;  // Incluir párrafos numerados dentro de cada apartado
+      minSectionLength?: number;       // Longitud mínima por apartado
+    };
+  };
+}
+
+/**
+ * Niveles de logging
+ */
+enum LogLevel {
+  DEBUG = 'DEBUG',
+  INFO = 'INFO',
+  WARN = 'WARN',
+  ERROR = 'ERROR'
+}
+
+/**
+ * Clase para el servicio de documentos
+ */
+export class DocumentSectionService {
+  private static SECTION_PROGRESS_KEY = 'document_section_progress';
+  private static SECTION_QUESTIONS_KEY = 'document_section_questions';
+  private static DOCUMENT_SECTIONS_KEY = 'document_sections';
+  private static DOCUMENT_PROGRESS_KEY = 'document-progress';
+  private static PROCESSING_CONFIG_KEY = 'document_processing_config';
+
+  // Configuración por defecto
+  private static DEFAULT_CONFIG: ProcessingConfig = {
+    mode: ProcessingMode.HIERARCHICAL,
+    options: {
+      minSectionLength: 100,
+      maxSectionLength: 5000,
+      hierarchical: {
+        levels: ['Artículo', 'ARTÍCULO', 'Art.', 'ART.'],
+        maxDepth: 1
+      }
+    }
+  };
+
+  // Configuración específica para documentos militares
+  private static MILITARY_DOCTRINE_CONFIG: ProcessingConfig = {
+    mode: ProcessingMode.MILITARY_DOCTRINE,
+    options: {
+      minSectionLength: 200,
+      maxSectionLength: 10000,
+      militaryDoctrine: {
+        detectChapters: true,
+        detectMainSections: true,
+        detectSubSections: true,
+        groupParagraphs: true,
+        paragraphsPerGroup: 8
+      }
+    }
+  };
+
+  // Configuración específica para PDC-01 B Doctrina para el empleo de las FAS
+  private static PDC_01_CONFIG: ProcessingConfig = {
+    mode: ProcessingMode.PDC_01_DOCTRINE,
+    options: {
+      minSectionLength: 500,
+      maxSectionLength: 15000,
+      pdc01Doctrine: {
+        useSpecificSections: true,
+        includeSubParagraphs: true,
+        minSectionLength: 500
+      }
+    }
+  };
+
+  /**
+   * Sistema de logging mejorado
+   */
+  private static log(level: LogLevel, message: string, data?: any) {
+    const timestamp = new Date().toISOString();
+    const logMessage = `[${timestamp}] [${level}] ${message}`;
+    
+    switch (level) {
+      case LogLevel.DEBUG:
+        console.debug(logMessage, data);
+        break;
+      case LogLevel.INFO:
+        console.log(logMessage, data);
+        break;
+      case LogLevel.WARN:
+        console.warn(logMessage, data);
+        break;
+      case LogLevel.ERROR:
+        console.error(logMessage, data);
+        break;
+    }
+  }
+
+  /**
+   * Medición de rendimiento
+   */
+  private static measurePerformance<T>(operation: string, func: () => T): T;
+  private static async measurePerformance<T>(operation: string, func: () => Promise<T>): Promise<T>;
+  private static measurePerformance<T>(operation: string, func: () => T | Promise<T>): T | Promise<T> {
+    const startTime = performance.now();
+    const result = func();
+    
+    if (result instanceof Promise) {
+      return result.then((resolvedResult) => {
+        const endTime = performance.now();
+        const duration = endTime - startTime;
+        this.log(LogLevel.DEBUG, `Rendimiento de ${operation}: ${duration.toFixed(2)}ms`);
+        return resolvedResult;
+      });
+    } else {
+      const endTime = performance.now();
+      const duration = endTime - startTime;
+      this.log(LogLevel.DEBUG, `Rendimiento de ${operation}: ${duration.toFixed(2)}ms`);
+      return result;
+    }
+  }
+
+  /**
+   * Actualiza un documento y procesa sus secciones
+   */
+  static async updateDocument(document: StoredDocument): Promise<StoredDocument> {
+    if (!document || !document.id) {
+      throw new Error('Documento inválido: falta ID');
+    }
+
+    if (!document.content || document.content.trim() === '') {
+      throw new Error('Documento inválido: contenido vacío');
+    }
+
+    try {
+      this.log(LogLevel.INFO, 'Iniciando procesamiento del documento', { id: document.id });
+      
+      // Asegurar que el documento tiene todos los campos requeridos
+      if (!document.type) {
+        document.type = 'text/plain'; // Valor por defecto si no está definido
+        this.log(LogLevel.WARN, 'Campo type no definido, usando valor por defecto', { documentId: document.id });
+      }
+      if (!document.date) {
+        document.date = new Date();
+        this.log(LogLevel.WARN, 'Campo date no definido, usando fecha actual', { documentId: document.id });
+      }
+      
+      // Guardar el documento primero
+      await this.saveDocument(document);
+      
+      return await this.measurePerformance('procesamiento_documento', async () => {
+        // 🔍 DEBUGGING: Detectar tipo de documento
+        const isPDC01 = this.detectPDC01Document(document.content);
+        const isMilitary = this.detectMilitaryDoctrine(document.content);
+        const currentConfig = this.getProcessingConfig(document.id);
+        
+        console.log('🔍 [DEBUG] Detección automática:', {
+          documentId: document.id,
+          title: document.title,
+          isPDC01,
+          isMilitary,
+          currentConfigMode: currentConfig.mode,
+          contentPreview: document.content.substring(0, 300) + '...'
+        });
+        
+        // ✅ APLICAR DETECCIÓN AUTOMÁTICA SOLO SI NO HAY CONFIGURACIÓN PERSONALIZADA GUARDADA
+        // Verificar si existe una configuración específica guardada por el usuario
+        const configKey = `${this.PROCESSING_CONFIG_KEY}_${document.id}`;
+        const hasUserConfig = localStorage.getItem(configKey) !== null;
+        
+        if (!hasUserConfig && (isPDC01 || isMilitary)) {
+          this.log(LogLevel.INFO, 'Aplicando configuración automática durante la carga del documento (configuración por defecto detectada)');
+          console.log('🔍 [DEBUG] Aplicando configuración automática:', { isPDC01, isMilitary, hasUserConfig });
+          
+          if (isPDC01) {
+            this.setupPDC01Processing(document.id);
+          } else if (isMilitary) {
+            this.setupMilitaryDoctrineProcessing(document.id);
+          }
+          
+          // Recargar la configuración después de aplicar la detección automática
+          const updatedConfig = this.getProcessingConfig(document.id);
+          console.log('🔍 [DEBUG] Configuración actualizada:', { mode: updatedConfig.mode });
+        } else {
+          console.log('🔍 [DEBUG] Respetando configuración del usuario:', { 
+            mode: currentConfig.mode,
+            hierarchicalLevels: currentConfig.options.hierarchical?.levels,
+            hasUserConfig,
+            isPDC01,
+            isMilitary
+          });
+        }
+        
+        // Extraer secciones del documento
+        const sections = this.extractSections(document);
+        this.log(LogLevel.INFO, 'Secciones extraídas', { count: sections.length });
+        
+        // 🔍 DEBUGGING: Resultado de extracción
+        console.log('🔍 [DEBUG] Secciones extraídas:', {
+          count: sections.length,
+          sectionTitles: sections.map(s => s.title).slice(0, 5),
+          configUsed: currentConfig.mode,
+          sectionTypes: sections.map(s => s.type).slice(0, 5)
+        });
+
+        // Guardar secciones en la base de datos (batch) - AHORA ESPERAMOS LA RESPUESTA
+        try {
+          const response = await fetch('/api/sections', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(sections),
+          });
+          
+          if (!response.ok) {
+            throw new Error('Error al guardar secciones en la base de datos');
+          }
+          
+          const data = await response.json();
+          this.log(LogLevel.INFO, 'Secciones guardadas en la base de datos', { count: sections.length });
+        } catch (error) {
+          this.log(LogLevel.ERROR, 'Error al guardar secciones en la base de datos', { error });
+          throw error; // Re-lanzar el error para que se maneje arriba
+        }
+
+        // (Opcional) Guardar en localStorage como caché
+        // const cacheKey = `document_cache_${document.id}`;
+        // const cacheData = {
+        //   ...document,
+        //   sections: sections.map(section => ({
+        //     ...section,
+        //     type: section.type as SectionType
+        //   })),
+        //   lastProcessed: new Date().toISOString()
+        // };
+        // try {
+        //   localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+        // } catch (cacheError) {
+        //   this.log(LogLevel.WARN, 'Error al cachear documento', { error: cacheError });
+        // }
+
+        this.log(LogLevel.INFO, 'Documento actualizado', { 
+          id: document.id, 
+          sectionCount: sections.length 
+        });
+        
+        return {
+          ...document,
+          sections: sections as any, // Incluir las secciones en el documento retornado
+          updatedAt: new Date()
+        };
+      });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.log(LogLevel.ERROR, 'Error al procesar el documento', { 
+        id: document.id, 
+        error: errorMessage 
+      });
+      throw new Error(`Error al procesar el documento: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Obtiene las secciones de un documento
+   */
+  static async getSections(documentId: string): Promise<DocumentSection[]> {
+    try {
+      // Obtener el documento
+      const document = await this.getDocument(documentId);
+      if (!document) {
+        throw new Error('Documento no encontrado');
+      }
+
+      // Obtener la configuración actual
+      const config = this.getProcessingConfig(documentId);
+      
+      // Extraer las secciones usando la configuración actual
+      const sections = this.extractSections(document);
+      
+      this.log(LogLevel.INFO, `Extraídas ${sections.length} secciones`, { 
+        mode: config.mode,
+        documentId 
+      });
+
+      return sections;
+    } catch (error) {
+      this.log(LogLevel.ERROR, 'Error al obtener secciones', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Guarda las preguntas generadas para una sección
+   */
+  static saveSectionQuestions(sectionId: string, questions: string): void {
+    try {
+      const questionsKey = `${this.SECTION_QUESTIONS_KEY}_${sectionId}`;
+      localStorage.setItem(questionsKey, questions);
+    } catch (error) {
+      console.error('Error al guardar las preguntas de la sección:', error);
+    }
+  }
+
+  /**
+   * Marca una sección como procesada y guarda sus preguntas
+   */
+  static markSectionAsProcessed(sectionId: string, questions: string): void {
+    const sections = this.getAllSections();
+    const section = sections.find(s => s.id === sectionId);
+    
+    if (!section) return;
+    
+    // Actualizar la sección
+    section.processed = true;
+    this.saveSections(sections);
+    
+    // Guardar las preguntas de la sección
+    this.saveSectionQuestions(sectionId, questions);
+    
+    // Actualizar el progreso del documento
+    const progress = this.getProgress(section.documentId);
+    if (progress) {
+      progress.processedSections = [...progress.processedSections, sectionId];
+      this.saveProgress(section.documentId, progress);
+    }
+  }
+
+  /**
+   * Obtiene el progreso de generación de preguntas para un documento
+   */
+  static getProgress(documentId: string): DocumentProgress | null {
+    try {
+      const progressKey = `${this.SECTION_PROGRESS_KEY}_${documentId}`;
+      const storedProgress = localStorage.getItem(progressKey);
+      return storedProgress ? JSON.parse(storedProgress) : null;
+    } catch (error) {
+      console.error('Error al obtener el progreso:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Guarda el progreso de generación de preguntas para un documento
+   */
+  private static saveProgress(documentId: string, progress: DocumentProgress): void {
+    try {
+      const progressKey = `${this.SECTION_PROGRESS_KEY}_${documentId}`;
+      localStorage.setItem(progressKey, JSON.stringify(progress));
+    } catch (error) {
+      console.error('Error al guardar el progreso:', error);
+    }
+  }
+
+  /**
+   * Obtiene las preguntas generadas para una sección
+   */
+  static getSectionQuestions(sectionId: string): string | null {
+    try {
+      const questionsKey = `${this.SECTION_QUESTIONS_KEY}_${sectionId}`;
+      return localStorage.getItem(questionsKey);
+    } catch (error) {
+      console.error('Error al obtener las preguntas de la sección:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Obtiene todas las secciones almacenadas
+   */
+  private static getAllSections(): DocumentSection[] {
+    const sectionsJson = localStorage.getItem(this.DOCUMENT_SECTIONS_KEY);
+    if (!sectionsJson) return [];
+    
+    try {
+      return JSON.parse(sectionsJson);
+    } catch (error) {
+      console.error('Error al parsear secciones:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Obtiene una sección específica por su ID
+   */
+  static getSection(sectionId: string): DocumentSection | null {
+    const sections = this.getAllSections();
+    return sections.find(section => section.id === sectionId) || null;
+  }
+
+  /**
+   * Guarda una sección de documento
+   */
+  static saveSection(section: DocumentSection): void {
+    const sections = this.getAllSections();
+    const existingIndex = sections.findIndex(s => s.id === section.id);
+    
+    if (existingIndex >= 0) {
+      sections[existingIndex] = section;
+    } else {
+      sections.push(section);
+    }
+    
+    localStorage.setItem(this.DOCUMENT_SECTIONS_KEY, JSON.stringify(sections));
+  }
+
+  /**
+   * Guarda múltiples secciones de documento
+   */
+  static saveSections(newSections: DocumentSection[]): void {
+    const sections = this.getAllSections();
+    
+    for (const section of newSections) {
+      const existingIndex = sections.findIndex(s => s.id === section.id);
+      if (existingIndex >= 0) {
+        sections[existingIndex] = section;
+      } else {
+        sections.push(section);
+      }
+    }
+    
+    localStorage.setItem(this.DOCUMENT_SECTIONS_KEY, JSON.stringify(sections));
+  }
+
+  /**
+   * Elimina todas las secciones de un documento
+   */
+  static deleteSections(documentId: string): void {
+    const sections = this.getAllSections();
+    const filteredSections = sections.filter(section => section.documentId !== documentId);
+    localStorage.setItem(this.DOCUMENT_SECTIONS_KEY, JSON.stringify(filteredSections));
+    
+    // También eliminar el progreso
+    this.deleteProgress(documentId);
+  }
+
+  /**
+   * Elimina el progreso de un documento
+   */
+  static deleteProgress(documentId: string): void {
+    try {
+      const progressKey = `${this.SECTION_PROGRESS_KEY}_${documentId}`;
+      localStorage.removeItem(progressKey);
+    } catch (error) {
+      console.error('Error al eliminar el progreso:', error);
+    }
+  }
+
+  /**
+   * Obtiene secciones para un documento específico
+   * @param documentId ID del documento
+   * @returns Array de secciones del documento
+   */
+  static getSectionsForDocument(documentId: string): DocumentSection[] {
+    return this.getAllSections().filter(section => section.documentId === documentId);
+  }
+
+  /**
+   * Extrae secciones de un documento basado en su estructura y configuración
+   * @param document Documento a procesar
+   * @returns Array de secciones extraídas
+   */
+  static extractSections(document: StoredDocument): DocumentSection[] {
+    try {
+      const config = this.getProcessingConfig(document.id);
+      this.log(LogLevel.INFO, 'Iniciando extracción de secciones', { 
+        mode: config.mode,
+        documentId: document.id 
+      });
+      
+      // 🔍 DEBUGGING: Información detallada del procesamiento
+      console.log('🔍 [DEBUG] extractSections - Configuración:', {
+        documentId: document.id,
+        title: document.title,
+        mode: config.mode,
+        configOptions: config.options,
+        contentLength: document.content.length
+      });
+
+      switch (config.mode) {
+        case ProcessingMode.NUMBERED:
+          return this.extractNumberedSections(document, config);
+        case ProcessingMode.HIERARCHICAL:
+          return this.extractHierarchicalSections(document, config);
+        case ProcessingMode.PARAGRAPHS:
+          return this.extractParagraphSections(document, config);
+        case ProcessingMode.CUSTOM:
+          return this.extractCustomSections(document, config);
+        case ProcessingMode.GENERIC:
+          return this.extractGenericSections(document, config);
+        case ProcessingMode.FULL:
+          // Devuelve el documento completo como una sola sección
+          return [{
+            id: `${document.id}-full-0`,
+            documentId: document.id,
+            title: document.title || 'Documento completo',
+            content: document.content,
+            type: SectionType.GENERIC,
+            order: 0,
+            processed: false,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }];
+        case ProcessingMode.MILITARY_DOCTRINE:
+          return this.extractMilitaryDoctrineSections(document, config);
+        case ProcessingMode.PDC_01_DOCTRINE:
+          return this.extractPDC01Sections(document, config);
+        default:
+          this.log(LogLevel.WARN, 'Modo de procesamiento no reconocido, usando modo numerado');
+          return this.extractNumberedSections(document, config);
+      }
+    } catch (error) {
+      this.log(LogLevel.ERROR, 'Error al extraer secciones', { error });
+      return [{
+        id: `${document.id}-error-0`,
+        documentId: document.id,
+        title: 'Error al procesar secciones',
+        content: document.content,
+        type: SectionType.GENERIC,
+        order: 0,
+        processed: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }];
+    }
+  }
+  
+  /**
+   * Extrae secciones numeradas (1., 2., etc.)
+   */
+  private static extractNumberedSections(document: StoredDocument, config: ProcessingConfig): DocumentSection[] {
+    try {
+      const sections: DocumentSection[] = [];
+      const content = document.content;
+      let order = 0;
+
+      // Patrón para detectar secciones principales (Primero., Segundo., etc.)
+      const mainPattern = /^(Primero|Segundo|Tercero|Cuarto|Quinto|Sexto|Séptimo|Octavo|Noveno|Décimo|Undécimo|Duodécimo|Decimotercero|Decimocuarto|Decimoquinto|Decimosexto|Decimoséptimo|Decimoctavo|Decimonoveno|Vigésimo|Vigésimo primero|Vigésimo segundo|Vigésimo tercero|Vigésimo cuarto|Vigésimo quinto|Vigésimo sexto|Vigésimo séptimo|Vigésimo octavo|Vigésimo noveno|Trigésimo|Trigésimo primero|Trigésimo segundo|Trigésimo tercero|Trigésimo cuarto|Trigésimo quinto|Trigésimo sexto|Trigésimo séptimo|Trigésimo octavo|Trigésimo noveno|Cuadragésimo|Cuadragésimo primero|Cuadragésimo segundo|Cuadragésimo tercero|Cuadragésimo cuarto|Cuadragésimo quinto|Cuadragésimo sexto|Cuadragésimo séptimo|Cuadragésimo octavo|Cuadragésimo noveno|Quincuagésimo|Quincuagésimo primero|Quincuagésimo segundo|Quincuagésimo tercero|Quincuagésimo cuarto|Quincuagésimo quinto|Quincuagésimo sexto|Quincuagésimo séptimo|Quincuagésimo octavo|Quincuagésimo noveno|Sexagésimo|Sexagésimo primero|Sexagésimo segundo|Sexagésimo tercero|Sexagésimo cuarto|Sexagésimo quinto|Sexagésimo sexto|Sexagésimo séptimo|Sexagésimo octavo|Sexagésimo noveno|Septuagésimo|Septuagésimo primero|Septuagésimo segundo|Septuagésimo tercero|Septuagésimo cuarto|Septuagésimo quinto|Septuagésimo sexto|Septuagésimo séptimo|Septuagésimo octavo|Septuagésimo noveno|Octogésimo|Octogésimo primero|Octogésimo segundo|Octogésimo tercero|Octogésimo cuarto|Octogésimo quinto|Octogésimo sexto|Octogésimo séptimo|Octogésimo octavo|Octogésimo noveno|Nonagésimo)\./gm;
+      
+      // Encontrar todas las secciones principales
+      const mainSections: { index: number, title: string }[] = [];
+      let mainMatch;
+      
+      while ((mainMatch = mainPattern.exec(content)) !== null) {
+        mainSections.push({
+          index: mainMatch.index,
+          title: mainMatch[0]
+        });
+      }
+
+      // Si no hay secciones principales, usar el método original
+      if (mainSections.length === 0) {
+        const pattern = new RegExp(
+          config.options.numbered?.pattern || '^\\d+\\.\\s',
+          'gm'
+        );
+
+        const sectionStarts: number[] = [];
+        let match;
+
+        while ((match = pattern.exec(content)) !== null) {
+          sectionStarts.push(match.index);
+        }
+
+        for (let i = 0; i < sectionStarts.length; i++) {
+          const startIndex = sectionStarts[i];
+          const endIndex = i < sectionStarts.length - 1 ? sectionStarts[i + 1] : content.length;
+
+          try {
+            const sectionContent = content.slice(startIndex, endIndex);
+            const titleMatch = sectionContent.match(pattern);
+
+            if (titleMatch) {
+              sections.push({
+                id: `${document.id}-section-${order}`,
+                documentId: document.id,
+                title: titleMatch[0].trim(),
+                content: sectionContent.trim(),
+                type: SectionType.SECTION,
+                order: order++,
+                processed: false,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              });
+            }
+          } catch (sectionError) {
+            this.log(LogLevel.ERROR, 'Error al procesar sección individual', { 
+              sectionIndex: i, 
+              error: sectionError 
+            });
+            continue;
+          }
+        }
+      } else {
+        // Procesar secciones principales y sus subsecciones como una única sección
+        for (let i = 0; i < mainSections.length; i++) {
+          const startIndex = mainSections[i].index;
+          const endIndex = i < mainSections.length - 1 ? mainSections[i + 1].index : content.length;
+
+          try {
+            const sectionContent = content.slice(startIndex, endIndex);
+            
+            sections.push({
+              id: `${document.id}-main-section-${order}`,
+              documentId: document.id,
+              title: mainSections[i].title.trim(),
+              content: sectionContent.trim(),
+              type: SectionType.SECTION,
+              order: order++,
+              processed: false,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            });
+          } catch (sectionError) {
+            this.log(LogLevel.ERROR, 'Error al procesar sección principal', { 
+              sectionIndex: i, 
+              error: sectionError 
+            });
+            continue;
+          }
+        }
+      }
+
+      // Si no se encontraron secciones, crear una sección genérica
+      if (sections.length === 0) {
+        this.log(LogLevel.WARN, 'No se encontraron secciones numeradas, creando sección genérica');
+        sections.push(this.createGenericSection(document, content));
+      }
+
+      return sections;
+    } catch (error) {
+      this.log(LogLevel.ERROR, 'Error al extraer secciones numeradas', { error });
+      return [this.createGenericSection(document, document.content)];
+    }
+  }
+  
+  /**
+   * Extrae secciones jerárquicas (Capítulos, Disposiciones, etc.)
+   */
+  private static extractHierarchicalSections(document: StoredDocument, config: ProcessingConfig): DocumentSection[] {
+    const content = document.content;
+    
+    try {
+      const sections: DocumentSection[] = [];
+      let order = 0;
+
+      // Obtener solo los niveles seleccionados
+      const selectedLevels = config.options.hierarchical?.levels || [];
+      
+      // Si no hay niveles seleccionados, usar todos por defecto
+      const levels = selectedLevels.length > 0 ? selectedLevels : [
+        'CAPÍTULO',
+        'SECCIÓN',
+        'ARTÍCULO',
+        'Artículo',
+        'Art.',
+        'ART.',
+        'DISPOSICIÓN'
+      ];
+
+      this.log(LogLevel.INFO, 'Procesando niveles jerárquicos', { levels });
+      
+      // Debug: Buscar una muestra del contenido para verificar formato
+      const contentSample = content.substring(0, 2000);
+      const articleMatches = contentSample.match(/Artículo\s*\d+/gi);
+      this.log(LogLevel.DEBUG, 'Muestra de artículos en el contenido', { 
+        muestra: contentSample.substring(0, 500),
+        articulosEnMuestra: articleMatches 
+      });
+
+      // Crear patrón para detectar niveles (más flexible para artículos)
+      // Detecta: Artículo 66, ARTÍCULO 67, etc.
+      const articlePattern = /(?:Artículo|ART[IÍ]CULO)\s*\d+[.:]?/gmi;
+      // Crear patrón para otros niveles
+      const otherLevels = levels.filter(lvl => !['Artículo', 'ARTÍCULO', 'Art.', 'ART.'].includes(lvl));
+      const otherPattern = otherLevels.length > 0
+        ? new RegExp(`(?:${otherLevels.join('|')})\\s*\\d+[.:]?`, 'gmi')
+        : null;
+
+      // Encontrar todos los índices de inicio de sección
+      interface SectionStart {
+        index: number;
+        level: string;
+        title: string;
+      }
+      const sectionStarts: SectionStart[] = [];
+      let match;
+
+      // Buscar artículos
+      while ((match = articlePattern.exec(content)) !== null) {
+        sectionStarts.push({
+          index: match.index,
+          level: 'ARTICULO',
+          title: match[0].replace(/\*/g, '').trim()
+        });
+      }
+      // Buscar otros niveles
+      if (otherPattern) {
+        while ((match = otherPattern.exec(content)) !== null) {
+          sectionStarts.push({
+            index: match.index,
+            level: match[0].split(/\s/)[0].toUpperCase(),
+            title: match[0].replace(/\*/g, '')
+          });
+        }
+      }
+      // Ordenar por índice de aparición
+      sectionStarts.sort((a, b) => a.index - b.index);
+
+      // Logging detallado por tipo
+      const articleSections = sectionStarts.filter(s => s.level === 'ARTICULO');
+      const otherSections = sectionStarts.filter(s => s.level !== 'ARTICULO');
+      
+      this.log(LogLevel.INFO, `Análisis jerárquico completado`, {
+        totalSections: sectionStarts.length,
+        articulos: articleSections.length,
+        otrosTipos: otherSections.length,
+        articulosEncontrados: articleSections.map(s => s.title),
+        otrosTiposEncontrados: otherSections.map(s => ({ level: s.level, title: s.title }))
+      });
+
+      // Procesar secciones una por una
+      for (let i = 0; i < sectionStarts.length; i++) {
+        try {
+          const currentLevel = sectionStarts[i].level;
+          const startIndex = sectionStarts[i].index;
+          const endIndex = i < sectionStarts.length - 1 ? sectionStarts[i + 1].index : content.length;
+          const sectionContent = content.slice(startIndex, endIndex).trim();
+          if (sectionContent) {
+            sections.push({
+              id: `${document.id}-hierarchical-${order}`,
+              documentId: document.id,
+              title: sectionStarts[i].title.trim(),
+              content: sectionContent,
+              type: this.determineHierarchicalType(currentLevel),
+              order: order++,
+              processed: false,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            });
+          }
+        } catch (sectionError) {
+          this.log(LogLevel.ERROR, 'Error al procesar sección jerárquica individual', { 
+            sectionIndex: i, 
+            level: sectionStarts[i].level,
+            error: sectionError 
+          });
+          continue;
+        }
+      }
+
+      // Si no se encontraron secciones válidas, crear una sección genérica
+      if (sections.length === 0) {
+        this.log(LogLevel.WARN, 'No se encontraron secciones jerárquicas válidas, creando sección genérica');
+        sections.push(this.createGenericSection(document, content));
+      }
+
+      return sections;
+    } catch (error) {
+      this.log(LogLevel.ERROR, 'Error general al extraer secciones jerárquicas', { error });
+      return [this.createGenericSection(document, content)];
+    }
+  }
+
+  /**
+   * Extrae secciones por párrafos
+   */
+  private static extractParagraphSections(document: StoredDocument, config: ProcessingConfig): DocumentSection[] {
+    const sections: DocumentSection[] = [];
+    const content = document.content;
+    
+    // Dividir por párrafos
+    const paragraphs = content.split(/\n\s*\n/);
+    
+    const maxParagraphsPerSection = config.options.paragraphs?.maxParagraphsPerSection || 10;
+    let currentSection: string[] = [];
+    let currentLength = 0;
+    let order = 0;
+    
+    for (let i = 0; i < paragraphs.length; i++) {
+      const paragraph = paragraphs[i].trim();
+      if (!paragraph) continue;
+      
+      currentSection.push(paragraph);
+      currentLength += paragraph.length;
+      
+      // Crear nueva sección si alcanzamos el límite
+      if (currentSection.length >= maxParagraphsPerSection || 
+          currentLength >= (config.options.maxSectionLength || 5000) || 
+          i === paragraphs.length - 1) {
+        
+        const sectionContent = currentSection.join('\n\n');
+        
+        if (sectionContent.length >= (config.options.minSectionLength || 100)) {
+        sections.push({
+          id: `${document.id}-paragraph-${order}`,
+          documentId: document.id,
+            title: this.generateSectionTitle(sectionContent, order),
+          content: sectionContent,
+          type: SectionType.PARAGRAPH,
+            order: order++,
+          processed: false,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+        }
+        
+        currentSection = [];
+        currentLength = 0;
+      }
+    }
+    
+    // Si no se encontraron secciones válidas, crear una sección genérica
+    if (sections.length === 0) {
+      this.log(LogLevel.WARN, 'No se encontraron párrafos válidos, creando sección genérica');
+      sections.push(this.createGenericSection(document, content));
+    }
+    
+    return sections;
+  }
+
+  /**
+   * Extrae secciones usando patrones personalizados
+   */
+  private static extractCustomSections(document: StoredDocument, config: ProcessingConfig): DocumentSection[] {
+    const content = document.content;
+    
+    try {
+      const sections: DocumentSection[] = [];
+      let order = 0;
+
+      // Usar patrones personalizados o patrón por defecto
+      const patterns = config.options.custom?.patterns || ['^[\\w\\d]+\\.\\s'];
+      const flags = config.options.custom?.caseSensitive ? 'gm' : 'gmi';
+
+      // Procesar cada patrón
+      for (const patternStr of patterns) {
+        try {
+          const pattern = new RegExp(patternStr, flags);
+          
+          // Encontrar todos los índices de inicio de sección
+          const sectionStarts: number[] = [];
+          let match;
+
+          while ((match = pattern.exec(content)) !== null) {
+            sectionStarts.push(match.index);
+          }
+
+          // Procesar secciones una por una
+          for (let i = 0; i < sectionStarts.length; i++) {
+            try {
+              const startIndex = sectionStarts[i];
+              const endIndex = i < sectionStarts.length - 1 ? sectionStarts[i + 1] : content.length;
+              
+              // Extraer contenido de la sección
+              const sectionContent = content.slice(startIndex, endIndex);
+              const titleMatch = sectionContent.match(pattern);
+
+              if (titleMatch) {
+      sections.push({
+                  id: `${document.id}-custom-${order}`,
+                  documentId: document.id,
+                  title: titleMatch[0].trim(),
+                  content: sectionContent.trim(),
+                  type: SectionType.GENERIC,
+                  order: order++,
+                  processed: false,
+                  createdAt: new Date(),
+                  updatedAt: new Date()
+                });
+              }
+            } catch (sectionError) {
+              this.log(LogLevel.ERROR, 'Error al procesar sección individual personalizada', { 
+                sectionIndex: i, 
+                pattern: patternStr,
+                error: sectionError 
+              });
+              // Continuar con la siguiente sección en caso de error
+              continue;
+            }
+          }
+        } catch (patternError) {
+          this.log(LogLevel.ERROR, 'Error al procesar patrón personalizado', { 
+            pattern: patternStr,
+            error: patternError 
+          });
+          // Continuar con el siguiente patrón en caso de error
+          continue;
+        }
+      }
+
+      // Si no se encontraron secciones válidas, crear una sección genérica
+      if (sections.length === 0) {
+        this.log(LogLevel.WARN, 'No se encontraron secciones personalizadas válidas, creando sección genérica');
+        sections.push(this.createGenericSection(document, content));
+      }
+
+      return sections;
+    } catch (error) {
+      this.log(LogLevel.ERROR, 'Error general al extraer secciones personalizadas', { error });
+      return [this.createGenericSection(document, content)];
+    }
+  }
+
+  /**
+   * Extrae secciones genéricas del documento
+   */
+  private static extractGenericSections(document: StoredDocument, config: ProcessingConfig): DocumentSection[] {
+    try {
+      const sections: DocumentSection[] = [];
+      const content = document.content;
+      let order = 0;
+
+      // Patrón para detectar secciones principales (Primero., Segundo., etc.)
+      const mainPattern = /^(Primero|Segundo|Tercero|Cuarto|Quinto|Sexto|Séptimo|Octavo|Noveno|Décimo|Undécimo|Duodécimo|Decimotercero|Decimocuarto|Decimoquinto|Decimosexto|Decimoséptimo|Decimoctavo|Decimonoveno|Vigésimo|Vigésimo primero|Vigésimo segundo|Vigésimo tercero|Vigésimo cuarto|Vigésimo quinto|Vigésimo sexto|Vigésimo séptimo|Vigésimo octavo|Vigésimo noveno|Trigésimo|Trigésimo primero|Trigésimo segundo|Trigésimo tercero|Trigésimo cuarto|Trigésimo quinto|Trigésimo sexto|Trigésimo séptimo|Trigésimo octavo|Trigésimo noveno|Cuadragésimo|Cuadragésimo primero|Cuadragésimo segundo|Cuadragésimo tercero|Cuadragésimo cuarto|Cuadragésimo quinto|Cuadragésimo sexto|Cuadragésimo séptimo|Cuadragésimo octavo|Cuadragésimo noveno|Quincuagésimo|Quincuagésimo primero|Quincuagésimo segundo|Quincuagésimo tercero|Quincuagésimo cuarto|Quincuagésimo quinto|Quincuagésimo sexto|Quincuagésimo séptimo|Quincuagésimo octavo|Quincuagésimo noveno|Sexagésimo|Sexagésimo primero|Sexagésimo segundo|Sexagésimo tercero|Sexagésimo cuarto|Sexagésimo quinto|Sexagésimo sexto|Sexagésimo séptimo|Sexagésimo octavo|Sexagésimo noveno|Septuagésimo|Septuagésimo primero|Septuagésimo segundo|Septuagésimo tercero|Septuagésimo cuarto|Septuagésimo quinto|Septuagésimo sexto|Septuagésimo séptimo|Septuagésimo octavo|Septuagésimo noveno|Octogésimo|Octogésimo primero|Octogésimo segundo|Octogésimo tercero|Octogésimo cuarto|Octogésimo quinto|Octogésimo sexto|Octogésimo séptimo|Octogésimo octavo|Octogésimo noveno|Nonagésimo)\./gm;
+      
+      // Encontrar todas las secciones principales
+      const mainSections: { index: number, title: string }[] = [];
+      let mainMatch;
+      
+      while ((mainMatch = mainPattern.exec(content)) !== null) {
+        mainSections.push({
+          index: mainMatch.index,
+          title: mainMatch[0]
+        });
+      }
+
+      // Si hay secciones principales, procesarlas como unidades completas
+      if (mainSections.length > 0) {
+        for (let i = 0; i < mainSections.length; i++) {
+          const startIndex = mainSections[i].index;
+          const endIndex = i < mainSections.length - 1 ? mainSections[i + 1].index : content.length;
+
+          try {
+            const sectionContent = content.slice(startIndex, endIndex);
+            
+            sections.push({
+              id: `${document.id}-main-section-${order}`,
+              documentId: document.id,
+              title: mainSections[i].title.trim(),
+              content: sectionContent.trim(),
+              type: SectionType.MAIN_SECTION,  // Usar el nuevo tipo
+              order: order++,
+              processed: false,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            });
+          } catch (sectionError) {
+            this.log(LogLevel.ERROR, 'Error al procesar sección principal', { 
+              sectionIndex: i, 
+              error: sectionError 
+            });
+            continue;
+          }
+        }
+      } else {
+        // Si no hay secciones principales, procesar por párrafos
+        const paragraphs = content.split(/\n\s*\n/);
+        let currentSection: string[] = [];
+        let paragraphCount = 0;
+        const maxParagraphsPerSection = config.options.generic?.maxParagraphsPerSection || 10;
+
+        for (const paragraph of paragraphs) {
+          const trimmedParagraph = paragraph.trim();
+          if (!trimmedParagraph) continue;
+
+          currentSection.push(trimmedParagraph);
+          paragraphCount++;
+
+          if (paragraphCount >= maxParagraphsPerSection) {
+            if (currentSection.length > 0) {
+              const sectionContent = currentSection.join('\n\n');
+              sections.push({
+                id: `${document.id}-section-${order}`,
+                documentId: document.id,
+                title: `Sección ${order + 1}`,
+                content: sectionContent,
+                type: SectionType.SECTION,
+                order: order++,
+                processed: false,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              });
+            }
+            currentSection = [];
+            paragraphCount = 0;
+          }
+        }
+
+        // Agregar la última sección si quedaron párrafos
+        if (currentSection.length > 0) {
+          const sectionContent = currentSection.join('\n\n');
+          sections.push({
+            id: `${document.id}-section-${order}`,
+            documentId: document.id,
+            title: `Sección ${order + 1}`,
+            content: sectionContent,
+            type: SectionType.SECTION,
+            order: order++,
+            processed: false,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+        }
+      }
+
+      // Si no se encontraron secciones, crear una sección genérica
+      if (sections.length === 0) {
+        this.log(LogLevel.WARN, 'No se encontraron secciones, creando sección genérica');
+        sections.push(this.createGenericSection(document, content));
+      }
+
+      return sections;
+    } catch (error) {
+      this.log(LogLevel.ERROR, 'Error al extraer secciones genéricas', { error });
+      return [this.createGenericSection(document, document.content)];
+    }
+  }
+
+  /**
+   * Determina el tipo de sección basado en el nivel jerárquico
+   */
+  private static determineHierarchicalType(level: string): SectionType {
+    switch (level.toUpperCase()) {
+      case 'CAPÍTULO':
+        return SectionType.CHAPTER;
+      case 'SECCIÓN':
+        return SectionType.SECTION;
+      case 'ARTÍCULO':
+        return SectionType.ARTICLE;
+      default:
+        return SectionType.GENERIC;
+    }
+  }
+
+  /**
+   * Crea una sección genérica para todo el contenido
+   */
+  private static createGenericSection(document: StoredDocument, content: string): DocumentSection {
+    return {
+        id: `${document.id}-generic-0`,
+        documentId: document.id,
+        title: document.title || 'Documento completo',
+        content: content,
+        type: SectionType.GENERIC,
+        order: 0,
+        processed: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+    };
+  }
+  
+  /**
+   * Genera un título para una sección basado en su contenido
+   */
+  private static generateSectionTitle(content: string, sectionNumber: number): string {
+    // Intentar extraer la primera línea o frase como título
+    const firstLine = content.split('\n')[0].trim();
+    
+    if (firstLine.length <= 100) {
+      return firstLine;
+    }
+    
+    // Si la primera línea es muy larga, extraer la primera frase
+    const firstSentenceMatch = content.match(/^[^.!?]+[.!?]/);
+    if (firstSentenceMatch && firstSentenceMatch[0].length <= 100) {
+      return firstSentenceMatch[0].trim();
+    }
+    
+    // Si todo falla, usar un título genérico
+    return `Sección ${sectionNumber + 1}`;
+  }
+
+  /**
+   * Obtiene la configuración de procesamiento para un documento
+   */
+  static getProcessingConfig(documentId: string): ProcessingConfig {
+    try {
+      const configJson = localStorage.getItem(`${this.PROCESSING_CONFIG_KEY}_${documentId}`);
+      if (!configJson) return this.DEFAULT_CONFIG;
+      return JSON.parse(configJson);
+    } catch (error) {
+      this.log(LogLevel.WARN, 'Error al obtener configuración, usando valores por defecto', { error });
+      return this.DEFAULT_CONFIG;
+    }
+  }
+
+  /**
+   * Guarda la configuración de procesamiento para un documento
+   */
+  static saveProcessingConfig(documentId: string, config: ProcessingConfig): void {
+    try {
+      localStorage.setItem(
+        `${this.PROCESSING_CONFIG_KEY}_${documentId}`,
+        JSON.stringify(config)
+      );
+      this.log(LogLevel.INFO, 'Configuración guardada', { documentId });
+    } catch (error) {
+      this.log(LogLevel.ERROR, 'Error al guardar configuración', { error });
+      throw new Error('No se pudo guardar la configuración');
+    }
+  }
+
+  /**
+   * Elimina la configuración de procesamiento de un documento
+   */
+  static deleteProcessingConfig(documentId: string): void {
+    localStorage.removeItem(`${this.PROCESSING_CONFIG_KEY}_${documentId}`);
+    this.log(LogLevel.INFO, 'Configuración eliminada', { documentId });
+  }
+
+  /**
+   * Obtiene un documento almacenado por su ID
+   */
+  private static async getDocument(documentId: string): Promise<StoredDocument | null> {
+    try {
+      // Delegar la obtención del documento a StorageService
+      const document = await StorageService.getDocumentById(documentId);
+      // Ensure the returned document matches the StoredDocument structure or null
+      return document ? { 
+        id: document.id,
+        title: document.title,
+        content: document.content,
+        createdAt: new Date(document.createdAt),
+        updatedAt: new Date(document.updatedAt),
+        type: document.type, // Assuming type is part of StoredDocument as used elsewhere
+        tokens: document.tokens, // Assuming tokens is part of StoredDocument
+        processingTime: document.processingTime // Assuming processingTime is part of StoredDocument
+      } as StoredDocument : null; // Cast to StoredDocument for type consistency
+    } catch (error) {
+      this.log(LogLevel.ERROR, 'Error al obtener documento de StorageService', { error, documentId });
+      return null;
+    }
+  }
+
+  /**
+   * Guarda un documento en el almacenamiento
+   */
+  private static async saveDocument(document: StoredDocument): Promise<void> {
+    try {
+      // Delegar el guardado del documento a StorageService
+      await StorageService.saveDocument(document);
+      this.log(LogLevel.INFO, 'Documento guardado correctamente', { id: document.id });
+    } catch (error) {
+      this.log(LogLevel.ERROR, 'Error al guardar documento', { error });
+      throw new Error('Error al guardar documento en StorageService');
+    }
+  }
+
+  /**
+   * Extrae secciones de documentos militares con estructura específica
+   * Maneja: CAPÍTULO X, secciones numeradas (1., 2., 3.), subsecciones (3.1.), párrafos numerados
+   */
+  private static extractMilitaryDoctrineSections(document: StoredDocument, config: ProcessingConfig): DocumentSection[] {
+    try {
+      const sections: DocumentSection[] = [];
+      const content = document.content;
+      let order = 0;
+
+      this.log(LogLevel.INFO, 'Procesando documento de doctrina militar');
+
+      // Patrones específicos para documentos militares
+      const chapterPattern = /^CAPÍTULO\s+([IVX]+|\d+)\s+[A-ZÁÑÜ\s]+$/gm;
+      const mainSectionPattern = /^\d+\.\s+[A-ZÁÑÜ\s]+$/gm;
+      const subSectionPattern = /^\d+\.\d+\.\s+[A-Za-záñüÁÑÜ\s]+$/gm;
+      
+      // ✅ ACTUALIZADO: Patrón completo para artículos ordinales españoles (Primero hasta Nonagésimo)
+      const ordinalArticlePattern = /^(Primero|Segundo|Tercero|Cuarto|Quinto|Sexto|Séptimo|Octavo|Noveno|Décimo|Undécimo|Duodécimo|Decimotercero|Decimocuarto|Decimoquinto|Decimosexto|Decimoséptimo|Decimoctavo|Decimonoveno|Vigésimo|Vigésimo primero|Vigésimo segundo|Vigésimo tercero|Vigésimo cuarto|Vigésimo quinto|Vigésimo sexto|Vigésimo séptimo|Vigésimo octavo|Vigésimo noveno|Trigésimo|Trigésimo primero|Trigésimo segundo|Trigésimo tercero|Trigésimo cuarto|Trigésimo quinto|Trigésimo sexto|Trigésimo séptimo|Trigésimo octavo|Trigésimo noveno|Cuadragésimo|Cuadragésimo primero|Cuadragésimo segundo|Cuadragésimo tercero|Cuadragésimo cuarto|Cuadragésimo quinto|Cuadragésimo sexto|Cuadragésimo séptimo|Cuadragésimo octavo|Cuadragésimo noveno|Quincuagésimo|Quincuagésimo primero|Quincuagésimo segundo|Quincuagésimo tercero|Quincuagésimo cuarto|Quincuagésimo quinto|Quincuagésimo sexto|Quincuagésimo séptimo|Quincuagésimo octavo|Quincuagésimo noveno|Sexagésimo|Sexagésimo primero|Sexagésimo segundo|Sexagésimo tercero|Sexagésimo cuarto|Sexagésimo quinto|Sexagésimo sexto|Sexagésimo séptimo|Sexagésimo octavo|Sexagésimo noveno|Septuagésimo|Septuagésimo primero|Septuagésimo segundo|Septuagésimo tercero|Septuagésimo cuarto|Septuagésimo quinto|Septuagésimo sexto|Septuagésimo séptimo|Septuagésimo octavo|Septuagésimo noveno|Octogésimo|Octogésimo primero|Octogésimo segundo|Octogésimo tercero|Octogésimo cuarto|Octogésimo quinto|Octogésimo sexto|Octogésimo séptimo|Octogésimo octavo|Octogésimo noveno|Nonagésimo)\.\s+(.+?)$/gm;
+      
+      // Encontrar todas las divisiones principales
+      const allMatches: { index: number, title: string, type: SectionType, level: number }[] = [];
+      
+      // Buscar capítulos
+      let match;
+      while ((match = chapterPattern.exec(content)) !== null) {
+        allMatches.push({
+          index: match.index,
+          title: match[0].trim(),
+          type: SectionType.CHAPTER,
+          level: 1
+        });
+      }
+      
+      // Buscar secciones principales (1., 2., 3.)
+      chapterPattern.lastIndex = 0; // Reset regex
+      while ((match = mainSectionPattern.exec(content)) !== null) {
+        allMatches.push({
+          index: match.index,
+          title: match[0].trim(),
+          type: SectionType.MAIN_SECTION,
+          level: 2
+        });
+      }
+      
+      // Buscar subsecciones (3.1., 3.2., etc.)
+      mainSectionPattern.lastIndex = 0; // Reset regex
+      while ((match = subSectionPattern.exec(content)) !== null) {
+        allMatches.push({
+          index: match.index,
+          title: match[0].trim(),
+          type: SectionType.SECTION,
+          level: 3
+        });
+      }
+      
+      // ✅ NUEVO: Buscar artículos ordinales (Primero., Segundo., etc.)
+      subSectionPattern.lastIndex = 0; // Reset regex
+      while ((match = ordinalArticlePattern.exec(content)) !== null) {
+        allMatches.push({
+          index: match.index,
+          title: match[0].trim(),
+          type: SectionType.ARTICLE,
+          level: 2
+        });
+      }
+      
+      // Ordenar por índice de aparición
+      allMatches.sort((a, b) => a.index - b.index);
+      
+      this.log(LogLevel.INFO, `Encontrados ${allMatches.length} divisiones principales`, { 
+        chapters: allMatches.filter(m => m.type === SectionType.CHAPTER).length,
+        mainSections: allMatches.filter(m => m.type === SectionType.MAIN_SECTION).length,
+        subSections: allMatches.filter(m => m.type === SectionType.SECTION).length,
+        articles: allMatches.filter(m => m.type === SectionType.ARTICLE).length
+      });
+
+      // Crear secciones basadas en las divisiones encontradas
+      for (let i = 0; i < allMatches.length; i++) {
+        const currentMatch = allMatches[i];
+        const nextMatch = i < allMatches.length - 1 ? allMatches[i + 1] : null;
+        
+        const startIndex = currentMatch.index;
+        const endIndex = nextMatch ? nextMatch.index : content.length;
+        
+        try {
+          const sectionContent = content.slice(startIndex, endIndex).trim();
+          
+          // Validar que la sección tenga contenido suficiente
+          if (sectionContent.length < (config.options.minSectionLength || 50)) {
+            this.log(LogLevel.WARN, `Sección muy corta omitida: ${currentMatch.title}`);
+            continue;
+          }
+          
+          sections.push({
+            id: `${document.id}-military-${order}`,
+            documentId: document.id,
+            title: currentMatch.title,
+            content: sectionContent,
+            type: currentMatch.type,
+            order: order++,
+            processed: false,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+          
+          this.log(LogLevel.DEBUG, `Sección creada: ${currentMatch.title}`, {
+            type: currentMatch.type,
+            length: sectionContent.length
+          });
+          
+        } catch (sectionError) {
+          this.log(LogLevel.ERROR, `Error al procesar división: ${currentMatch.title}`, { error: sectionError });
+          continue;
+        }
+      }
+
+      // Si no se encontraron divisiones principales, procesar por párrafos numerados secuenciales
+      if (sections.length === 0) {
+        this.log(LogLevel.WARN, 'No se encontraron divisiones principales, procesando por párrafos numerados');
+        return this.extractNumberedParagraphs(document, config);
+      }
+
+      this.log(LogLevel.INFO, `Extracción de doctrina militar completada: ${sections.length} secciones`);
+      return sections;
+      
+    } catch (error) {
+      this.log(LogLevel.ERROR, 'Error al extraer secciones de doctrina militar', { error });
+      return [this.createGenericSection(document, document.content)];
+    }
+  }
+
+  /**
+   * Extrae secciones basándose en párrafos numerados secuencialmente
+   * Para casos donde el documento usa numeración continua (1, 2, 3, ..., 147, 148, etc.)
+   */
+  private static extractNumberedParagraphs(document: StoredDocument, config: ProcessingConfig): DocumentSection[] {
+    try {
+      const sections: DocumentSection[] = [];
+      const content = document.content;
+      let order = 0;
+
+      // Patrón para detectar párrafos numerados al inicio de línea
+      const paragraphPattern = /^\s*(\d+)\s+/gm;
+      const paragraphs: { number: number, index: number }[] = [];
+      
+      let match;
+      while ((match = paragraphPattern.exec(content)) !== null) {
+        const paragraphNumber = parseInt(match[1]);
+        paragraphs.push({
+          number: paragraphNumber,
+          index: match.index
+        });
+      }
+      
+      // Agrupar párrafos en secciones lógicas
+      const sectionSize = config.options.paragraphs?.maxParagraphsPerSection || 10;
+      
+      for (let i = 0; i < paragraphs.length; i += sectionSize) {
+        const startParagraph = paragraphs[i];
+        const endParagraph = paragraphs[Math.min(i + sectionSize - 1, paragraphs.length - 1)];
+        const nextSection = paragraphs[Math.min(i + sectionSize, paragraphs.length - 1)];
+        
+        const startIndex = startParagraph.index;
+        const endIndex = i + sectionSize < paragraphs.length ? nextSection.index : content.length;
+        
+        const sectionContent = content.slice(startIndex, endIndex).trim();
+        
+        if (sectionContent.length >= (config.options.minSectionLength || 100)) {
+          sections.push({
+            id: `${document.id}-paragraphs-${order}`,
+            documentId: document.id,
+            title: `Párrafos ${startParagraph.number}-${endParagraph.number}`,
+            content: sectionContent,
+            type: SectionType.PARAGRAPH,
+            order: order++,
+            processed: false,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+        }
+      }
+      
+      return sections;
+      
+    } catch (error) {
+      this.log(LogLevel.ERROR, 'Error al extraer párrafos numerados', { error });
+      return [this.createGenericSection(document, document.content)];
+    }
+  }
+
+  /**
+   * Detecta si un documento es de doctrina militar basándose en su contenido
+   */
+  static detectMilitaryDoctrine(content: string): boolean {
+    // Indicadores de documentos de doctrina militar
+    const militaryIndicators = [
+      /FUERZAS\s+ARMADAS/gi,
+      /CAPÍTULO\s+\d+/gi,
+      /DOCTRINA/gi,
+      /DEFENSA/gi,
+      /MILITAR/gi,
+      /ORGANIZACIÓN\s+DE\s+LAS\s+FAS/gi,
+      /PLANEAMIENTO\s+DE\s+LA\s+DEFENSA/gi,
+      /CAPACIDADES\s+MILITARES/gi,
+      /TRANSFORMACIÓN\s+MILITAR/gi,
+      // ✅ NUEVOS INDICADORES PARA DOCUMENTOS DE ORGANIZACIÓN MILITAR
+      /ORGANIZACIÓN\s+DEL\s+EAYE/gi,
+      /ESTADO\s+MAYOR/gi,
+      /EJÉRCITO/gi,
+      /ARMADA/gi,
+      /AIRE/gi,
+      /MANDO/gi,
+      /JEFE\s+DE\s+ESTADO\s+MAYOR/gi,
+      /MINISTERIO\s+DE\s+DEFENSA/gi,
+      /ESTRUCTURA\s+ORGÁNICA/gi,
+      /ORGANIGRAMA/gi,
+      /DEPENDENCIA\s+ORGÁNICA/gi,
+      /UNIDADES\s+MILITARES/gi,
+      // ✅ NUEVOS INDICADORES PARA INSTRUCCIONES MILITARES
+      /INSTRUCCIÓN.*\d+-\d+/gi,
+      /JEFE\s+DE\s+ESTADO\s+MAYOR.*EJÉRCITO\s+DEL\s+AIRE/gi,
+      /EJÉRCITO\s+DEL\s+AIRE\s+Y\s+DEL\s+ESPACIO/gi,
+      /(Primero|Segundo|Tercero|Cuarto|Quinto)\.\s+[A-ZÁÑÜ]/gi,
+      // 🔥 INDICADORES ESPECÍFICOS PARA ORGANIZACIÓN MILITAR ESPAÑOLA
+      /ORDEN\s+DEF.*\d+\/\d+/gi,
+      /ORGANIZACIÓN.*EJÉRCITO\s+DE\s+TIERRA/gi,
+      /EJÉRCITO\s+DE\s+TIERRA/gi,
+      /(Vigésimo|Trigésimo|Cuadragésimo|Quincuagésimo|Sexagésimo|Septuagésimo|Octogésimo|Nonagésimo)/gi,
+      /CUARTEL\s+GENERAL/gi,
+      /DIVISIÓN.*CASTILLEJOS/gi,
+      /DIVISIÓN.*SAN\s+MARCIAL/gi,
+      /BRIGADA.*PARACAIDISTAS/gi,
+      /MANDO\s+DE\s+OPERACIONES\s+ESPECIALES/gi
+    ];
+
+    let indicatorCount = 0;
+    const foundIndicators: string[] = [];
+    
+    for (const indicator of militaryIndicators) {
+      if (indicator.test(content)) {
+        indicatorCount++;
+        foundIndicators.push(indicator.source);
+      }
+    }
+
+    // ✅ MEJORADO: Detección específica para documentos de organización militar española
+    const hasEAYE = /EAYE|ESTADO\s+MAYOR\s+DEL\s+AIRE\s+Y\s+DEL\s+ESPACIO/gi.test(content);
+    const hasOrganization = /ORGANIZACIÓN/gi.test(content);
+    const hasMilitary = /MILITAR|EJÉRCITO|ARMADA|AIRE|DEFENSA/gi.test(content);
+    const hasInstruction = /INSTRUCCIÓN.*\d+-\d+/gi.test(content) && /JEFE\s+DE\s+ESTADO\s+MAYOR.*EJÉRCITO\s+DEL\s+AIRE/gi.test(content);
+    const hasOrdinalArticles = /(Primero|Segundo|Tercero|Cuarto|Quinto)\.\s+[A-ZÁÑÜ]/gi.test(content);
+    
+    // 🔥 NUEVA DETECCIÓN ESPECÍFICA PARA ORGANIZACIÓN ET
+    const hasOrdenDEF = /ORDEN\s+DEF.*\d+\/\d+/gi.test(content);
+    const hasEjercitoDeTierra = /EJÉRCITO\s+DE\s+TIERRA/gi.test(content);
+    const hasOrdinalSpanish = /(Vigésimo|Trigésimo|Cuadragésimo|Quincuagésimo|Sexagésimo|Septuagésimo|Octogésimo|Nonagésimo)/gi.test(content);
+    const hasMilitaryUnits = /CUARTEL\s+GENERAL|DIVISIÓN|BRIGADA|MANDO\s+DE/gi.test(content);
+    
+    // Si es documento de organización ET, instrucción militar, o tiene indicadores de organización militar, detectar como militar
+    const isDetected = hasEAYE || hasInstruction || (hasOrganization && hasMilitary) || (hasOrdinalArticles && hasMilitary) || 
+                      (hasOrdenDEF && hasEjercitoDeTierra) || (hasOrdinalSpanish && hasMilitaryUnits) || indicatorCount >= 2;
+    
+    this.log(LogLevel.INFO, `Detección militar mejorada:`, {
+      indicadores: indicatorCount,
+      tieneEAYE: hasEAYE,
+      tieneOrganizacion: hasOrganization,
+      tieneMilitar: hasMilitary,
+      tieneInstruccion: hasInstruction,
+      tieneArticulosOrdinales: hasOrdinalArticles,
+      // 🔥 NUEVOS INDICADORES
+      tieneOrdenDEF: hasOrdenDEF,
+      tieneEjercitoDeTierra: hasEjercitoDeTierra,
+      tieneOrdinalEspanol: hasOrdinalSpanish,
+      tieneUnidadesMilitares: hasMilitaryUnits,
+      resultado: isDetected ? 'DETECTADO' : 'NO DETECTADO',
+      indicadoresEncontrados: foundIndicators.slice(0, 5) // Mostrar solo los primeros 5
+    });
+
+    return isDetected;
+  }
+
+  /**
+   * Configura automáticamente el procesamiento para un documento de doctrina militar
+   */
+  static setupMilitaryDoctrineProcessing(documentId: string): void {
+    this.log(LogLevel.INFO, `Configurando procesamiento de doctrina militar para documento: ${documentId}`);
+    this.saveProcessingConfig(documentId, this.MILITARY_DOCTRINE_CONFIG);
+  }
+
+  /**
+   * Procesa un documento detectando automáticamente si es PDC-01, militar general, o estándar
+   */
+  static async smartProcessDocument(document: StoredDocument): Promise<StoredDocument> {
+    this.log(LogLevel.INFO, 'Iniciando procesamiento inteligente del documento', { id: document.id });
+    
+    // ✅ DETECTAR Y GUARDAR CONFIGURACIÓN AUTOMÁTICAMENTE
+    let configApplied = false;
+    
+    // Detectar primero si es PDC-01 específico
+    if (this.detectPDC01Document(document.content)) {
+      this.log(LogLevel.INFO, 'Documento PDC-01 B detectado automáticamente - Aplicando configuración');
+      this.setupPDC01Processing(document.id);
+      configApplied = true;
+    }
+    // Si no es PDC-01, verificar si es militar general
+    else if (this.detectMilitaryDoctrine(document.content)) {
+      this.log(LogLevel.INFO, 'Documento de doctrina militar detectado automáticamente - Aplicando configuración');
+      this.setupMilitaryDoctrineProcessing(document.id);
+      configApplied = true;
+    }
+    
+    if (!configApplied) {
+      this.log(LogLevel.INFO, 'Documento estándar detectado - Manteniendo configuración por defecto');
+    }
+    
+    // Procesar con la configuración detectada o por defecto
+    return await this.updateDocument(document);
+  }
+
+  /**
+   * Lista de apartados específicos de PDC-01 B Doctrina para el empleo de las FAS
+   * Organizados por capítulos con numeración jerárquica
+   */
+  private static PDC_01_APARTADOS_JERARQUICOS = {
+    // CAPÍTULO 1 - ENTORNO ESTRATÉGICO
+    'CAPITULO_1': [
+      'ENTORNO GLOBAL DE SEGURIDAD',
+      'CONTEXTO DE COMPETICIÓN', 
+      'EL CONFLICTO',
+      'INSTRUMENTOS DE PODER',
+      'INTERESES NACIONALES',
+      'LA SEGURIDAD NACIONAL',
+      'LA DEFENSA NACIONAL',
+      'CONTRIBUCIONES DE LAS FAS A LA SEGURIDAD',
+      'LA CULTURA DE DEFENSA'
+    ],
+    
+    // CAPÍTULO 2 - FUERZAS ARMADAS  
+    'CAPITULO_2': [
+      'EMPLEO Y MISIONES DE LAS FUERZAS ARMADAS',
+      'PLANEAMIENTO DE LA DEFENSA',
+      'CAPACIDADES MILITARES DE LAS FUERZAS ARMADAS',
+      'TRANSFORMACIÓN MILITAR',
+      'ORGANIZACIÓN DE LAS FAS',
+      'FUERZA CONJUNTA'
+    ],
+    
+    // CAPÍTULO 3 - OPERACIONES
+    'CAPITULO_3': [
+      'OPERACIONES',
+      'EL ESPACIO DE LAS OPERACIONES', 
+      'EL ENTORNO OPERATIVO',
+      'LOS ADVERSARIOS',
+      'EL ESPECTRO DE LOS CONFLICTOS',
+      'EMPLEO DE LA FUERZA EN OPERACIONES',
+      'OPERACIONES MULTIDOMINIO'
+    ],
+    
+    // CAPÍTULO 6 - TÁCTICAS
+    'CAPITULO_6': [
+      'INTRODUCCIÓN',
+      'ACCIONES MILITARES TÁCTICAS',
+      'EL PLANEAMIENTO TÁCTICO DE LAS OPERACIONES',
+      'LA EJECUCIÓN TÁCTICA DE LAS OPERACIONES'
+    ],
+    
+    // CAPÍTULO 7 - MANDO Y CONTROL
+    'CAPITULO_7': [
+      'INTRODUCCIÓN',
+      'FUNDAMENTOS DEL MANDO Y CONTROL EN OPERACIONES', 
+      'ESTRUCTURAS DE MANDO Y CONTROL',
+      'MANDO Y CONTROL EN MDO',
+      'MANDO Y CONTROL EN OPERACIONES MULTINACIONALES'
+    ]
+  };
+
+  /**
+   * Extrae secciones específicas para documentos PDC-01 B con numeración jerárquica
+   */
+  static extractPDC01Sections(document: StoredDocument, config: ProcessingConfig): DocumentSection[] {
+    this.log(LogLevel.INFO, 'Procesando documento PDC-01 B con apartados específicos y numeración jerárquica');
+    
+    const content = document.content;
+    const apartados: DocumentSection[] = [];
+    let globalOrder = 1;
+    
+    // Procesar cada capítulo
+    for (const [capituloKey, apartadosCapitulo] of Object.entries(this.PDC_01_APARTADOS_JERARQUICOS)) {
+      let numeroSeccion = 1;
+      
+      this.log(LogLevel.DEBUG, `Procesando ${capituloKey} con ${apartadosCapitulo.length} apartados`);
+      
+      for (const apartadoTitle of apartadosCapitulo) {
+        // Buscar el apartado con múltiples patrones
+        const patterns = [
+          // Patrón con número al inicio: "1. ENTORNO GLOBAL DE SEGURIDAD"
+          new RegExp(`^\\s*${numeroSeccion}\\.?\\s*${apartadoTitle.replace(/\s+/g, '\\s+')}`, 'gmi'),
+          // Patrón sin número: "ENTORNO GLOBAL DE SEGURIDAD"
+          new RegExp(`^\\s*${apartadoTitle.replace(/\s+/g, '\\s+')}\\s*$`, 'gmi'),
+          // Patrón más flexible
+          new RegExp(`${apartadoTitle.replace(/\s+/g, '\\s*').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'gi'),
+          // Patrón en mayúsculas
+          new RegExp(apartadoTitle.toUpperCase().replace(/\s+/g, '\\s+'), 'gi')
+        ];
+        
+        let found = false;
+        let apartadoContent = '';
+        
+        for (let i = 0; i < patterns.length && !found; i++) {
+          const pattern = patterns[i];
+          // Reset regex state
+          pattern.lastIndex = 0;
+          const match = pattern.exec(content);
+          
+          if (match) {
+            this.log(LogLevel.DEBUG, `✅ Apartado encontrado: "${apartadoTitle}" con patrón ${i + 1}`);
+            
+            // Determinar dónde empieza y termina la sección
+            const startPos = match.index;
+            let endPos = content.length;
+            
+            // Buscar el siguiente apartado del mismo capítulo
+            const nextApartadoIndex = apartadosCapitulo.indexOf(apartadoTitle) + 1;
+            if (nextApartadoIndex < apartadosCapitulo.length) {
+              const nextApartado = apartadosCapitulo[nextApartadoIndex];
+              const nextPattern = new RegExp(`\\d*\\.?\\s*${nextApartado.replace(/\s+/g, '\\s+')}`, 'gi');
+              const nextMatch = nextPattern.exec(content.substring(startPos + match[0].length));
+              if (nextMatch) {
+                endPos = startPos + match[0].length + nextMatch.index;
+              }
+            } else {
+              // Si es el último apartado del capítulo, buscar el siguiente capítulo
+              const nextCapituloPatterns = [
+                /CAPÍTULO\s+\d+/gi,
+                /^[IV]+\./gmi, // Números romanos
+                /^\d+\.\s*[A-ZÁÑÜ]/gmi // Siguiente apartado numerado
+              ];
+              
+              for (const nextCapPattern of nextCapituloPatterns) {
+                nextCapPattern.lastIndex = 0;
+                const nextCapMatch = nextCapPattern.exec(content.substring(startPos + match[0].length));
+                if (nextCapMatch) {
+                  endPos = Math.min(endPos, startPos + match[0].length + nextCapMatch.index);
+                }
+              }
+            }
+            
+            apartadoContent = content.substring(startPos, endPos).trim();
+            found = true;
+          }
+        }
+        
+        if (found && apartadoContent.length >= (config.options?.pdc01Doctrine?.minSectionLength || 200)) {
+          // Crear título con numeración jerárquica
+          const tituloConNumero = `${numeroSeccion}. ${apartadoTitle}`;
+          
+          apartados.push({
+            id: `${document.id}-pdc01-${globalOrder}`,
+            documentId: document.id,
+            title: tituloConNumero,
+            content: apartadoContent,
+            type: SectionType.MAIN_SECTION,
+            order: globalOrder,
+            processed: false,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+          
+          this.log(LogLevel.DEBUG, `Apartado agregado: "${tituloConNumero}" con ${apartadoContent.length} caracteres`);
+          globalOrder++;
+        } else if (found) {
+          this.log(LogLevel.DEBUG, `Apartado "${apartadoTitle}" muy corto: ${apartadoContent.length} caracteres`);
+        } else {
+          this.log(LogLevel.DEBUG, `❌ Apartado NO encontrado: "${apartadoTitle}"`);
+        }
+        
+        numeroSeccion++;
+      }
+      
+      // Reset numeración para el siguiente capítulo
+      numeroSeccion = 1;
+    }
+    
+    this.log(LogLevel.INFO, `Encontrados ${apartados.length} apartados específicos PDC-01 con numeración jerárquica`);
+    
+    // Si no encuentra apartados específicos, intentar método militar general
+    if (apartados.length === 0) {
+      this.log(LogLevel.WARN, 'No se encontraron apartados específicos de PDC-01, usando método militar general');
+      return this.extractMilitaryDoctrineSections(document, config);
+    }
+    
+    return apartados;
+  }
+
+  /**
+   * Detecta si un documento es específicamente PDC-01 B Doctrina para el empleo de las FAS
+   * MEJORADO: Más flexible y preciso
+   */
+  static detectPDC01Document(content: string): boolean {
+    // Indicadores específicos de PDC-01 (más flexibles y específicos)
+    const pdc01Indicators = [
+      /PDC[.\-\s]*01/gi,
+      /Doctrina\s+para\s+el\s+empleo\s+de\s+las\s+FAS/gi,
+      /ENTORNO\s+GLOBAL\s+DE\s+SEGURIDAD/gi,
+      /CONTEXTO\s+DE\s+COMPETICIÓN/gi,
+      /EMPLEO\s+Y\s+MISIONES\s+DE\s+LAS\s+FUERZAS\s+ARMADAS/gi,
+      /CAPACIDADES\s+MILITARES\s+DE\s+LAS\s+FUERZAS\s+ARMADAS/gi,
+      /OPERACIONES\s+MULTIDOMINIO/gi,
+      /MULTI[.\-\s]*DOMAIN\s+OPERATIONS/gi,
+      /INSTRUMENTOS\s+DE\s+PODER/gi,
+      /LA\s+SEGURIDAD\s+NACIONAL/gi,
+      /LA\s+DEFENSA\s+NACIONAL/gi,
+      /CONTRIBUCIONES\s+DE\s+LAS\s+FAS/gi,
+      /FUNDAMENTOS\s+DEL\s+MANDO\s+Y\s+CONTROL/gi,
+      /ESTRUCTURAS\s+DE\s+MANDO\s+Y\s+CONTROL/gi
+    ];
+
+    let indicatorCount = 0;
+    const foundIndicators: string[] = [];
+    
+    for (const indicator of pdc01Indicators) {
+      if (indicator.test(content)) {
+        indicatorCount++;
+        foundIndicators.push(indicator.source);
+        this.log(LogLevel.DEBUG, `PDC-01 indicador encontrado: ${indicator.source}`);
+      }
+    }
+
+    // ✅ MEJORADO: Reducir aún más el umbral y agregar verificación específica
+    const hasSpecificTitle = /PDC[.\-\s]*01.*Doctrina/gi.test(content);
+    const hasKeyApartados = foundIndicators.length >= 3;
+    
+    const isDetected = hasSpecificTitle || indicatorCount >= 2;
+    
+    this.log(LogLevel.INFO, `PDC-01 detección mejorada:`, {
+      indicadores: indicatorCount,
+      tituloEspecifico: hasSpecificTitle,
+      apartadosClave: hasKeyApartados,
+      resultado: isDetected ? 'DETECTADO' : 'NO DETECTADO',
+      indicadoresEncontrados: foundIndicators
+    });
+    
+    return isDetected;
+  }
+
+  /**
+   * Configura automáticamente el procesamiento para un documento PDC-01
+   */
+  static setupPDC01Processing(documentId: string): void {
+    this.log(LogLevel.INFO, `Configurando procesamiento PDC-01 para documento: ${documentId}`);
+    this.saveProcessingConfig(documentId, this.PDC_01_CONFIG);
+  }
+}

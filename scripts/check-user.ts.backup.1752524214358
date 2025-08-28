@@ -1,0 +1,102 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function checkUser(username: string) {
+  try {
+    console.log(`🔍 Buscando usuario: ${username}`);
+    console.log('===============================');
+    
+    // Buscar por username
+    const userByUsername = await prisma.telegramUser.findMany({
+      where: {
+        username: {
+          contains: username,
+          mode: 'insensitive'
+        }
+      }
+    });
+    
+    // Buscar por firstName que contenga Carlos
+    const userByName = await prisma.telegramUser.findMany({
+      where: {
+        firstName: {
+          contains: 'Carlos',
+          mode: 'insensitive'
+        }
+      }
+    });
+    
+    // Mostrar todos los usuarios para comparar
+    const allUsers = await prisma.telegramUser.findMany({
+      orderBy: { totalPoints: 'desc' },
+      select: {
+        id: true,
+        telegramUserId: true,
+        username: true,
+        firstName: true,
+        lastName: true,
+        totalPoints: true,
+        level: true,
+        joinedAt: true,
+        responses: {
+          select: {
+            id: true,
+            answeredAt: true
+          }
+        }
+      }
+    });
+    
+    console.log('\n📋 TODOS LOS USUARIOS REGISTRADOS:');
+    console.log('==================================');
+    allUsers.forEach((user, index) => {
+      const name = `${user.firstName} ${user.lastName || ''}`.trim();
+      console.log(`${index + 1}. ${name}`);
+      console.log(`   📧 Username: ${user.username || 'Sin username'}`);
+      console.log(`   🆔 Telegram ID: ${user.telegramUserId}`);
+      console.log(`   🏆 Puntos: ${user.totalPoints}`);
+      console.log(`   📊 Nivel: ${user.level}`);
+      console.log(`   💬 Respuestas: ${user.responses.length}`);
+      console.log(`   📅 Registrado: ${user.joinedAt.toLocaleString()}`);
+      
+      if (user.responses.length > 0) {
+        console.log(`   🕐 Última respuesta: ${user.responses[user.responses.length - 1].answeredAt.toLocaleString()}`);
+      }
+      console.log('');
+    });
+    
+    if (userByUsername.length > 0) {
+      console.log('\n✅ USUARIO ENCONTRADO POR USERNAME:');
+      console.log('===================================');
+      userByUsername.forEach(user => {
+        console.log(`Nombre: ${user.firstName} ${user.lastName || ''}`);
+        console.log(`Username: ${user.username}`);
+        console.log(`Telegram ID: ${user.telegramUserId}`);
+        console.log(`Puntos: ${user.totalPoints}`);
+      });
+    } else {
+      console.log(`\n❌ NO se encontró usuario con username que contenga: ${username}`);
+    }
+    
+    if (userByName.length > 0) {
+      console.log('\n✅ USUARIOS CON NOMBRE CARLOS:');
+      console.log('==============================');
+      userByName.forEach(user => {
+        console.log(`Nombre: ${user.firstName} ${user.lastName || ''}`);
+        console.log(`Username: ${user.username || 'Sin username'}`);
+        console.log(`Telegram ID: ${user.telegramUserId}`);
+        console.log(`Puntos: ${user.totalPoints}`);
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Obtener username del argumento o usar Carlos_esp por defecto
+const username = process.argv[2] || 'Carlos_esp';
+checkUser(username); 

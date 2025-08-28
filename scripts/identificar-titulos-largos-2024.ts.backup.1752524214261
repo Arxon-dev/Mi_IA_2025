@@ -1,0 +1,101 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function identificarTitulosLargos() {
+  console.log('🔍 IDENTIFICANDO TÍTULOS LARGOS EN EXAMEN 2024...\n');
+  
+  try {
+    const allQuestions = await (prisma as any).examenOficial2024.findMany({
+      orderBy: { questionNumber: 'asc' }
+    });
+    
+    console.log(`📋 Total de preguntas: ${allQuestions.length}\n`);
+    
+    const preguntasConTitulosLargos = [];
+    const patronesComunes = new Map();
+    
+    allQuestions.forEach((question: any) => {
+      // Calcular longitud total del poll (con headers)
+      const header = `🎯 SIMULACRO EXAMEN 2024 - Pregunta ${question.questionNumber}/100\n⏰ Tiempo restante: 2h 52m\n`;
+      const totalLength = header.length + question.question.length;
+      
+      // Identificar patrones comunes de títulos largos
+      const questionText = question.question;
+      
+      // Patrones a buscar
+      if (questionText.includes('Instrucción 14/2021, por la que se desarrolla la Organización del E.T.')) {
+        const key = 'Instrucción 14/2021 ET';
+        if (!patronesComunes.has(key)) patronesComunes.set(key, []);
+        patronesComunes.get(key)?.push(question.questionNumber);
+      }
+      
+      if (questionText.includes('Constitución Española. Del Gobierno y la Administración.')) {
+        const key = 'Constitución Española Gobierno';
+        if (!patronesComunes.has(key)) patronesComunes.set(key, []);
+        patronesComunes.get(key)?.push(question.questionNumber);
+      }
+      
+      if (questionText.includes('Real Decreto')) {
+        const key = 'Real Decreto';
+        if (!patronesComunes.has(key)) patronesComunes.set(key, []);
+        patronesComunes.get(key)?.push(question.questionNumber);
+      }
+      
+      if (questionText.includes('Ley Orgánica')) {
+        const key = 'Ley Orgánica';
+        if (!patronesComunes.has(key)) patronesComunes.set(key, []);
+        patronesComunes.get(key)?.push(question.questionNumber);
+      }
+      
+      // Si es muy largo (más de 300 caracteres total)
+      if (totalLength > 300) {
+        preguntasConTitulosLargos.push({
+          questionNumber: question.questionNumber,
+          totalLength,
+          questionLength: question.question.length,
+          questionPreview: question.question.substring(0, 100) + '...',
+          needsShortening: true
+        });
+      }
+    });
+    
+    console.log('📏 PREGUNTAS CON TÍTULOS LARGOS (>300 caracteres total):');
+    console.log('═══════════════════════════════════════════════════════');
+    
+    if (preguntasConTitulosLargos.length > 0) {
+      preguntasConTitulosLargos.forEach((p: any) => {
+        console.log(`\n❌ Pregunta ${p.questionNumber}: [${p.totalLength} chars total]`);
+        console.log(`   📝 "${p.questionPreview}"`);
+      });
+    } else {
+      console.log('✅ No se encontraron preguntas que excedan los 300 caracteres');
+    }
+    
+    console.log('\n\n🏷️ PATRONES COMUNES IDENTIFICADOS:');
+    console.log('═══════════════════════════════════════');
+    
+    patronesComunes.forEach((preguntas, patron) => {
+      console.log(`\n📋 "${patron}": ${preguntas.length} preguntas`);
+      console.log(`   Preguntas: ${preguntas.join(', ')}`);
+    });
+    
+    console.log('\n\n💡 SUGERENCIAS DE ABREVIACIÓN:');
+    console.log('═══════════════════════════════════');
+    console.log('🔸 "Instrucción 14/2021, por la que se desarrolla la Organización del E.T." → "INST. 14/2021, ET"');
+    console.log('🔸 "Constitución Española. Del Gobierno y la Administración." → "C.E. Gobierno y Admin."');
+    console.log('🔸 "Real Decreto" → "RD"');
+    console.log('🔸 "Ley Orgánica" → "L.O."');
+    
+    console.log(`\n📊 RESUMEN:`);
+    console.log(`❌ Preguntas que necesitan acortamiento: ${preguntasConTitulosLargos.length}`);
+    console.log(`📋 Patrones identificados: ${patronesComunes.size}`);
+    
+  } catch (error) {
+    console.error('❌ Error identificando títulos:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+identificarTitulosLargos(); 

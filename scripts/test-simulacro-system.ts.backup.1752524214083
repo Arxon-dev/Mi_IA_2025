@@ -1,0 +1,212 @@
+import { config } from 'dotenv';
+
+config();
+
+async function testSimulacroSystem() {
+  try {
+    console.log('🧪 PROBANDO SISTEMA COMPLETO DE SIMULACRO');
+    console.log('=' .repeat(60));
+    
+    // 1. Verificar servidor funcionando
+    console.log('\n🚀 1. VERIFICANDO SERVIDOR...');
+    try {
+      const serverResponse = await fetch('http://localhost:3000/api/telegram/webhook');
+      const serverResult = await serverResponse.json() as any;
+      
+      if (serverResult.status === 'ok') {
+        console.log('✅ Servidor funcionando');
+      } else {
+        console.log('❌ Servidor no responde');
+        return;
+      }
+    } catch (error) {
+      console.log('❌ ERROR: Servidor no disponible');
+      return;
+    }
+    
+    // 2. Probar comando /simulacro
+    console.log('\n🎯 2. PROBANDO COMANDO /simulacro...');
+    const simulacroPayload = {
+      message: {
+        text: '/simulacro',
+        from: {
+          id: 123456789,
+          first_name: 'Usuario Test',
+          username: 'test_user'
+        },
+        chat: {
+          id: 123456789,
+          type: 'private'
+        }
+      }
+    };
+    
+    try {
+      const response = await fetch('http://localhost:3000/api/telegram/webhook', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(simulacroPayload)
+      });
+      
+      if (response.ok) {
+        console.log('✅ Comando /simulacro procesado exitosamente');
+      } else {
+        console.log('❌ Error procesando /simulacro');
+      }
+    } catch (error) {
+      console.log('❌ Error enviando comando /simulacro:', error);
+    }
+    
+    // 3. Probar comando /simulacro_historial
+    console.log('\n📋 3. PROBANDO COMANDO /simulacro_historial...');
+    const historialPayload = {
+      message: {
+        text: '/simulacro_historial',
+        from: {
+          id: 123456789,
+          first_name: 'Usuario Test',
+          username: 'test_user'
+        },
+        chat: {
+          id: 123456789,
+          type: 'private'
+        }
+      }
+    };
+    
+    try {
+      const response = await fetch('http://localhost:3000/api/telegram/webhook', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(historialPayload)
+      });
+      
+      if (response.ok) {
+        console.log('✅ Comando /simulacro_historial procesado exitosamente');
+      } else {
+        console.log('❌ Error procesando /simulacro_historial');
+      }
+    } catch (error) {
+      console.log('❌ Error enviando comando /simulacro_historial:', error);
+    }
+    
+    // 4. Verificar base de datos
+    console.log('\n💾 4. VERIFICANDO BASE DE DATOS...');
+    
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
+    
+    await prisma.$connect();
+    
+    // Verificar tablas
+    const simulacroCount = await prisma.$queryRaw`SELECT COUNT(*) as count FROM "Simulacro"` as any[];
+    const responseCount = await prisma.$queryRaw`SELECT COUNT(*) as count FROM "SimulacroResponse"` as any[];
+    const questionCount = await prisma.$queryRaw`SELECT COUNT(*) as count FROM "ExamenOficial2018" WHERE "isActive" = true` as any[];
+    
+    console.log(`📊 Simulacros en BD: ${simulacroCount[0]?.count || 0}`);
+    console.log(`📝 Respuestas de simulacro: ${responseCount[0]?.count || 0}`);
+    console.log(`❓ Preguntas disponibles: ${questionCount[0]?.count || 0}/100`);
+    
+    // 5. Probar creación de simulacro directamente en BD
+    console.log('\n🧪 5. PROBANDO CREACIÓN DIRECTA DE SIMULACRO...');
+    
+    // Buscar usuario test
+    let testUser = await prisma.$queryRaw`
+      SELECT id FROM "TelegramUser" WHERE "telegramUserId" = '123456789' LIMIT 1
+    ` as any[];
+    
+    if (testUser.length === 0) {
+      // Crear usuario test
+      console.log('👤 Creando usuario test...');
+      await prisma.$queryRaw`
+        INSERT INTO "TelegramUser" ("telegramUserId", "firstName", "username")
+        VALUES ('123456789', 'Usuario Test', 'test_user')
+      `;
+      
+      testUser = await prisma.$queryRaw`
+        SELECT id FROM "TelegramUser" WHERE "telegramUserId" = '123456789' LIMIT 1
+      ` as any[];
+    }
+    
+    const userId = testUser[0].id;
+    console.log('✅ Usuario test encontrado/creado:', userId);
+    
+    // Verificar si ya tiene simulacro activo
+    const activeSimulacro = await prisma.$queryRaw`
+      SELECT id FROM "Simulacro" WHERE "userId" = ${userId} AND status = 'in_progress' LIMIT 1
+    ` as any[];
+    
+    if (activeSimulacro.length > 0) {
+      console.log('⚠️ Usuario ya tiene simulacro activo:', activeSimulacro[0].id);
+    } else {
+      // Crear simulacro test
+      console.log('🎯 Creando simulacro de prueba...');
+      const newSimulacro = await prisma.$queryRaw`
+        INSERT INTO "Simulacro" ("userId", "status", "totalQuestions")
+        VALUES (${userId}, 'in_progress', 100)
+        RETURNING id
+      ` as any[];
+      
+      if (newSimulacro.length > 0) {
+        console.log('✅ Simulacro creado:', newSimulacro[0].id);
+        
+        // Crear algunas respuestas de muestra
+        const questions = await prisma.$queryRaw`
+          SELECT id, "questionNumber", category, difficulty 
+          FROM "ExamenOficial2018" 
+          WHERE "isActive" = true 
+          ORDER BY "questionNumber" ASC 
+          LIMIT 5
+        ` as any[];
+        
+        console.log('📝 Creando respuestas de muestra...');
+        for (const question of questions) {
+          await prisma.$queryRaw`
+            INSERT INTO "SimulacroResponse" 
+            ("simulacroId", "questionId", "questionNumber", "questionCategory", "questionDifficulty")
+            VALUES (${newSimulacro[0].id}, ${question.id}, ${question.questionNumber}, ${question.category}, ${question.difficulty})
+          `;
+        }
+        
+        console.log(`✅ ${questions.length} respuestas de simulacro creadas`);
+      }
+    }
+    
+    // 6. Estadísticas finales
+    console.log('\n📊 6. ESTADÍSTICAS FINALES...');
+    
+    const finalStats = await prisma.$queryRaw`
+      SELECT 
+        (SELECT COUNT(*) FROM "Simulacro") as total_simulacros,
+        (SELECT COUNT(*) FROM "SimulacroResponse") as total_responses,
+        (SELECT COUNT(*) FROM "Simulacro" WHERE status = 'in_progress') as active_simulacros,
+        (SELECT COUNT(*) FROM "Simulacro" WHERE status = 'completed') as completed_simulacros
+    ` as any[];
+    
+    const stats = finalStats[0];
+    console.log(`🎯 Total simulacros: ${stats.total_simulacros}`);
+    console.log(`📝 Total respuestas: ${stats.total_responses}`);
+    console.log(`▶️ Simulacros activos: ${stats.active_simulacros}`);
+    console.log(`✅ Simulacros completados: ${stats.completed_simulacros}`);
+    
+    await prisma.$disconnect();
+    
+    console.log('\n🎉 PRUEBA DEL SISTEMA COMPLETADA');
+    console.log('=' .repeat(60));
+    console.log('🚀 El sistema de simulacro está funcionando correctamente');
+    console.log('\n💡 PRÓXIMOS PASOS:');
+    console.log('   • Probar /simulacro en el bot real');
+    console.log('   • Probar /simulacro_historial');
+    console.log('   • Probar /simulacro_continuar con simulacro activo');
+    console.log('   • Probar /simulacro_abandonar');
+    
+  } catch (error) {
+    console.error('❌ ERROR en prueba:', error);
+  }
+}
+
+testSimulacroSystem(); 

@@ -1,0 +1,187 @@
+/* Telegram Integration Plugin Styles */
+
+.telegram-integration-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.verification-code-display {
+    font-size: 2em !important;
+    font-family: 'Courier New', monospace !important;
+    text-align: center !important;
+    background: #f8f9fa !important;
+    padding: 15px !important;
+    border: 2px dashed #007bff !important;
+    border-radius: 8px !important;
+    margin: 15px 0 !important;
+    font-weight: bold;
+    letter-spacing: 2px;
+    transition: all 0.3s ease;
+}
+
+.verification-code-display:hover {
+    background: #e9ecef !important;
+    border-color: #0056b3 !important;
+    transform: scale(1.02);
+}
+
+.instruction-list {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 4px solid #007bff;
+}
+
+.instruction-list li {
+    padding: 8px 0;
+    font-size: 1.1em;
+}
+
+.benefits-section {
+    background: #e8f5e8;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 4px solid #28a745;
+}
+
+.benefits-section ul li {
+    padding: 5px 0;
+    font-size: 1.05em;
+}
+
+.telegram-status-connected {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
+}
+
+.telegram-status-disconnected {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
+}
+
+.generate-code-section {
+    text-align: center;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin: 20px 0;
+}
+
+.btn-telegram {
+    background: #0088cc;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-size: 1.1em;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.btn-telegram:hover {
+    background: #006699;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 136, 204, 0.3);
+}
+
+.telegram-integration-icon {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    background: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDJDNi40ODcgMiAyIDYuNDg3IDIgMTJTNi40ODcgMjIgMTIgMjJTMjIgMTcuNTEzIDIyIDEyUzE3LjUxMyAyIDEyIDJaTTkuNSAxNy4yNUw5Ljc1IDE0LjVMMTcuMjUgOC4yNUMxNy41IDggMTcuMjUgNy43NSAxNi43NSA4TDguMjUgMTMuNzVMNi43NSA5LjVDNi41IDguNzUgNi43NSA4LjUgNy41IDguNzVMMTguNzUgMTNDMTkuMjUgMTMuMjUgMTkuMjUgMTMuNzUgMTkgMTRMMTAuMjUgMTcuNUMxMCAxNy43NSA5LjUgMTcuMjUgOS41IDE3LjI1WiIgZmlsbD0iIzAwODhDQyIvPgo8L3N2Zz4K') no-repeat center;
+    background-size: contain;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+.alert {
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+}
+
+.alert-warning {
+    background-color: #fff3cd;
+    border-color: #ffeaa7;
+    color: #856404;
+}
+
+.alert-info {
+    background-color: #d1ecf1;
+    border-color: #bee5eb;
+    color: #0c5460;
+}
+
+.text-muted {
+    color: #6c757d !important;
+}
+
+.small {
+    font-size: 0.875em;
+}
+
+.mt-4 {
+    margin-top: 1.5rem;
+}
+
+.mb-2 {
+    margin-bottom: 0.5rem;
+}
+
+.mb-3 {
+    margin-bottom: 1rem;
+}
+
+.mb-4 {
+    margin-bottom: 1.5rem;
+}
+
+.list-unstyled {
+    list-style: none;
+    padding-left: 0;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .telegram-integration-container {
+        padding: 10px;
+    }
+    
+    .verification-code-display {
+        font-size: 1.5em !important;
+        padding: 10px !important;
+    }
+    
+    .instruction-list,
+    .benefits-section,
+    .generate-code-section {
+        padding: 15px;
+    }
+}
+
+/* Animation for success feedback */
+@keyframes success-pulse {
+    0% { background-color: #d4edda; }
+    50% { background-color: #c3e6cb; }
+    100% { background-color: #d4edda; }
+}
+
+.success-feedback {
+    animation: success-pulse 1s ease-in-out;
+} 

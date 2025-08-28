@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/neuroopositor/db" VERSION="20250101" COMMENT="XMLDB file for Moodle local/neuroopositor"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="neuroopositor_temas" COMMENT="Tabla de temas para el mapa neural">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="bloque" TYPE="int" LENGTH="11" NOTNULL="true" COMMENT="Número del bloque temático"/>
+        <FIELD NAME="numero" TYPE="int" LENGTH="11" NOTNULL="true" COMMENT="Número del tema dentro del bloque"/>
+        <FIELD NAME="titulo" TYPE="char" LENGTH="255" NOTNULL="true" COMMENT="Título del tema"/>
+        <FIELD NAME="descripcion" TYPE="text" NOTNULL="false" COMMENT="Descripción detallada del tema"/>
+        <FIELD NAME="nivel_dificultad" TYPE="int" LENGTH="11" NOTNULL="true" DEFAULT="1" COMMENT="Nivel de dificultad del 1 al 5"/>
+        <FIELD NAME="posicion_x" TYPE="number" LENGTH="10" DECIMALS="6" NOTNULL="true" DEFAULT="0" COMMENT="Posición X en el mapa 3D"/>
+        <FIELD NAME="posicion_y" TYPE="number" LENGTH="10" DECIMALS="6" NOTNULL="true" DEFAULT="0" COMMENT="Posición Y en el mapa 3D"/>
+        <FIELD NAME="posicion_z" TYPE="number" LENGTH="10" DECIMALS="6" NOTNULL="true" DEFAULT="0" COMMENT="Posición Z en el mapa 3D"/>
+        <FIELD NAME="color" TYPE="char" LENGTH="7" NOTNULL="true" DEFAULT="#3498db" COMMENT="Color del nodo en formato hexadecimal"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Timestamp de creación"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Timestamp de última modificación"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_bloque" UNIQUE="false" FIELDS="bloque"/>
+        <INDEX NAME="idx_numero" UNIQUE="false" FIELDS="numero"/>
+        <INDEX NAME="idx_bloque_numero" UNIQUE="true" FIELDS="bloque, numero"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="neuroopositor_connections" COMMENT="Conexiones entre temas en el mapa neural">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="tema_origen_id" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="ID del tema origen"/>
+        <FIELD NAME="tema_destino_id" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="ID del tema destino"/>
+        <FIELD NAME="tipo_conexion" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="Tipo: directa, conceptual, practica, temporal"/>
+        <FIELD NAME="peso" TYPE="number" LENGTH="3" DECIMALS="2" NOTNULL="true" DEFAULT="1.0" COMMENT="Peso de la conexión (0.0 a 1.0)"/>
+        <FIELD NAME="descripcion" TYPE="text" NOTNULL="false" COMMENT="Descripción de la conexión"/>
+        <FIELD NAME="activa" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" COMMENT="Si la conexión está activa"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Timestamp de creación"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Timestamp de última modificación"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_tema_origen" TYPE="foreign" FIELDS="tema_origen_id" REFTABLE="neuroopositor_temas" REFFIELDS="id"/>
+        <KEY NAME="fk_tema_destino" TYPE="foreign" FIELDS="tema_destino_id" REFTABLE="neuroopositor_temas" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_tema_origen" UNIQUE="false" FIELDS="tema_origen_id"/>
+        <INDEX NAME="idx_tema_destino" UNIQUE="false" FIELDS="tema_destino_id"/>
+        <INDEX NAME="idx_tipo_conexion" UNIQUE="false" FIELDS="tipo_conexion"/>
+        <INDEX NAME="idx_conexion_unica" UNIQUE="true" FIELDS="tema_origen_id, tema_destino_id, tipo_conexion"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="neuroopositor_user_progress" COMMENT="Progreso de usuarios en cada tema">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="ID del usuario de Moodle"/>
+        <FIELD NAME="tema_id" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="ID del tema"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="ID del curso de Moodle"/>
+        <FIELD NAME="porcentaje_dominio" TYPE="number" LENGTH="5" DECIMALS="2" NOTNULL="true" DEFAULT="0.0" COMMENT="Porcentaje de dominio del tema"/>
+        <FIELD NAME="preguntas_correctas" TYPE="int" LENGTH="11" NOTNULL="true" DEFAULT="0" COMMENT="Número de preguntas correctas"/>
+        <FIELD NAME="preguntas_totales" TYPE="int" LENGTH="11" NOTNULL="true" DEFAULT="0" COMMENT="Número total de preguntas respondidas"/>
+        <FIELD NAME="tiempo_estudio_segundos" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Tiempo total de estudio en segundos"/>
+        <FIELD NAME="nivel_confianza" TYPE="number" LENGTH="3" DECIMALS="2" NOTNULL="true" DEFAULT="0.0" COMMENT="Nivel de confianza del usuario (0.0 a 1.0)"/>
+        <FIELD NAME="ultima_actividad" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Timestamp de última actividad"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Timestamp de creación"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Timestamp de última modificación"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="fk_tema_id" TYPE="foreign" FIELDS="tema_id" REFTABLE="neuroopositor_temas" REFFIELDS="id"/>
+        <KEY NAME="fk_courseid" TYPE="foreign" FIELDS="courseid" REFTABLE="course" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_userid" UNIQUE="false" FIELDS="userid"/>
+        <INDEX NAME="idx_tema_id" UNIQUE="false" FIELDS="tema_id"/>
+        <INDEX NAME="idx_courseid" UNIQUE="false" FIELDS="courseid"/>
+        <INDEX NAME="idx_user_tema_course" UNIQUE="true" FIELDS="userid, tema_id, courseid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="neuroopositor_neural_paths" COMMENT="Rutas neurales recomendadas para usuarios">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="ID del usuario de Moodle"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="ID del curso de Moodle"/>
+        <FIELD NAME="path_data" TYPE="text" NOTNULL="true" COMMENT="Datos de la ruta en formato JSON"/>
+        <FIELD NAME="tipo_ruta" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="Tipo: optima, refuerzo, exploracion"/>
+        <FIELD NAME="activa" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" COMMENT="Si la ruta está activa"/>
+        <FIELD NAME="progreso" TYPE="number" LENGTH="5" DECIMALS="2" NOTNULL="true" DEFAULT="0.0" COMMENT="Progreso en la ruta (0.0 a 100.0)"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Timestamp de creación"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Timestamp de última modificación"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_userid_paths" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="fk_courseid_paths" TYPE="foreign" FIELDS="courseid" REFTABLE="course" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_userid_paths" UNIQUE="false" FIELDS="userid"/>
+        <INDEX NAME="idx_courseid_paths" UNIQUE="false" FIELDS="courseid"/>
+        <INDEX NAME="idx_tipo_ruta" UNIQUE="false" FIELDS="tipo_ruta"/>
+        <INDEX NAME="idx_activa" UNIQUE="false" FIELDS="activa"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="neuroopositor_question_mapping" COMMENT="Mapeo entre temas y tablas de preguntas existentes">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="tema_id" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="ID del tema"/>
+        <FIELD NAME="tabla_preguntas" TYPE="char" LENGTH="100" NOTNULL="true" COMMENT="Nombre de la tabla de preguntas"/>
+        <FIELD NAME="peso_tabla" TYPE="number" LENGTH="3" DECIMALS="2" NOTNULL="true" DEFAULT="1.0" COMMENT="Peso de esta tabla para el tema"/>
+        <FIELD NAME="activa" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" COMMENT="Si el mapeo está activo"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Timestamp de creación"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Timestamp de última modificación"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_tema_mapping" TYPE="foreign" FIELDS="tema_id" REFTABLE="neuroopositor_temas" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_tema_mapping" UNIQUE="false" FIELDS="tema_id"/>
+        <INDEX NAME="idx_tabla_preguntas" UNIQUE="false" FIELDS="tabla_preguntas"/>
+        <INDEX NAME="idx_tema_tabla" UNIQUE="true" FIELDS="tema_id, tabla_preguntas"/>
+      </INDEXES>
+    </TABLE>      <TABLE NAME="neuroopositor_user_responses" COMMENT="Registro de respuestas de usuarios">
+        <FIELDS>
+          <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+          <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+          <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+          <FIELD NAME="question_id" TYPE="int" LENGTH="10" NOTNULL="true"/>
+          <FIELD NAME="tema_id" TYPE="int" LENGTH="10" NOTNULL="true"/>
+          <FIELD NAME="user_answer" TYPE="text" NOTNULL="false"/>
+          <FIELD NAME="correct" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"/>
+          <FIELD NAME="time_spent" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+          <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        </FIELDS>
+        <KEYS>
+          <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+          <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+          <KEY NAME="courseid" TYPE="foreign" FIELDS="courseid" REFTABLE="course" REFFIELDS="id"/>
+          <KEY NAME="tema_id" TYPE="foreign" FIELDS="tema_id" REFTABLE="neuroopositor_temas" REFFIELDS="id"/>
+        </KEYS>
+        <INDEXES>
+          <INDEX NAME="userid_tema" UNIQUE="false" FIELDS="userid, tema_id"/>
+          <INDEX NAME="timecreated" UNIQUE="false" FIELDS="timecreated"/>
+        </INDEXES>
+      </TABLE>
+      
+      <TABLE NAME="neuroopositor_ai_recommendations" COMMENT="Recomendaciones de IA">
+        <FIELDS>
+          <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+          <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+          <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+          <FIELD NAME="tipo_recomendacion" TYPE="char" LENGTH="50" NOTNULL="true"/>
+          <FIELD NAME="contenido" TYPE="text" NOTNULL="true"/>
+          <FIELD NAME="prioridad" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="1"/>
+          <FIELD NAME="activa" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1"/>
+          <FIELD NAME="vista" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"/>
+          <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+          <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        </FIELDS>
+        <KEYS>
+          <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+          <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+          <KEY NAME="courseid" TYPE="foreign" FIELDS="courseid" REFTABLE="course" REFFIELDS="id"/>
+        </KEYS>
+        <INDEXES>
+          <INDEX NAME="userid_activa" UNIQUE="false" FIELDS="userid, activa"/>
+          <INDEX NAME="tipo_prioridad" UNIQUE="false" FIELDS="tipo_recomendacion, prioridad"/>
+        </INDEXES>
+      </TABLE>
+      
+      <TABLE NAME="neuroopositor_study_sessions" COMMENT="Sesiones de estudio">
+        <FIELDS>
+          <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+          <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+          <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+          <FIELD NAME="session_data" TYPE="text" NOTNULL="false"/>
+          <FIELD NAME="duracion" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+          <FIELD NAME="preguntas_respondidas" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+          <FIELD NAME="preguntas_correctas" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+          <FIELD NAME="temas_estudiados" TYPE="text" NOTNULL="false"/>
+          <FIELD NAME="timestarted" TYPE="int" LENGTH="10" NOTNULL="true"/>
+          <FIELD NAME="timeended" TYPE="int" LENGTH="10" NOTNULL="false"/>
+        </FIELDS>
+        <KEYS>
+          <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+          <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+          <KEY NAME="courseid" TYPE="foreign" FIELDS="courseid" REFTABLE="course" REFFIELDS="id"/>
+        </KEYS>
+        <INDEXES>
+          <INDEX NAME="userid_timestarted" UNIQUE="false" FIELDS="userid, timestarted"/>
+          <INDEX NAME="timestarted" UNIQUE="false" FIELDS="timestarted"/>
+        </INDEXES>
+      </TABLE>
+    </TABLES>
+  </XMLDB>

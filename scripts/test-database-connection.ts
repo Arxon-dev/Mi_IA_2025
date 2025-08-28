@@ -1,0 +1,59 @@
+import { PrismaClient } from '@prisma/client';
+import { config } from 'dotenv';
+
+config();
+
+const prisma = new PrismaClient();
+
+async function testDatabaseConnection() {
+  try {
+    console.log('🔗 VERIFICANDO CONEXIÓN A BASE DE DATOS...');
+    console.log('=' .repeat(50));
+
+    // Probar conexión básica
+    await prisma.$connect();
+    console.log('✅ Conexión a base de datos exitosa');
+
+    // Verificar tabla ExamenOficial2018
+    console.log('\n📊 VERIFICANDO TABLA ExamenOficial2018...');
+    const countQuestions = await prisma.examenOficial2018.count();
+    console.log(`   📝 Total preguntas: ${countQuestions}`);
+
+    // Obtener una pregunta de ejemplo
+    const sampleQuestion = await prisma.examenOficial2018.findFirst();
+    if (sampleQuestion) {
+      console.log('   ✅ Tabla accesible, pregunta ejemplo:');
+      console.log(`   ID: ${sampleQuestion.id}`);
+      console.log(`   Número: ${sampleQuestion.questionnumber}`);
+      console.log(`   Pregunta: ${sampleQuestion.question.substring(0, 100)}...`);
+      console.log(`   Opciones: ${sampleQuestion.options.length} opciones`);
+      console.log(`   Respuesta correcta: ${sampleQuestion.correctanswerindex}`);
+      console.log(`   Veces enviada: ${sampleQuestion.sendCount}`);
+    }
+
+    // Verificar tabla ScheduledQuestion
+    console.log('\n📅 VERIFICANDO TABLA ScheduledQuestion...');
+    const countScheduled = await prisma.scheduledQuestion.count();
+    console.log(`   📝 Total preguntas programadas: ${countScheduled}`);
+
+    // Verificar tabla TelegramPoll
+    console.log('\n📊 VERIFICANDO TABLA TelegramPoll...');
+    const countPolls = await prisma.telegrampoll.count();
+    console.log(`   📝 Total polls: ${countPolls}`);
+
+    console.log('\n✅ VERIFICACIÓN COMPLETADA - BASE DE DATOS FUNCIONAL');
+
+  } catch (error) {
+    console.error('❌ ERROR EN BASE DE DATOS:', error);
+    
+    if (error instanceof Error) {
+      console.log('\n🔍 DETALLES DEL ERROR:');
+      console.log('   Mensaje:', error.message);
+      console.log('   Stack:', error.stack?.slice(0, 500));
+    }
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+testDatabaseConnection(); 

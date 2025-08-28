@@ -1,0 +1,319 @@
+import { PrismaClient } from '@prisma/client';
+import fetch from 'node-fetch';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+
+const prisma = new PrismaClient();
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
+const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002352049779';
+const CONFIG_FILE = join(process.cwd(), 'scheduler-config.json');
+
+interface NotificationRule {
+  id: string;
+  name: string;
+  condition: (users: any[]) => any[];
+  message: (users: any[]) => string;
+  cooldown: number; // minutes
+}
+
+// Cargar configuración para obtener reglas habilitadas
+function loadEnabledRules(): string[] {
+  try {
+    if (existsSync(CONFIG_FILE)) {
+      const content = readFileSync(CONFIG_FILE, 'utf-8');
+      const config = JSON.parse(content);
+      return config.notifications?.enabledRules || [];
+    }
+  } catch (error) {
+    console.warn('⚠️ Error leyendo configuración, usando todas las reglas:', error);
+  }
+  
+  // Fallback: todas las reglas
+  return ['streak_encouragement', 'level_celebration', 'inactive_users', 'high_performers', 'close_competition'];
+}
+
+// Definir reglas de notificación
+const NOTIFICATION_RULES: NotificationRule[] = [
+  {
+    id: 'streak_encouragement',
+    name: 'Motivación de rachas',
+    condition: (users) => users.filter(u => u.streak >= 3 && u.streak <= 7),
+    message: (users) => `🔥 <b>¡RACHAS EN MARCHA!</b> 🔥
+
+${users.map(u => `🎯 ${u.firstName} lleva ${u.streak} días consecutivos`).join('\n')}
+
+¡Sigan así! ¿Quién llegará a los 10 días? 💪`,
+    cooldown: 720 // 12 horas
+  },
+  {
+    id: 'level_celebration',
+    name: 'Celebración de niveles',
+    condition: (users) => {
+      // Usuarios que subieron de nivel en las últimas 6 horas
+      const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+      return users.filter(u => u.lastActivity && new Date(u.lastActivity) > sixHoursAgo && u.level >= 2);
+    },
+    message: (users) => `🎉 <b>¡NIVEL ALCANZADO!</b> 🎉
+
+${users.map(u => `🏆 ${u.firstName} ha alcanzado el nivel ${u.level}!`).join('\n')}
+
+¡Felicidades por el progreso! 🌟`,
+    cooldown: 360 // 6 horas
+  },
+  {
+    id: 'inactive_users',
+    name: 'Reactivación de usuarios inactivos',
+    condition: (users) => {
+      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+      return users.filter(u => !u.lastActivity || new Date(u.lastActivity) < threeDaysAgo);
+    },
+    message: (users) => `📚 <b>¡TE EXTRAÑAMOS!</b> 📚
+
+Algunos usuarios no han participado recientemente:
+${users.slice(0, 3).map(u => `👋 ${u.firstName}`).join(', ')}
+
+🎯 Hay nuevas preguntas esperando por ti
+🏆 Tu posición en el ranking te está esperando
+💡 ¡Cada respuesta cuenta para tu progreso!
+
+¿Listos para el siguiente desafío? 🚀`,
+    cooldown: 1440 // 24 horas
+  },
+  {
+    id: 'high_performers',
+    name: 'Reconocimiento a top performers',
+    condition: (users) => users.filter(u => u.totalPoints >= 500 && u.level >= 3),
+    message: (users) => `👑 <b>HALL OF FAME</b> 👑
+
+Nuestros futuros permanentes con más de 500 puntos:
+${users.map(u => `🥇 ${u.firstName} - ${u.totalPoints} pts (Nivel ${u.level})`).join('\n')}
+
+¡Son un ejemplo para todos! 🌟
+¿Quién más se unirá al club de los 500? 💪`,
+    cooldown: 1440 // 24 horas
+  },
+  {
+    id: 'close_competition',
+    name: 'Competencia reñida',
+    condition: (users) => {
+      const sorted = users.sort((a, b) => b.totalPoints - a.totalPoints);
+      if (sorted.length < 2) return [];
+      const top1 = sorted[0];
+      const top2 = sorted[1];
+      const difference = top1.totalPoints - top2.totalPoints;
+      return difference <= 50 ? [top1, top2] : [];
+    },
+    message: (users) => `⚔️ <b>¡COMPETENCIA REÑIDA!</b> ⚔️
+
+🥇 ${users[0].firstName}: ${users[0].totalPoints} pts
+🥈 ${users[1].firstName}: ${users[1].totalPoints} pts
+
+¡Solo ${users[0].totalPoints - users[1].totalPoints} puntos de diferencia!
+
+¿Quién tomará la delantera? 🏃‍♂️💨`,
+    cooldown: 480 // 8 horas
+  }
+];
+
+async function sendNotification(message: string): Promise<boolean> {
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        text: message,
+        parse_mode: 'HTML'
+      })
+    });
+
+    const result = await response.json() as any;
+    return result.ok;
+  } catch (error) {
+    console.error('Error enviando notificación:', error);
+    return false;
+  }
+}
+
+async function checkNotificationCooldown(ruleId: string, cooldownMinutes: number): Promise<boolean> {
+  try {
+    // Verificar si ya se envió esta notificación recientemente
+    const recentLog = await prisma.telegramSendLog.findFirst({
+      where: {
+        questionId: `notification_${ruleId}`,
+        sendTime: {
+          gte: new Date(Date.now() - cooldownMinutes * 60 * 1000)
+        }
+      }
+    });
+
+    return !recentLog; // true si NO hay log reciente (puede enviar)
+  } catch (error) {
+    console.error('Error verificando cooldown:', error);
+    return false;
+  }
+}
+
+async function logNotification(ruleId: string, success: boolean): Promise<void> {
+  try {
+    await prisma.telegramSendLog.create({
+      data: {
+        questionId: `notification_${ruleId}`,
+        sourceModel: 'notification',
+        success,
+        telegramMsgId: success ? `notif_${Date.now()}` : null
+      }
+    });
+  } catch (error) {
+    console.error('Error logging notification:', error);
+  }
+}
+
+async function runSmartNotifications() {
+  console.log('🧠 SISTEMA DE NOTIFICACIONES INTELIGENTES');
+  console.log('=========================================');
+  console.log('');
+
+  try {
+    // Cargar reglas habilitadas desde configuración
+    const enabledRules = loadEnabledRules();
+    console.log('📋 Reglas habilitadas:', enabledRules);
+    
+    // Filtrar solo las reglas habilitadas
+    const activeRules = NOTIFICATION_RULES.filter(rule => enabledRules.includes(rule.id));
+    console.log(`✅ Evaluando ${activeRules.length} de ${NOTIFICATION_RULES.length} reglas disponibles`);
+    
+    if (activeRules.length === 0) {
+      console.log('⚠️ No hay reglas habilitadas. Configuración necesaria.');
+      return;
+    }
+    
+    // Obtener todos los usuarios con sus estadísticas
+    const users = await prisma.telegramUser.findMany({
+      select: {
+        firstName: true,
+        lastName: true,
+        totalPoints: true,
+        level: true,
+        streak: true,
+        lastActivity: true,
+        responses: {
+          select: { id: true }
+        }
+      }
+    });
+
+    console.log(`📊 Analizando ${users.length} usuarios...`);
+
+    // Procesar cada regla habilitada
+    for (const rule of activeRules) {
+      console.log(`🔍 Evaluando regla: ${rule.name} (${rule.id})`);
+
+      // Verificar cooldown
+      const canSend = await checkNotificationCooldown(rule.id, rule.cooldown);
+      if (!canSend) {
+        console.log(`⏰ Regla ${rule.name} en cooldown, saltando...`);
+        continue;
+      }
+
+      // Evaluar condición
+      const matchingUsers = rule.condition(users);
+      
+      if (matchingUsers.length > 0) {
+        console.log(`✅ Regla ${rule.name} activada para ${matchingUsers.length} usuarios`);
+        
+        // Generar mensaje
+        const message = rule.message(matchingUsers);
+        
+        // Enviar notificación
+        const sent = await sendNotification(message);
+        
+        if (sent) {
+          console.log(`📤 Notificación "${rule.name}" enviada exitosamente`);
+          await logNotification(rule.id, true);
+        } else {
+          console.log(`❌ Error enviando notificación "${rule.name}"`);
+          await logNotification(rule.id, false);
+        }
+        
+        // Solo enviar una notificación por ejecución para evitar spam
+        break;
+      } else {
+        console.log(`⚪ Regla ${rule.name} no cumple condiciones`);
+      }
+    }
+
+    console.log('');
+    console.log('✅ Análisis de notificaciones completado');
+
+  } catch (error) {
+    console.error('❌ Error en sistema de notificaciones:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+async function testNotification() {
+  console.log('🧪 PRUEBA DE NOTIFICACIÓN');
+  console.log('=========================');
+  
+  const testMessage = `🧪 <b>PRUEBA DEL SISTEMA DE NOTIFICACIONES</b> 🧪
+
+Este es un mensaje de prueba para verificar que el sistema de notificaciones inteligentes funciona correctamente.
+
+✅ Si ves este mensaje, ¡el sistema está funcionando!
+🤖 Las notificaciones automáticas están activas
+📊 El bot monitoreará la actividad y enviará mensajes contextuales
+
+🔔 Próximos tipos de notificaciones:
+• 🔥 Motivación de rachas
+• 🏆 Celebraciones de nivel
+• 👋 Reactivación de usuarios inactivos
+• 👑 Reconocimiento a top performers
+• ⚔️ Competencias reñidas
+
+¡Sistema de notificaciones activado! 🚀`;
+
+  const sent = await sendNotification(testMessage);
+  
+  if (sent) {
+    console.log('✅ Notificación de prueba enviada exitosamente');
+  } else {
+    console.log('❌ Error enviando notificación de prueba');
+  }
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  
+  if (args.includes('--test')) {
+    await testNotification();
+  } else if (args.includes('--help')) {
+    console.log('🧠 SISTEMA DE NOTIFICACIONES INTELIGENTES:');
+    console.log('');
+    console.log('  🚀 Ejecutar análisis y envío:');
+    console.log('     npx tsx scripts/smart-notifications.ts');
+    console.log('');
+    console.log('  🧪 Enviar notificación de prueba:');
+    console.log('     npx tsx scripts/smart-notifications.ts --test');
+    console.log('');
+    console.log('  📋 Mostrar ayuda:');
+    console.log('     npx tsx scripts/smart-notifications.ts --help');
+    console.log('');
+    
+    // Mostrar reglas disponibles y cuáles están habilitadas
+    const enabledRules = loadEnabledRules();
+    console.log('🔔 REGLAS DE NOTIFICACIÓN:');
+    NOTIFICATION_RULES.forEach((rule, index) => {
+      const isEnabled = enabledRules.includes(rule.id);
+      const status = isEnabled ? '✅ HABILITADA' : '❌ DESHABILITADA';
+      console.log(`   ${index + 1}. ${rule.name} - ${status} (cada ${rule.cooldown} min)`);
+    });
+    console.log('');
+    console.log('💡 Configura las reglas en: http://localhost:3000/admin/scheduler');
+  } else {
+    await runSmartNotifications();
+  }
+}
+
+main(); 

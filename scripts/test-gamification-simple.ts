@@ -1,0 +1,120 @@
+import GamificationService from '../src/services/gamificationService';
+
+async function testGamificationSystem() {
+  console.log('🧪 Iniciando pruebas del sistema de gamificación...\n');
+
+  try {
+    // Test 1: Procesar respuesta de usuario
+    console.log('📝 Test 1: Procesando respuesta de usuario...');
+    const userResponse = await GamificationService.processUserResponse({
+      telegramuserid: '123456789',
+      username: 'test_user',
+      firstname: 'Usuario',
+      lastname: 'Prueba',
+      questionid: 'test-question-1',
+      telegramMsgId: '1001',
+      iscorrect: true,
+      responsetime: 15
+    });
+
+    console.log('✅ Respuesta procesada:', {
+      puntos: userResponse.totalpoints,
+      nivel: userResponse.level,
+      racha: userResponse.streak,
+      ranking: userResponse.rank
+    });
+
+    // Test 2: Obtener estadísticas del usuario
+    console.log('\n📊 Test 2: Obteniendo estadísticas del usuario...');
+    const userStats = await GamificationService.getUserStats('123456789');
+    
+    if (userStats) {
+      console.log('✅ Estadísticas obtenidas:', {
+        totalResponses: userStats.totalResponses,
+        correctResponses: userStats.correctResponses,
+        accuracy: userStats.accuracy,
+        level: userStats.level
+      });
+    }
+
+    // Test 3: Obtener ranking general
+    console.log('\n🏆 Test 3: Obteniendo ranking general...');
+    const leaderboard = await GamificationService.getLeaderboard(5);
+    console.log('✅ Top 5 usuarios:', leaderboard.map(entry => ({
+      rank: entry.rank,
+      user: entry.user.username || entry.user.firstname,
+      points: entry.points,
+      level: entry.level
+    })));
+
+    // Test 4: Procesar más respuestas para probar el sistema
+    console.log('\n🔥 Test 4: Procesando más respuestas...');
+    
+    await GamificationService.processUserResponse({
+      telegramuserid: '123456789',
+      username: 'test_user',
+      firstname: 'Usuario',
+      lastname: 'Prueba',
+      questionid: 'test-question-2',
+      telegramMsgId: '1002',
+      iscorrect: true,
+      responsetime: 12
+    });
+
+    const updatedStats = await GamificationService.getUserStats('123456789');
+    console.log('✅ Estadísticas actualizadas:', {
+      puntos: updatedStats?.totalpoints,
+      respuestas: updatedStats?.totalResponses,
+      precision: `${updatedStats?.accuracy}%`
+    });
+
+    // Test 5: Ranking semanal
+    console.log('\n📅 Test 5: Obteniendo ranking semanal...');
+    const weeklyLeaderboard = await GamificationService.getWeeklyLeaderboard(3);
+    console.log('✅ Top 3 semanal:', weeklyLeaderboard.map(entry => ({
+      rank: entry.rank,
+      user: entry.user.username || entry.user.firstname,
+      points: entry.points
+    })));
+
+    // Test 6: Probar respuesta incorrecta
+    console.log('\n❌ Test 6: Probando respuesta incorrecta...');
+    await GamificationService.processUserResponse({
+      telegramuserid: '987654321',
+      username: 'otro_user',
+      firstname: 'Otro',
+      lastname: 'Usuario',
+      questionid: 'test-question-3',
+      telegramMsgId: '1003',
+      iscorrect: false,
+      responsetime: 25
+    });
+
+    const finalLeaderboard = await GamificationService.getLeaderboard(5);
+    console.log('✅ Ranking final:', finalLeaderboard.map(entry => ({
+      rank: entry.rank,
+      user: entry.user.username || entry.user.firstname,
+      points: entry.points,
+      level: entry.level
+    })));
+
+    console.log('\n🎉 ¡Todas las pruebas completadas exitosamente!');
+    console.log('\n📋 Resumen del sistema:');
+    console.log('- ✅ Procesamiento de respuestas');
+    console.log('- ✅ Sistema de puntos y niveles');
+    console.log('- ✅ Rankings múltiples');
+    console.log('- ✅ Estadísticas completas');
+    console.log('- ✅ Manejo de respuestas correctas e incorrectas');
+
+  } catch (error) {
+    console.error('❌ Error en las pruebas:', error);
+    
+    if (error instanceof Error) {
+      console.error('Detalles del error:', error.message);
+    }
+    
+    process.exit(1);
+  }
+}
+
+testGamificationSystem(); 

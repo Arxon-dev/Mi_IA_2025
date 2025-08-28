@@ -1,0 +1,147 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
+interface TelegramLog {
+  id: string;
+  questionid: string;
+  sourcemodel: string;
+  sendTime: string;
+  success: boolean;
+  errorMessage?: string;
+  telegramMsgId?: string;
+}
+
+export default function TelegramLogsPage() {
+  const [logs, setLogs] = useState<TelegramLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const router = useRouter();
+
+  const fetchLogs = async (pageNum: number) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/admin/telegram-logs?page=${pageNum}&limit=20`);
+      
+      if (!response.ok) {
+        throw new Error(`Error al cargar los logs: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (pageNum === 1) {
+        setLogs(data.logs);
+      } else {
+        setLogs(prev => [...prev, ...data.logs]);
+      }
+      
+      setHasMore(data.logs.length === 20); // Si recibimos menos de 20 registros, no hay más páginas
+      setLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLogs(page);
+  }, [page]);
+
+  const handleLoadMore = () => {
+    setPage(prev => prev + 1);
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
+  return (
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Registros de envío a Telegram</h1>
+      
+      <div className="mb-4">
+        <button 
+          onClick={() => router.push('/admin')}
+          className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded"
+        >
+          Volver a Admin
+        </button>
+      </div>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+
+      <div className="bg-white shadow-md rounded my-6">
+        <table className="min-w-full table-auto">
+          <thead>
+            <tr className="bg-gray-200 text-gray-600 text-xs uppercase">
+              <th className="py-3 px-4 text-left">Fecha</th>
+              <th className="py-3 px-4 text-left">ID Pregunta</th>
+              <th className="py-3 px-4 text-left">Origen</th>
+              <th className="py-3 px-4 text-left">Estado</th>
+              <th className="py-3 px-4 text-left">Mensaje ID</th>
+              <th className="py-3 px-4 text-left">Error</th>
+            </tr>
+          </thead>
+          <tbody className="text-gray-600 text-sm">
+            {logs.map(log => (
+              <tr key={log.id} className="border-b border-gray-200 hover:bg-gray-100">
+                <td className="py-3 px-4">{formatDate(log.sendTime)}</td>
+                <td className="py-3 px-4">{log.questionid.substring(0, 8)}...</td>
+                <td className="py-3 px-4">{log.sourcemodel === 'document' ? 'Documento' : 'Sección'}</td>
+                <td className="py-3 px-4">
+                  <span className={`px-2 py-1 rounded-full text-xs ${log.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    {log.success ? 'Éxito' : 'Error'}
+                  </span>
+                </td>
+                <td className="py-3 px-4">{log.telegramMsgId || 'N/A'}</td>
+                <td className="py-3 px-4">
+                  {log.errorMessage ? (
+                    <div className="truncate max-w-xs" title={log.errorMessage}>
+                      {log.errorMessage}
+                    </div>
+                  ) : 'N/A'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {loading && <p className="text-center">Cargando...</p>}
+      
+      {!loading && hasMore && (
+        <div className="text-center mt-4">
+          <button 
+            onClick={handleLoadMore}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+          >
+            Cargar más
+          </button>
+        </div>
+      )}
+      
+      {!loading && !hasMore && logs.length > 0 && (
+        <p className="text-center text-gray-500 mt-4">No hay más registros para mostrar</p>
+      )}
+      
+      {!loading && logs.length === 0 && (
+        <p className="text-center text-gray-500 mt-4">No se encontraron registros de envíos a Telegram</p>
+      )}
+    </div>
+  );
+} 

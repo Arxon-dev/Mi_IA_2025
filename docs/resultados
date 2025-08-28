@@ -1,0 +1,191 @@
+[{
+	"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/src/app/api/admin/valid-questions/[id]/route.ts",
+	"owner": "typescript",
+	"code": "2322",
+	"severity": 8,
+	"message": "Type '{ document: { select: { title: true; }; }; }' is not assignable to type 'never'.",
+	"source": "ts",
+	"startLineNumber": 49,
+	"startColumn": 11,
+	"endLineNumber": 49,
+	"endColumn": 18,
+	"relatedInformation": [
+		{
+			"startLineNumber": 49,
+			"startColumn": 11,
+			"endLineNumber": 53,
+			"endColumn": 12,
+			"message": "The expected type comes from property 'include' which is declared here on type '{ where: { id: string; }; include: never; }'",
+			"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/src/app/api/admin/valid-questions/[id]/route.ts"
+		}
+	],
+	"extensionID": "vscode.typescript-language-features"
+},{
+	"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/src/app/api/admin/valid-questions/[id]/route.ts",
+	"owner": "typescript",
+	"code": "2339",
+	"severity": 8,
+	"message": "Property 'title' does not exist on type 'never'.",
+	"source": "ts",
+	"startLineNumber": 65,
+	"startColumn": 78,
+	"endLineNumber": 65,
+	"endColumn": 83,
+	"extensionID": "vscode.typescript-language-features"
+},{
+	"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/src/app/api/admin/valid-questions/[id]/route.ts",
+	"owner": "typescript",
+	"code": "2322",
+	"severity": 8,
+	"message": "Type '{ section: { include: { document: { select: { title: true; }; }; }; }; }' is not assignable to type 'never'.",
+	"source": "ts",
+	"startLineNumber": 83,
+	"startColumn": 11,
+	"endLineNumber": 83,
+	"endColumn": 18,
+	"relatedInformation": [
+		{
+			"startLineNumber": 83,
+			"startColumn": 11,
+			"endLineNumber": 89,
+			"endColumn": 12,
+			"message": "The expected type comes from property 'include' which is declared here on type '{ where: { id: string; }; include: never; }'",
+			"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/src/app/api/admin/valid-questions/[id]/route.ts"
+		}
+	],
+	"extensionID": "vscode.typescript-language-features"
+},{
+	"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/src/app/api/admin/valid-questions/[id]/route.ts",
+	"owner": "typescript",
+	"code": "2339",
+	"severity": 8,
+	"message": "Property 'document' does not exist on type 'never'.",
+	"source": "ts",
+	"startLineNumber": 101,
+	"startColumn": 53,
+	"endLineNumber": 101,
+	"endColumn": 61,
+	"extensionID": "vscode.typescript-language-features"
+},{
+	"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/src/app/api/admin/valid-questions/[id]/route.ts",
+	"owner": "typescript",
+	"code": "2339",
+	"severity": 8,
+	"message": "Property 'title' does not exist on type 'never'.",
+	"source": "ts",
+	"startLineNumber": 102,
+	"startColumn": 52,
+	"endLineNumber": 102,
+	"endColumn": 57,
+	"extensionID": "vscode.typescript-language-features"
+},{
+	"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/src/app/api/admin/valid-questions/[id]/route.ts",
+	"owner": "typescript",
+	"code": "2322",
+	"severity": 8,
+	"message": "Type 'any[]' is not assignable to type 'string | StringFieldUpdateOperationsInput | undefined'.",
+	"source": "ts",
+	"startLineNumber": 275,
+	"startColumn": 13,
+	"endLineNumber": 275,
+	"endColumn": 26,
+	"relatedInformation": [
+		{
+			"startLineNumber": 775064,
+			"startColumn": 5,
+			"endLineNumber": 775064,
+			"endColumn": 18,
+			"message": "The expected type comes from property 'parsedoptions' which is declared here on type '(Without<validquestionUpdateInput, validquestionUncheckedUpdateInput> & validquestionUncheckedUpdateInput) | (Without<...> & validquestionUpdateInput)'",
+			"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/node_modules/.prisma/client/index.d.ts"
+		}
+	],
+	"extensionID": "vscode.typescript-language-features"
+},{
+	"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/src/app/api/admin/valid-questions/[id]/route.ts",
+	"owner": "typescript",
+	"code": "2322",
+	"severity": 8,
+	"message": "Type '{ document: { select: { title: true; }; }; }' is not assignable to type 'never'.",
+	"source": "ts",
+	"startLineNumber": 296,
+	"startColumn": 11,
+	"endLineNumber": 296,
+	"endColumn": 18,
+	"relatedInformation": [
+		{
+			"startLineNumber": 296,
+			"startColumn": 11,
+			"endLineNumber": 300,
+			"endColumn": 12,
+			"message": "The expected type comes from property 'include' which is declared here on type '{ where: { id: string; }; include: never; }'",
+			"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/src/app/api/admin/valid-questions/[id]/route.ts"
+		}
+	],
+	"extensionID": "vscode.typescript-language-features"
+},{
+	"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/src/app/api/admin/valid-questions/[id]/route.ts",
+	"owner": "typescript",
+	"code": "2322",
+	"severity": 8,
+	"message": "Type 'any[]' is not assignable to type 'string'.",
+	"source": "ts",
+	"startLineNumber": 315,
+	"startColumn": 17,
+	"endLineNumber": 315,
+	"endColumn": 30,
+	"relatedInformation": [
+		{
+			"startLineNumber": 775016,
+			"startColumn": 5,
+			"endLineNumber": 775016,
+			"endColumn": 18,
+			"message": "The expected type comes from property 'parsedoptions' which is declared here on type '(Without<validquestionCreateInput, validquestionUncheckedCreateInput> & validquestionUncheckedCreateInput) | (Without<...> & validquestionCreateInput)'",
+			"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/node_modules/.prisma/client/index.d.ts"
+		}
+	],
+	"extensionID": "vscode.typescript-language-features"
+},{
+	"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/src/app/api/admin/valid-questions/[id]/route.ts",
+	"owner": "typescript",
+	"code": "2322",
+	"severity": 8,
+	"message": "Type '{ section: { include: { document: { select: { title: true; }; }; }; }; }' is not assignable to type 'never'.",
+	"source": "ts",
+	"startLineNumber": 359,
+	"startColumn": 11,
+	"endLineNumber": 359,
+	"endColumn": 18,
+	"relatedInformation": [
+		{
+			"startLineNumber": 359,
+			"startColumn": 11,
+			"endLineNumber": 365,
+			"endColumn": 12,
+			"message": "The expected type comes from property 'include' which is declared here on type '{ where: { id: string; }; include: never; }'",
+			"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/src/app/api/admin/valid-questions/[id]/route.ts"
+		}
+	],
+	"extensionID": "vscode.typescript-language-features"
+},{
+	"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/src/app/api/admin/valid-questions/[id]/route.ts",
+	"owner": "typescript",
+	"code": "2322",
+	"severity": 8,
+	"message": "Type 'any[]' is not assignable to type 'string'.",
+	"source": "ts",
+	"startLineNumber": 380,
+	"startColumn": 17,
+	"endLineNumber": 380,
+	"endColumn": 30,
+	"relatedInformation": [
+		{
+			"startLineNumber": 775016,
+			"startColumn": 5,
+			"endLineNumber": 775016,
+			"endColumn": 18,
+			"message": "The expected type comes from property 'parsedoptions' which is declared here on type '(Without<validquestionCreateInput, validquestionUncheckedCreateInput> & validquestionUncheckedCreateInput) | (Without<...> & validquestionCreateInput)'",
+			"resource": "/e:/OpoMelilla_2025/Trae_AI/Mi_IA_2025/node_modules/.prisma/client/index.d.ts"
+		}
+	],
+	"extensionID": "vscode.typescript-language-features"
+}]

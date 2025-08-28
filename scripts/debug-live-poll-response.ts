@@ -1,0 +1,200 @@
+// Script para debuggear en tiempo real las respuestas a polls
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function debugLivePollResponse() {
+  try {
+    console.log('🔍 DEBUG: Respuestas a polls en TIEMPO REAL');
+    console.log('============================================');
+    console.log('Este script te ayudará a debuggear qué pasa cuando respondes una pregunta.\n');
+    
+    // 1. Mostrar el poll más reciente enviado
+    console.log('📊 1. ÚLTIMO POLL ENVIADO:');
+    console.log('===========================');
+    
+    const latestPoll = await prisma.telegrampoll.findFirst({
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    if (!latestPoll) {
+      console.log('❌ No hay polls en la base de datos');
+      return;
+    }
+    
+    console.log(`🗳️ Poll ID: ${latestPoll.pollid}`);
+    console.log(`📅 Enviado: ${latestPoll.createdAt.toLocaleString('es-ES')}`);
+    console.log(`📋 Source: ${latestPoll.sourcemodel}`);
+    console.log(`❓ Poll ID disponible para debug`);
+    console.log(`✅ Source Model: ${latestPoll.sourcemodel}`);
+    
+    // 2. Verificar si hay respuestas recientes a este poll
+    console.log('\n📨 2. RESPUESTAS A ESTE POLL:');
+    console.log('==============================');
+    
+    const responses = await prisma.response.findMany({
+      where: {
+        telegramMsgId: latestPoll.pollid
+      },
+      include: {
+        user: {
+          select: {
+            firstname: true,
+            telegramuserid: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    console.log(`📊 Total respuestas: ${responses.length}`);
+    
+    if (responses.length > 0) {
+      responses.forEach((resp, i) => {
+        console.log(`   ${i + 1}. ${resp.user.firstname} - ${resp.iscorrect ? '✅ Correcto' : '❌ Incorrecto'}`);
+        console.log(`      Puntos ganados: ${resp.pointsEarned || 0}`);
+        console.log(`      Hora: ${resp.createdAt.toLocaleString('es-ES')}`);
+        console.log('');
+      });
+    } else {
+      console.log('❌ No hay respuestas registradas para este poll');
+      
+      // 3. Debuggear por qué no hay respuestas
+      console.log('\n🔍 3. POSIBLES PROBLEMAS:');
+      console.log('==========================');
+      
+      // Verificar si el poll aparece en TournamentResponse por error
+      const tournamentCheck = await prisma.tournamentResponse.findMany({
+        where: {
+          pollid: latestPoll.pollid
+        },
+        include: {
+          participant: {
+            include: {
+              user: { select: { firstname: true } },
+              tournament: { select: { name: true } }
+            }
+          }
+        }
+      });
+      
+      if (tournamentCheck.length > 0) {
+        console.log('🚨 PROBLEMA ENCONTRADO: Este poll aparece en TournamentResponse!');
+        tournamentCheck.forEach((resp, i) => {
+          console.log(`   ${i + 1}. Usuario: ${resp.participant.user.firstname}`);
+          console.log(`      Torneo: ${resp.participant.tournament.name}`);
+          console.log(`      Pregunta #: ${resp.questionnumber}`);
+        });
+        console.log('💡 ESTO EXPLICARÍA por qué handleTournamentPollAnswer devuelve TRUE');
+      } else {
+        console.log('✅ El poll NO aparece erróneamente en TournamentResponse');
+      }
+    }
+    
+    // 4. Instrucciones para la prueba
+    console.log('\n🧪 4. INSTRUCCIONES PARA LA PRUEBA:');
+    console.log('====================================');
+    console.log('1. 📱 Ve al grupo de Telegram');
+    console.log('2. 🗳️ Responde la pregunta más reciente (si aún está activa)');
+    console.log('3. ⏱️ Espera 10 segundos');
+    console.log('4. 🔄 Ejecuta este script de nuevo para ver si se registró la respuesta');
+    console.log('5. 📊 También puedes verificar con /stats para ver si subieron tus puntos');
+    
+    // 5. Mostrar el estado actual del usuario (si se proporciona telegramuserid)
+    console.log('\n👤 5. PARA VERIFICAR TU ESTADO ACTUAL:');
+    console.log('======================================');
+    console.log('Si quieres verificar tu estado actual, ejecuta:');
+    console.log('npx tsx scripts/check-user-stats.ts [tu_telegram_user_id]');
+    
+    return {
+      latestPollId: latestPoll.pollid,
+      responses: responses.length,
+      hasTournamentConflict: false
+    };
+    
+  } catch (error) {
+    console.error('❌ Error en debug:', error);
+    return null;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Función adicional para verificar el estado de un usuario específico
+async function checkSpecificUser(telegramuserid: string) {
+  try {
+    console.log(`\n👤 ESTADO DEL USUARIO: ${telegramuserid}`);
+    console.log('=====================================');
+    
+    const user = await prisma.telegramuser.findFirst({
+      where: {
+        telegramuserid: telegramuserid
+      },
+      select: {
+        firstname: true,
+        totalpoints: true,
+        level: true,
+        streak: true,
+        accuracy: true,
+        responseCount: true,
+        correctResponses: true
+      }
+    });
+    
+    if (!user) {
+      console.log('❌ Usuario no encontrado en la base de datos');
+      return;
+    }
+    
+    console.log(`📊 Nombre: ${user.firstname}`);
+    console.log(`💰 Puntos totales: ${user.totalpoints}`);
+    console.log(`📈 Nivel: ${user.level}`);
+    console.log(`🔥 Racha: ${user.streak}`);
+    console.log(`🎯 Precisión: ${user.accuracy}%`);
+    console.log(`📋 Respuestas totales: ${user.responseCount}`);
+    console.log(`✅ Respuestas correctas: ${user.correctResponses}`);
+    
+    // Verificar respuestas recientes
+    const recentResponses = await prisma.userResponse.findMany({
+      where: {
+        user: {
+          telegramuserid: telegramuserid
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        iscorrect: true,
+        pointsEarned: true,
+        createdAt: true,
+        telegramMsgId: true
+      }
+    });
+    
+    console.log(`\n📝 Últimas 5 respuestas:`);
+    if (recentResponses.length > 0) {
+      recentResponses.forEach((resp, i) => {
+        console.log(`   ${i + 1}. ${resp.iscorrect ? '✅' : '❌'} ${resp.pointsEarned} pts - ${resp.createdAt.toLocaleString('es-ES')}`);
+      });
+    } else {
+      console.log('❌ No hay respuestas recientes registradas');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error verificando usuario:', error);
+  }
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  
+  if (args.length > 0) {
+    // Si se proporciona un telegramuserid, verificar ese usuario específico
+    await checkSpecificUser(args[0]);
+  } else {
+    // Debug general
+    await debugLivePollResponse();
+  }
+}
+
+main(); 

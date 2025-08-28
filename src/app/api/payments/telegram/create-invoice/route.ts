@@ -1,0 +1,53 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { PaymentService } from '@/services/paymentService';
+import { SubscriptionService } from '@/services/subscriptionService';
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { userid, planId, discountCode } = body;
+
+    // Validaciones básicas
+    if (!userid || !planId) {
+      return NextResponse.json(
+        { error: 'userid y planId son requeridos' },
+        { status: 400 }
+      );
+    }
+
+    // Verificar que el usuario no tenga ya una suscripción activa al mismo plan
+    const currentSubscription = await SubscriptionService.getCurrentSubscription(userid);
+    if (currentSubscription?.status === 'active' && currentSubscription.planid === planId) {
+      return NextResponse.json(
+        { 
+          error: 'Ya tienes una suscripción activa a este plan',
+          currentPlan: currentSubscription.plan.displayname
+        },
+        { status: 409 }
+      );
+    }
+
+    // Crear invoice
+    const result = await PaymentService.createTelegramInvoice(userid, planId, discountCode);
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      transactionId: result.transactionId,
+      invoiceData: JSON.parse(result.invoiceUrl || '{}')
+    });
+
+  } catch (error) {
+    console.error('Error creando invoice:', error);
+    return NextResponse.json(
+      { error: 'Error interno del servidor' },
+      { status: 500 }
+    );
+  }
+} 

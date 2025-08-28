@@ -1,0 +1,301 @@
+/**
+ * NeuroOpositor CSS Fixes - Máxima Prioridad
+ * 
+ * Este archivo contiene correcciones específicas para problemas de visualización
+ * en el plugin NeuroOpositor cuando se despliega en Moodle.
+ * 
+ * @package    local_neuroopositor
+ * @copyright  2025 OpoMelilla Team
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+/* RESET COMPLETO PARA ELEMENTOS DE TEMAS */
+html body .neuroopositor-container .topic-item,
+html body .neuroopositor-container .topic-item *,
+html body .neuroopositor-container .topics-grid .topic-item,
+html body .neuroopositor-container .topics-grid .topic-item * {
+    color: inherit !important;
+    text-shadow: none !important;
+    background: transparent !important;
+}
+
+/* TÍTULOS DE TEMAS - MÁXIMA PRIORIDAD */
+html body .neuroopositor-container .topic-item h4,
+html body .neuroopositor-container .topic-item .topic-title,
+html body .neuroopositor-container .topics-grid .topic-item h4,
+html body .neuroopositor-container .topics-sidebar .topic-item h4,
+html body .neuroopositor-container .topic-item .topic-header h4 {
+    color: #000000 !important;
+    font-weight: 600 !important;
+    text-shadow: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: block !important;
+    font-size: 1.2rem !important;
+    margin-bottom: 1rem !important;
+    line-height: 1.4 !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+}
+
+/* PÁRRAFOS Y TEXTO DESCRIPTIVO */
+html body .neuroopositor-container .topic-item p,
+html body .neuroopositor-container .topic-item small,
+html body .neuroopositor-container .topics-grid .topic-item p,
+html body .neuroopositor-container .topics-sidebar .topic-item p {
+    color: #000000 !important;
+    text-shadow: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: block !important;
+    font-size: 1rem !important;
+    margin-bottom: 0.75rem !important;
+    line-height: 1.4 !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+}
+
+/* BOTONES DE ESTUDIO - FORZAR VISIBILIDAD COMPLETA */
+html body .neuroopositor-container .study-btn,
+html body .neuroopositor-container .topic-item .study-btn,
+html body .neuroopositor-container .topics-grid .study-btn,
+html body .neuroopositor-container .topic-actions .study-btn,
+html body .neuroopositor-container button.study-btn {
+    background-color: #007bff !important;
+    background-image: none !important;
+    color: #ffffff !important;
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    border: 1px solid #007bff !important;
+    padding: 12px 24px !important;
+    border-radius: 6px !important;
+    text-decoration: none !important;
+    cursor: pointer !important;
+    font-weight: 600 !important;
+    font-size: 16px !important;
+    line-height: 1.4 !important;
+    margin-top: 8px !important;
+    text-align: center !important;
+    min-width: 120px !important;
+    min-height: 44px !important;
+    height: auto !important;
+    box-shadow: 0 2px 4px rgba(0,123,255,0.3) !important;
+    transition: all 0.3s ease !important;
+    position: relative !important;
+    z-index: 10 !important;
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+}
+
+html body .neuroopositor-container .study-btn:hover,
+html body .neuroopositor-container .topic-item .study-btn:hover {
+    background-color: #0056b3 !important;
+    background-image: none !important;
+    color: #ffffff !important;
+    text-decoration: none !important;
+    border-color: #0056b3 !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 8px rgba(0,123,255,0.4) !important;
+}
+
+/* CONTENEDORES DE TEMAS */
+html body .neuroopositor-container .topic-item {
+    display: flex !important;
+    flex-direction: column !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    margin-bottom: 2rem !important;
+    padding: 2rem !important;
+    background: #ffffff !important;
+    border: 1px solid #dee2e6 !important;
+    border-radius: 0.5rem !important;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+    position: relative !important;
+    min-height: 400px !important;
+    height: auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    justify-content: space-between !important;
+}
+
+/* INFORMACIÓN ESPECÍFICA DE BLOQUES Y DIFICULTAD */
+html body .neuroopositor-container .topic-item .topic-info p,
+html body .neuroopositor-container .topic-item .topic-progress p,
+html body .neuroopositor-container .topic-item .topic-stats p,
+html body .neuroopositor-container .topic-item .topic-description {
+    color: #000000 !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    font-size: 0.9rem !important;
+    margin-bottom: 0.5rem !important;
+}
+
+/* NÚMEROS DE TEMA Y BLOQUES */
+html body .neuroopositor-container .topic-item .topic-number,
+html body .neuroopositor-container .topic-item [data-bloque],
+html body .neuroopositor-container .topic-item .topic-progress small,
+html body .neuroopositor-container .topic-item .topic-stats small {
+    color: #000000 !important;
+    font-weight: 500 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: inline-block !important;
+    font-size: 0.95rem !important;
+    margin-bottom: 0.5rem !important;
+}
+
+/* ICONOS EN ESTADÍSTICAS */
+html body .neuroopositor-container .topic-item .topic-stats i,
+html body .neuroopositor-container .topic-item i.fa {
+    color: #007bff !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: inline !important;
+}
+
+/* GRID DE TEMAS */
+html body .neuroopositor-container .topics-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)) !important;
+    gap: 2rem !important;
+    padding: 2rem !important;
+}
+
+/* LISTA DE TEMAS */
+html body .neuroopositor-container .topics-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2rem !important;
+    padding: 2rem !important;
+}
+
+/* ACCIONES DE TEMAS */
+html body .neuroopositor-container .topic-actions {
+    margin-top: auto !important;
+    display: flex !important;
+    justify-content: center !important;
+    padding-top: 1.5rem !important;
+    flex-shrink: 0 !important;
+    min-height: 60px !important;
+    align-items: center !important;
+}
+
+/* FORZAR TODOS LOS ELEMENTOS DE TEXTO A SER NEGROS */
+html body .neuroopositor-container .topic-item h1,
+html body .neuroopositor-container .topic-item h2,
+html body .neuroopositor-container .topic-item h3,
+html body .neuroopositor-container .topic-item h4,
+html body .neuroopositor-container .topic-item h5,
+html body .neuroopositor-container .topic-item h6,
+html body .neuroopositor-container .topic-item p,
+html body .neuroopositor-container .topic-item span,
+html body .neuroopositor-container .topic-item small,
+html body .neuroopositor-container .topic-item div:not(.study-btn) {
+    color: #000000 !important;
+    text-shadow: none !important;
+}
+
+/* SOBRESCRIBIR CUALQUIER ESTILO DE MOODLE */
+html body .neuroopositor-container .topic-item * {
+    box-sizing: border-box !important;
+}
+
+/* ASEGURAR QUE LOS BOTONES SIEMPRE SEAN VISIBLES */
+html body .neuroopositor-container button,
+html body .neuroopositor-container .btn,
+html body .neuroopositor-container input[type="button"],
+html body .neuroopositor-container input[type="submit"] {
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* ESTADO ACTIVO DE TEMAS */
+html body .neuroopositor-container .topic-item.active {
+    border-color: #007bff !important;
+    box-shadow: 0 4px 8px rgba(0,123,255,0.2) !important;
+}
+
+/* PROGRESO CIRCULAR */
+html body .neuroopositor-container .progress-circle {
+    color: #000000 !important;
+    font-weight: 600 !important;
+}
+
+/* MEDIA QUERIES PARA RESPONSIVIDAD */
+@media (max-width: 768px) {
+    html body .neuroopositor-container .topics-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    html body .neuroopositor-container .topic-item {
+        margin-bottom: 0.5rem !important;
+        padding: 0.75rem !important;
+    }
+}
+
+/* ANIMACIONES PARA MEJORAR LA EXPERIENCIA */
+html body .neuroopositor-container .topic-item {
+    transition: all 0.3s ease !important;
+}
+
+html body .neuroopositor-container .topic-item:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+}
+
+/* FORZAR VISIBILIDAD DE ELEMENTOS ESPECÍFICOS */
+html body .neuroopositor-container .topic-item *[class*="bloque"],
+html body .neuroopositor-container .topic-item *[class*="block"],
+html body .neuroopositor-container .topic-item *[class*="difficulty"],
+html body .neuroopositor-container .topic-item *[class*="dificultad"],
+html body .neuroopositor-container .topic-item *[class*="progress"],
+html body .neuroopositor-container .topic-item *[class*="progreso"] {
+    color: #000000 !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    display: inline-block !important;
+    font-size: 0.95rem !important;
+    margin: 0.25rem 0 !important;
+}
+
+/* FORZAR TEXTO EN ELEMENTOS SMALL */
+html body .neuroopositor-container .topic-item small,
+html body .neuroopositor-container .topic-item .small {
+    color: #000000 !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    display: inline-block !important;
+    font-size: 0.9rem !important;
+    font-weight: 500 !important;
+    margin: 0.25rem 0.5rem 0.25rem 0 !important;
+}
+
+/* FORZAR CONTENIDO DE PROGRESO Y ESTADÍSTICAS */
+html body .neuroopositor-container .topic-item .topic-progress,
+html body .neuroopositor-container .topic-item .topic-stats,
+html body .neuroopositor-container .topic-item .topic-info {
+    color: #000000 !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    display: block !important;
+    margin-bottom: 1rem !important;
+}
+
+/* ASEGURAR ALTURA MÍNIMA PARA BOTONES */
+html body .neuroopositor-container .topic-actions {
+    margin-top: auto !important;
+    display: flex !important;
+    justify-content: center !important;
+    padding-top: 1rem !important;
+    min-height: 50px !important;
+    align-items: center !important;
+}
+
+/* CLASE ESPECIAL PARA DEBUGGING */
+.neuroopositor-debug * {
+    border: 1px solid red !important;
+    background: yellow !important;
+}

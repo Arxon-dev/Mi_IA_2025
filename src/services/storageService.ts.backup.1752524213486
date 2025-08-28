@@ -1,0 +1,814 @@
+// import { PrismaService } from './prismaService';
+// Importar tipos de Prisma
+import type { 
+    Document as PrismaDocument, 
+    Section as PrismaSection, 
+    Question as PrismaQuestion, 
+    BloomLevel as PrismaBloomLevel, 
+    AIConfig as PrismaAIConfigFromPrisma, // Renombrar para evitar conflicto con el tipo local AIConfig de ../types/ai
+    AIProviderKey as PrismaAIProviderKey,
+    SectionQuestion as PrismaSectionQuestion
+} from '@prisma/client';
+import { availableModels } from './aiService'; // Necesario para inferir provider en saveModelConfig
+// Importar los tipos CORRECTOS de ../types/ai
+import type { 
+    AIConfig as LocalAIConfig, 
+    TextProcessingConfig, 
+    FormatConfig, 
+    FeedbackConfig, 
+    DistributionConfig, 
+    QuestionTypePercentages, 
+    DifficultyPercentages,
+    AIConfigCreate,
+    AIConfigUpdate
+} from '../types/ai'; 
+
+// Reexportar los tipos de Prisma para que estén disponibles para otros servicios/componentes
+export type { 
+    PrismaDocument, 
+    PrismaSection, 
+    PrismaQuestion, 
+    PrismaBloomLevel, 
+    PrismaAIConfigFromPrisma as AIConfig, // Reexportar como AIConfig para consistencia con schema
+    PrismaAIProviderKey
+};
+
+// Interfaz simplificada para StoredDocument para evitar conflictos de tipo inmediatos
+// REVISAR: Ajustar esta interfaz para que coincida exactamente con la estructura de datos devuelta por la API
+// y las necesidades de la aplicación, considerando las propiedades de PrismaDocument.
+export interface StoredDocument extends Omit<PrismaDocument, 'questions' | 'sections' | 'DocumentProgress'> {
+  sections?: PrismaSection[]; 
+  questions?: PrismaQuestion[]; // Las preguntas se pueden cargar via getQuestionsForDocument
+  // Las demás propiedades (id, title, content, date, type, questionCount, createdAt, updatedAt, processingTime, tokens) vienen de PrismaDocument
+}
+
+// Interfaz para estadísticas
+export interface Statistics {
+  totalDocuments: number;
+  totalQuestions: number;
+  totalTokens: number;
+  averageProcessingTime: number;
+}
+
+// No es necesario re-exportar BloomLevel aquí si ya se exporta PrismaBloomLevel
+// export type { BloomLevel }; 
+
+const STORAGE_KEYS = {
+  DOCUMENTS: 'documents',
+  OPENAI_API_KEY: 'gift-generator-openai-api-key',
+  ANTHROPIC_API_KEY: 'gift-generator-anthropic-api-key',
+  GOOGLE_API_KEY: 'gift-generator-google-api-key',
+  DEEPSEEK_API_KEY: 'gift-generator-deepseek-api-key',
+  XAI_API_KEY: 'gift-generator-xai-api-key',
+  ALIBABA_API_KEY: 'gift-generator-alibaba-api-key',
+  MODEL: 'gift-generator-model',
+  SYSTEM_PROMPT: 'gift-generator-system-prompt',
+  TEMPERATURE: 'gift-generator-temperature',
+  MAX_TOKENS: 'gift-generator-max-tokens',
+  RECENT_DOCS: 'gift-generator-recent-docs',
+  HISTORY: 'gift-generator-history',
+  BLOOM_CONFIG: 'gift-generator-bloom-config',
+  STATS: 'gift-generator-stats',
+  CONFIG: 'gift-generator-config',
+  QUESTIONS: 'gift-generator-questions'
+};
+
+// Renombrar para evitar colisión con los importados de ../types/ai si es necesario
+
+export interface ModelConfigForFrontend {
+  provider?: string | null;
+  model?: string | null;
+  temperature?: number | null;
+  maxTokens?: number | null;
+  systemPrompt?: string | null;
+  textProcessing?: TextProcessingConfig | null;
+  format?: FormatConfig | null;
+  feedback?: FeedbackConfig | null;
+  distribution?: DistributionConfig | null;
+  questionTypes?: QuestionTypePercentages | null;
+  difficultyLevels?: DifficultyPercentages | null;
+  questionsPerChunk?: number | null;
+  openaiApiKey?: string | null;
+  anthropicApiKey?: string | null;
+  googleApiKey?: string | null;
+  deepseekApiKey?: string | null;
+  xaiApiKey?: string | null;
+  alibabaApiKey?: string | null;
+}
+
+export interface RecentDocument {
+  id: string;
+  title: string;
+  createdAt: string;
+  questionCount: number;
+}
+
+const isLocalStorageAvailable = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const testKey = '__storage_test__';
+    window.localStorage.setItem(testKey, testKey);
+    window.localStorage.removeItem(testKey);
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
+// Helper para parsear JSON de forma segura
+function safeJsonParse<T>(jsonString: string | null | undefined, defaultValue: T): T {
+  if (jsonString) {
+    try {
+      return JSON.parse(jsonString) as T;
+    } catch (e) {
+      console.warn('Error al parsear JSON, usando valor por defecto:', jsonString, e);
+      return defaultValue;
+    }
+  }
+  return defaultValue;
+}
+
+// Definir un tipo para el resultado de PrismaService.getAIConfig() que SÍ incluye providerKeys
+// y las propiedades de LocalAIConfig parseadas (LocalAIConfig ya las tiene parseadas).
+interface AIConfigFromPrismaService extends LocalAIConfig {
+    providerKeys?: PrismaAIProviderKey[]; 
+}
+
+export class StorageService {
+  static async getDocuments(): Promise<StoredDocument[]> {
+    try {
+      const response = await fetch('/api/documents');
+      if (!response.ok) throw new Error('Error al obtener documentos');
+      const documents = await response.json() as PrismaDocument[];
+      return documents.map(doc => ({
+        ...doc,
+        date: new Date(doc.date),
+        createdAt: new Date(doc.createdAt),
+        updatedAt: new Date(doc.updatedAt),
+        // sections y questions no se incluyen aquí para evitar payloads grandes,
+        // se cargarán bajo demanda si es necesario.
+      })) as StoredDocument[];
+    } catch (error) {
+      console.error('Error al obtener documentos:', error);
+      return [];
+    }
+  }
+
+  static async getDocumentById(id: string): Promise<StoredDocument | null> {
+    try {
+      const response = await fetch(`/api/documents/${id}`);
+      if (!response.ok) return null;
+      const doc = await response.json() as PrismaDocument;
+      if (!doc) return null;
+      return {
+          ...doc,
+          date: new Date(doc.date),
+          createdAt: new Date(doc.createdAt),
+          updatedAt: new Date(doc.updatedAt),
+      } as StoredDocument;
+    } catch (error) {
+      console.error('Error al obtener documento:', error);
+      return null;
+    }
+  }
+
+  static async saveDocument(document: Partial<StoredDocument>): Promise<StoredDocument> {
+    try {
+      const documentToSend: any = { ...document };
+      if (document.date && !(document.date instanceof Date)) {
+        documentToSend.date = new Date(document.date).toISOString();
+      } else if (document.date instanceof Date) {
+        documentToSend.date = document.date.toISOString();
+      } 
+      // No eliminar questions ni sections aquí, para que se guarden en el backend
+      // delete documentToSend.questions;
+      // delete documentToSend.sections;
+
+      const response = await fetch('/api/documents', {
+        method: document.id ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(documentToSend),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al guardar el documento');
+      }
+      const savedDoc = await response.json() as PrismaDocument;
+      return { 
+          ...savedDoc,
+          date: new Date(savedDoc.date),
+          createdAt: new Date(savedDoc.createdAt),
+          updatedAt: new Date(savedDoc.updatedAt),
+      } as StoredDocument;
+    } catch (error) {
+      console.error('Error al guardar documento:', error);
+      throw error;
+    }
+  }
+
+  static async deleteDocument(id: string): Promise<void> {
+    try {
+      const response = await fetch(`/api/documents/${id}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Error al eliminar documento');
+    } catch (error) {
+      console.error('Error al eliminar documento:', error);
+      throw error;
+    }
+  }
+
+  static async getModelConfig(): Promise<ModelConfigForFrontend> {
+    try {
+      const response = await fetch('/api/ai-config');
+      if (!response.ok) throw new Error('Error al obtener la configuración');
+      return await response.json();
+    } catch (error) {
+      console.error('Error en StorageService.getModelConfig:', error);
+      return { temperature: 0.3, maxTokens: 4096, provider: 'openai', model:'gpt-3.5-turbo' };
+    }
+  }
+
+  static async saveModelConfig(config: Partial<ModelConfigForFrontend>): Promise<void> {
+    try {
+      const response = await fetch('/api/ai-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      if (!response.ok) throw new Error('Error al guardar la configuración');
+    } catch (error) {
+      console.error('Error en StorageService.saveModelConfig:', error);
+      throw error;
+    }
+  }
+
+  static async getRecentDocuments(): Promise<RecentDocument[]> {
+    try {
+      const response = await fetch('/api/documents/recent');
+      if (!response.ok) throw new Error('Error al obtener documentos recientes');
+      return response.json();
+    } catch (error) {
+      console.error('Error en getRecentDocuments:', error);
+      return [];
+    }
+  }
+
+  static async getBloomLevelConfig(): Promise<PrismaBloomLevel[] | null> {
+    try {
+      const response = await fetch('/api/bloom-levels');
+      if (!response.ok) {
+        throw new Error('Error al obtener niveles de Bloom');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error al obtener configuración de Bloom:', error);
+      return null;
+    }
+  }
+
+  static async saveBloomLevelConfig(levels: Omit<PrismaBloomLevel, 'createdAt' | 'updatedAt'>[]): Promise<void> {
+    try {
+      for (const level of levels) {
+        const response = await fetch(`/api/bloom-levels/${level.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(level),
+        });
+        
+        if (!response.ok) {
+          throw new Error('Error al guardar nivel de Bloom');
+        }
+      }
+    } catch (error) {
+      console.error('Error al guardar configuración de Bloom:', error);
+      throw error;
+    }
+  }
+
+  static async getStatistics(): Promise<Statistics> {
+    try {
+      const response = await fetch('/api/statistics');
+      if (!response.ok) throw new Error('Error al obtener estadísticas');
+      return response.json();
+    } catch (error) {
+      console.error('Error en getStatistics:', error);
+      return { totalDocuments: 0, totalQuestions: 0, totalTokens: 0, averageProcessingTime: 0 };
+    }
+  }
+
+  static async updateStats(newStats: Partial<Statistics>): Promise<void> {
+    try {
+      const response = await fetch('/api/stats', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newStats),
+      });
+      if (!response.ok) throw new Error('Error al actualizar estadísticas');
+    } catch (error) {
+      console.error('Error al actualizar estadísticas:', error);
+      throw error;
+    }
+  }
+
+  static async getQuestionsForDocument(documentId: string, options?: {
+    page?: number;
+    limit?: number;
+    showArchived?: boolean;
+    search?: string;
+  }): Promise<{
+    questions: PrismaQuestion[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasMore: boolean;
+    };
+    counts: {
+      active: number;
+      archived: number;
+      total: number;
+    };
+  }> {
+    if (!documentId) {
+      console.warn('StorageService.getQuestionsForDocument: documentId no proporcionado.');
+      return {
+        questions: [],
+        pagination: { page: 1, limit: 50, total: 0, totalPages: 0, hasMore: false },
+        counts: { active: 0, archived: 0, total: 0 }
+      };
+    }
+    
+    try {
+      const {
+        page = 1,
+        limit = 50,
+        showArchived = false,
+        search = ''
+      } = options || {};
+
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+        showArchived: showArchived.toString(),
+        ...(search && { search })
+      });
+
+      const response = await fetch(`/api/documents/${documentId}/questions?${params}`);
+      
+      if (!response.ok) {
+        console.warn(`No se pudo obtener preguntas para el documento ${documentId}. Estado: ${response.status}.`);
+        return {
+          questions: [],
+          pagination: { page, limit, total: 0, totalPages: 0, hasMore: false },
+          counts: { active: 0, archived: 0, total: 0 }
+        };
+      }
+      
+      const data = await response.json();
+      return data;
+      
+    } catch (error) {
+      console.error(`Error al obtener preguntas para el documento ${documentId}:`, error);
+      return {
+        questions: [],
+        pagination: { page: 1, limit: 50, total: 0, totalPages: 0, hasMore: false },
+        counts: { active: 0, archived: 0, total: 0 }
+      };
+    }
+  }
+
+  /**
+   * Archiva todas las preguntas activas de un documento
+   */
+  static async archiveAllQuestions(documentId: string): Promise<{ success: boolean; updated: number; counts: any }> {
+    if (!documentId) {
+      throw new Error('archiveAllQuestions: documentId es requerido.');
+    }
+    
+    try {
+      const response = await fetch(`/api/documents/${documentId}/questions/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archiveAll: true })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Error al archivar preguntas: ${response.statusText} (${response.status}) ${errorData.error || ''}`.trim());
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error al archivar preguntas:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Restaura todas las preguntas archivadas de un documento
+   */
+  static async restoreAllQuestions(documentId: string): Promise<{ success: boolean; restored: number; counts: any }> {
+    if (!documentId) {
+      throw new Error('restoreAllQuestions: documentId es requerido.');
+    }
+    
+    try {
+      const response = await fetch(`/api/documents/${documentId}/questions/archive`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Error al restaurar preguntas: ${response.statusText} (${response.status}) ${errorData.error || ''}`.trim());
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error al restaurar preguntas:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Archiva preguntas específicas por sus IDs
+   */
+  static async archiveQuestions(documentId: string, questionIds: string[]): Promise<{ success: boolean; updated: number; counts: any }> {
+    if (!documentId || !questionIds.length) {
+      throw new Error('archiveQuestions: documentId y questionIds son requeridos.');
+    }
+    
+    try {
+      const response = await fetch(`/api/documents/${documentId}/questions/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionIds, archived: true })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Error al archivar preguntas específicas: ${response.statusText} (${response.status}) ${errorData.error || ''}`.trim());
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error al archivar preguntas específicas:', error);
+      throw error;
+    }
+  }
+
+  // Obtener preguntas de una sección
+  static async getQuestionsForSection(sectionId: string): Promise<PrismaSectionQuestion[]> {
+    if (!sectionId) {
+      console.warn('getQuestionsForSection: sectionId no proporcionado.');
+      return [];
+    }
+    try {
+      const response = await fetch(`/api/sections/${sectionId}/questions`);
+      
+      // Manejo específico para base de datos no disponible
+      if (response.status === 503) {
+        console.warn(`🔄 Base de datos temporalmente no disponible para sección ${sectionId}. Devolviendo array vacío.`);
+        return [];
+      }
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Error desconocido');
+        throw new Error(`Error al obtener preguntas de la sección (${response.status}): ${errorText}`);
+      }
+      
+      const data = await response.json();
+      // La nueva API devuelve { questions: [...], pagination: {...}, counts: {...} }
+      // Extraemos solo las preguntas
+      return data.questions || [];
+    } catch (error) {
+      console.error('Error en getQuestionsForSection:', error);
+      
+      // Si es un error de red/conectividad, mostrar mensaje más específico
+      if (error instanceof Error && error.message.includes('fetch')) {
+        console.warn(`🌐 Error de conectividad al cargar preguntas de sección ${sectionId}. Devolviendo array vacío.`);
+      }
+      
+      return [];
+    }
+  }
+
+  // 🆕 NUEVO: Archivar todas las preguntas activas de una sección (manteniendo historial en BD)
+  static async clearSectionQuestions(sectionId: string): Promise<void> {
+    if (!sectionId) {
+      throw new Error('clearSectionQuestions: sectionId no proporcionado.');
+    }
+    try {
+      console.log(`🧹 [StorageService.clearSectionQuestions] Archivando preguntas anteriores de la sección ${sectionId} (mantiene historial en BD)`);
+      
+      const response = await fetch(`/api/sections/${sectionId}/questions/clear`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error('Error al archivar preguntas de sección - Respuesta no OK:', response.status, errorBody);
+        throw new Error(`Error al archivar preguntas de sección (${response.status}): ${errorBody}`);
+      }
+      
+      const result = await response.json();
+      console.log(`✅ [StorageService.clearSectionQuestions] Archivadas ${result.archivedCount || 0} preguntas anteriores de la sección ${sectionId} (historial mantenido en BD)`);
+    } catch (error) {
+      console.error('Error en clearSectionQuestions:', error);
+      throw error;
+    }
+  }
+
+  // Crear una sola pregunta de sección
+  static async addSectionQuestion(sectionId: string, questionData: Omit<PrismaSectionQuestion, 'id' | 'sectionId' | 'createdAt' | 'updatedAt'>): Promise<PrismaSectionQuestion> {
+    if (!sectionId) {
+      throw new Error('addSectionQuestion: sectionId no proporcionado.');
+    }
+    try {
+      const response = await fetch(`/api/sections/${sectionId}/questions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(questionData),
+      });
+      if (!response.ok) throw new Error('Error al guardar la pregunta de sección');
+      return await response.json() as PrismaSectionQuestion;
+    } catch (error) {
+      console.error('Error al guardar pregunta de sección:', error);
+      throw error;
+    }
+  }
+
+  // Crear varias preguntas de sección
+  static async addMultipleSectionQuestions(sectionId: string, questionsData: Omit<PrismaSectionQuestion, 'id' | 'sectionId' | 'createdAt' | 'updatedAt'>[]): Promise<PrismaSectionQuestion[]> {
+    if (!sectionId) {
+      throw new Error('addMultipleSectionQuestions: sectionId no proporcionado.');
+    }
+    try {
+      const response = await fetch(`/api/sections/${sectionId}/questions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(questionsData),
+      });
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error('Error al guardar múltiples preguntas de sección - Respuesta no OK:', response.status, errorBody);
+        throw new Error(`Error al guardar múltiples preguntas de sección (${response.status}): ${errorBody}`);
+      }
+      const result = await response.json();
+      if (!result.success || !Array.isArray(result.questions)) {
+        console.error('Error al guardar múltiples preguntas de sección - Respuesta inesperada:', result);
+        throw new Error('Respuesta inesperada del servidor al guardar múltiples preguntas de sección');
+      }
+      console.log('[StorageService.addMultipleSectionQuestions] Preguntas recibidas de la API:', JSON.stringify(result.questions, null, 2));
+      return result.questions as PrismaSectionQuestion[];
+    } catch (error) {
+      console.error('Error en addMultipleSectionQuestions:', error);
+      throw error;
+    }
+  }
+
+  // Editar pregunta de sección
+  static async updateSectionQuestion(questionId: string, data: Partial<import('@prisma/client').SectionQuestion>): Promise<import('@prisma/client').SectionQuestion | null> {
+    if (!questionId) return null;
+    
+    try {
+      const response = await fetch(`/api/section-questions/${questionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        // Intentar obtener el error específico del servidor
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          errorData = { error: 'Error desconocido del servidor' };
+        }
+        
+        // Manejar errores específicos
+        if (response.status === 400 && errorData.code === 'TEMPORAL_QUESTION_NOT_EDITABLE') {
+          throw new Error(errorData.error || 'No se puede editar una pregunta temporal');
+        } else if (response.status === 404 && errorData.code === 'QUESTION_NOT_FOUND') {
+          throw new Error(errorData.error || 'La pregunta no existe en la base de datos');
+        } else {
+          throw new Error(errorData.error || `Error del servidor: ${response.status} ${response.statusText}`);
+        }
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error en updateSectionQuestion:', error);
+      // Re-lanzar el error para que el componente pueda manejarlo
+      throw error;
+    }
+  }
+
+  /**
+   * Elimina permanentemente una pregunta de documento.
+   * @param documentId ID del documento al que pertenece la pregunta.
+   * @param questionId ID de la pregunta a eliminar.
+   */
+  static async deleteQuestion(documentId: string, questionId: string): Promise<void> {
+    if (!documentId || !questionId) {
+      throw new Error('deleteQuestion: documentId y questionId son requeridos.');
+    }
+    try {
+      // Usa la nueva ruta anidada con qId
+      const response = await fetch(`/api/documents/${documentId}/questions/${questionId}`, { // El parámetro aquí sigue siendo questionId, la API lo mapea a qId
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Error deleting question:', response.status, response.statusText, errorData);
+        throw new Error(`Error al eliminar la pregunta: ${response.statusText} (${response.status}) ${errorData.error || ''}`.trim());
+      }
+      console.log(`Question ${questionId} for doc ${documentId} deleted successfully via StorageService.`);
+    } catch (error) {
+      console.error('Network or parsing error deleting question:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Elimina permanentemente una pregunta de sección.
+   * @param questionId ID de la pregunta de sección a eliminar.
+   */
+  static async deleteSectionQuestion(questionId: string): Promise<void> {
+    try {
+      const response = await fetch(`/api/section-questions/${questionId}`, { // Asume esta ruta, la crearemos si no existe
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Error deleting section question:', response.status, response.statusText, errorData);
+        throw new Error(`Error al eliminar la pregunta de sección: ${response.statusText} (${response.status}) ${errorData.error || ''}`.trim());
+      }
+      console.log(`SectionQuestion ${questionId} deleted successfully.`);
+    } catch (error) {
+      console.error('Network or parsing error deleting section question:', error);
+      throw error;
+    }
+  }
+
+  // Editar pregunta general
+  static async updateQuestion(documentId: string, questionId: string, data: Partial<import('@prisma/client').Question>): Promise<import('@prisma/client').Question | null> {
+    if (!documentId || !questionId) return null;
+    try {
+      // Usa la nueva ruta anidada con qId
+      const response = await fetch(`/api/documents/${documentId}/questions/${questionId}`, { // El parámetro aquí sigue siendo questionId, la API lo mapea a qId
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+         const errorData = await response.json().catch(() => ({}));
+         console.error('Error updating question:', response.status, response.statusText, errorData);
+         throw new Error(`Error al actualizar la pregunta: ${response.statusText} (${response.status}) ${errorData.error || ''}`.trim());
+      }
+      console.log(`Question ${questionId} for doc ${documentId} updated successfully via StorageService.`);
+      return await response.json();
+    } catch (error) {
+      console.error('Network or parsing error updating question:', error);
+      throw error;
+    }
+  }
+
+  static async updateSection(sectionId: string, data: Partial<import('@prisma/client').Section>): Promise<import('@prisma/client').Section | null> {
+    if (!sectionId) return null;
+    try {
+      const response = await fetch(`/api/sections/${sectionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error('Error al actualizar la sección');
+      return await response.json();
+    } catch (error) {
+      console.error('Error en updateSection:', error);
+      return null;
+    }
+  }
+
+  static async deleteSection(sectionId: string): Promise<boolean> {
+    if (!sectionId) return false;
+    try {
+      const response = await fetch(`/api/sections/${sectionId}`, {
+        method: 'DELETE',
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Error en deleteSection:', error);
+      return false;
+    }
+  }
+
+  // Crear una pregunta general (del documento completo)
+  static async addQuestion(questionData: Omit<PrismaQuestion, 'id' | 'createdAt' | 'updatedAt'>): Promise<PrismaQuestion> {
+    if (!questionData.documentId) {
+      throw new Error('addQuestion: documentId no proporcionado.');
+    }
+    try {
+      const response = await fetch(`/api/documents/${questionData.documentId}/questions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(questionData),
+      });
+      if (!response.ok) throw new Error('Error al guardar la pregunta general');
+      return await response.json() as PrismaQuestion;
+    } catch (error) {
+      console.error('Error al guardar pregunta general:', error);
+      throw error;
+    }
+  }
+
+  // 🧹 NUEVO: Función para archivar preguntas anteriores en tablas personalizadas
+  static async clearCustomTableQuestions(
+    tableName: import('@/types/questionTables').QuestionTableName,
+    sectionId: string
+  ): Promise<void> {
+    if (!tableName || tableName === 'SectionQuestion') {
+      throw new Error('clearCustomTableQuestions: tableName debe ser una tabla personalizada válida.');
+    }
+    if (!sectionId) {
+      throw new Error('clearCustomTableQuestions: sectionId no proporcionado.');
+    }
+    try {
+      console.log(`🧹 [StorageService.clearCustomTableQuestions] Archivando preguntas anteriores de ${tableName} para sectionId ${sectionId}`);
+      console.log(`📋 [StorageService.clearCustomTableQuestions] Enviando petición a API con tableName: "${tableName}" y sectionId: "${sectionId}"`);
+      
+      const response = await fetch('/api/questions/custom-table/clear', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          tableName,
+          sectionId 
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error('Error al archivar preguntas de tabla personalizada - Respuesta no OK:', response.status, errorBody);
+        throw new Error(`Error al archivar preguntas de tabla personalizada (${response.status}): ${errorBody}`);
+      }
+      
+      const result = await response.json();
+      console.log(`✅ [StorageService.clearCustomTableQuestions] Archivadas ${result.archivedCount || 0} preguntas anteriores de ${tableName} (historial mantenido en BD)`);
+    } catch (error) {
+      console.error('Error en clearCustomTableQuestions:', error);
+      throw error;
+    }
+  }
+
+  // 🎯 NUEVO: Función para guardar preguntas en diferentes tablas
+  static async addQuestionsToCustomTable(
+    tableName: import('@/types/questionTables').QuestionTableName,
+    questionsData: any[],
+    sectionId?: string,
+    documentId?: string
+  ): Promise<any[]> {
+    if (!questionsData || questionsData.length === 0) {
+      console.warn(`[StorageService.addQuestionsToCustomTable] No hay preguntas para agregar a ${tableName}`);
+      return [];
+    }
+
+    try {
+      console.log(`[StorageService.addQuestionsToCustomTable] Agregando preguntas a ${tableName}:`, { 
+        tableName,
+        count: questionsData.length,
+        sectionId,
+        documentId,
+        firstQuestion: questionsData[0]?.content?.substring(0, 100) 
+      });
+
+      const response = await fetch('/api/questions/custom-table', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          tableName,
+          questions: questionsData,
+          sectionId,
+          documentId
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error(`[StorageService.addQuestionsToCustomTable] Error del API para ${tableName}:`, errorData);
+        throw new Error(errorData.error || `Error al agregar las preguntas a ${tableName}`);
+      }
+
+      const result = await response.json();
+      console.log(`[StorageService.addQuestionsToCustomTable] Preguntas creadas exitosamente en ${tableName}:`, result.questions.length);
+      return result.questions;
+    } catch (error) {
+      console.error(`[StorageService.addQuestionsToCustomTable] Error para ${tableName}:`, error);
+      throw error;
+    }
+  }
+} 

@@ -1,0 +1,310 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+interface Examen2024Question {
+  id: string;
+  questionnumber: number;
+  question: string;
+  options: string[];
+  correctanswerindex: number;
+  category: string | null;
+  difficulty: string | null;
+}
+
+interface Examen2024Stats {
+  totalQuestionsAnswered: number;
+  correctAnswers: number;
+  accuracy: number;
+  totalquestions: number;
+  questionsAnswered: number;
+  progress: number;
+  categoryStats: Map<string, { total: number; correct: number }>;
+  uniqueQuestions: Set<number>;
+  averageResponseTime: number | null;
+  bestCategory: string | null;
+  worstCategory: string | null;
+  recentStreak: number;
+}
+
+export class Examen2024Service {
+  
+  /**
+   * Obtener una pregunta aleatoria del examen oficial 2024
+   */
+  static async getRandomQuestion(): Promise<Examen2024Question | null> {
+    try {
+      const randomQuestion = await prisma.examenoficial2024.findFirst({
+        where: {
+          isactive: true
+        },
+        orderBy: {
+          sendcount: 'asc' // Priorizar preguntas menos enviadas
+        },
+        skip: Math.floor(Math.random() * 10) // Pequeña aleatoriedad
+      });
+      
+      if (!randomQuestion) {
+        return null;
+      }
+      
+      // Incrementar contador de envíos
+      await prisma.examenoficial2024.update({
+        where: { id: randomQuestion.id },
+        data: { 
+          sendcount: { increment: 1 },
+          lastsuccessfulsendat: new Date()
+        }
+      });
+      
+      return {
+        id: randomQuestion.id,
+        questionnumber: randomQuestion.questionnumber,
+        question: randomQuestion.question,
+        options: randomQuestion.options ? JSON.parse(randomQuestion.options) : [],
+        correctanswerindex: randomQuestion.correctanswerindex,
+        category: randomQuestion.category,
+        difficulty: randomQuestion.difficulty
+      };
+      
+    } catch (error) {
+      console.error('Error obteniendo pregunta del examen 2024:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Obtener estadísticas del usuario para el examen 2024
+   */
+  static async getUserStats(userid: string): Promise<Examen2024Stats | null> {
+    try {
+      // Obtener todas las respuestas del usuario a preguntas del examen2024
+      const userResponses = await prisma.$queryRaw`
+        SELECT 
+          tr."iscorrect",
+          tr."responsetime",
+          tr.points,
+          tr."answeredAt",
+          tp."questionid",
+          eo."questionnumber",
+          eo.category,
+          eo.difficulty
+        FROM "TelegramResponse" tr
+        JOIN "TelegramPoll" tp ON tr."questionid" = tp."pollid"
+        JOIN "examenoficial2024" eo ON tp."questionid" = eo.id
+        JOIN "telegramuser" tu ON tr."userid" = tu.id
+        WHERE tu."telegramuserid" = ${userid}
+        AND tp."sourcemodel" = 'examenoficial2024'
+        ORDER BY tr."answeredAt" DESC
+      ` as any[];
+
+      const totalQuestionsAnswered = userResponses.length;
+      const correctAnswers = userResponses.filter(r => r.iscorrect).length;
+      const totalQuestions = await prisma.examenoficial2024.count();
+      const accuracy = totalQuestionsAnswered > 0 ? Math.round((correctAnswers / totalQuestionsAnswered) * 100) : 0;
+      
+      // Estadísticas por categoría
+      const categoryStats = new Map();
+      userResponses.forEach(response => {
+        const category = response.category || 'Sin categoría';
+        if (!categoryStats.has(category)) {
+          categoryStats.set(category, { total: 0, correct: 0 });
+        }
+        const stats = categoryStats.get(category);
+        stats.total++;
+        if (response.iscorrect) stats.correct++;
+      });
+
+      // Preguntas únicas respondidas
+      const uniqueQuestions = new Set(userResponses.map(r => r.questionnumber));
+      const questionsAnswered = uniqueQuestions.size;
+      const progress = Math.round((questionsAnswered / totalQuestions) * 100);
+
+      // Tiempo promedio de respuesta
+      const responsesWithTime = userResponses.filter(r => r.responsetime);
+      const averageResponseTime = responsesWithTime.length > 0
+        ? Math.round(responsesWithTime.reduce((sum, r) => sum + r.responsetime, 0) / responsesWithTime.length)
+        : null;
+
+      // Mejor y peor categoría
+      let bestCategory = null;
+      let worstCategory = null;
+      let bestAccuracy = 0;
+      let worstAccuracy = 100;
+
+      for (const [category, stats] of Array.from(categoryStats.entries())) {
+        const categoryAccuracy = stats.total > 0 ? (stats.correct / stats.total) * 100 : 0;
+        
+        if (categoryAccuracy > bestAccuracy && stats.total >= 3) {
+          bestAccuracy = categoryAccuracy;
+          bestCategory = category;
+        }
+        
+        if (categoryAccuracy < worstAccuracy && stats.total >= 3) {
+          worstAccuracy = categoryAccuracy;
+          worstCategory = category;
+        }
+      }
+
+      // Racha reciente (últimas 10 respuestas)
+      const recentResponses = userResponses.slice(0, 10);
+      let recentStreak = 0;
+      for (const response of recentResponses) {
+        if (response.iscorrect) {
+          recentStreak++;
+        } else {
+          break;
+        }
+      }
+
+      return {
+        totalQuestionsAnswered,
+        correctAnswers,
+        accuracy,
+        totalquestions: totalQuestions,
+        questionsAnswered,
+        progress,
+        categoryStats,
+        uniqueQuestions,
+        averageResponseTime,
+        bestCategory,
+        worstCategory,
+        recentStreak
+      };
+      
+    } catch (error) {
+      console.error('Error obteniendo estadísticas del examen 2024:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Formatear estadísticas para mostrar al usuario
+   */
+  static formatUserStats(stats: Examen2024Stats): string {
+    const { 
+      totalQuestionsAnswered, 
+      correctAnswers, 
+      accuracy, 
+      totalquestions: totalQuestions, 
+      questionsAnswered, 
+      progress,
+      categoryStats,
+      averageResponseTime,
+      bestCategory,
+      worstCategory,
+      recentStreak
+    } = stats;
+
+    let statsMessage = `📊 <b>ESTADÍSTICAS EXAMEN OFICIAL 2024</b> 📊\n\n`;
+    
+    // Resumen general
+    statsMessage += `🎯 <b>RESUMEN GENERAL:</b>\n`;
+    statsMessage += `   📝 Respuestas totales: ${totalQuestionsAnswered}\n`;
+    statsMessage += `   ✅ Respuestas correctas: ${correctAnswers}\n`;
+    statsMessage += `   🎯 Precisión: ${accuracy}%\n`;
+    statsMessage += `   📊 Progreso: ${questionsAnswered}/${totalQuestions} (${progress}%)\n\n`;
+
+    // Rendimiento
+    statsMessage += `⚡ <b>RENDIMIENTO:</b>\n`;
+    if (averageResponseTime) {
+      statsMessage += `   ⏱️ Tiempo promedio: ${averageResponseTime}s\n`;
+    }
+    if (recentStreak > 0) {
+      statsMessage += `   🔥 Racha actual: ${recentStreak} aciertos\n`;
+    }
+    statsMessage += `\n`;
+
+    // Estado del progreso
+    const progressEmoji = progress < 25 ? '🌱' : progress < 50 ? '🌿' : progress < 75 ? '🌳' : progress < 100 ? '🏆' : '🎯';
+    const progressText = progress < 25 ? 'INICIANDO' : progress < 50 ? 'EN PROGRESO' : progress < 75 ? 'AVANZADO' : progress < 100 ? 'CASI COMPLETO' : '¡COMPLETADO!';
+    
+    statsMessage += `${progressEmoji} <b>ESTADO: ${progressText}</b>\n\n`;
+
+    // Análisis por categorías (si hay datos)
+    if (categoryStats.size > 0) {
+      statsMessage += `📚 <b>RENDIMIENTO POR CATEGORÍAS:</b>\n`;
+      
+      const sortedCategories = Array.from(categoryStats.entries())
+        .filter(([_, stats]) => stats.total >= 2) // Solo mostrar categorías con al menos 2 respuestas
+        .sort((a, b) => {
+          const accuracyA = (a[1].correct / a[1].total) * 100;
+          const accuracyB = (b[1].correct / b[1].total) * 100;
+          return accuracyB - accuracyA; // Ordenar por precisión descendente
+        });
+
+      if (sortedCategories.length > 0) {
+        sortedCategories.slice(0, 5).forEach(([category, stats]) => {
+          const categoryAccuracy = Math.round((stats.correct / stats.total) * 100);
+          const emoji = categoryAccuracy >= 80 ? '🟢' : categoryAccuracy >= 60 ? '🟡' : '🔴';
+          statsMessage += `   ${emoji} ${category}: ${stats.correct}/${stats.total} (${categoryAccuracy}%)\n`;
+        });
+        
+        if (bestCategory && bestCategory !== worstCategory) {
+          statsMessage += `\n   🏆 Mejor: ${bestCategory}\n`;
+        }
+        if (worstCategory) {
+          statsMessage += `   🎯 A mejorar: ${worstCategory}\n`;
+        }
+        statsMessage += `\n`;
+      }
+    }
+
+    // Objetivos y motivación
+    if (progress < 100) {
+      const questionsRemaining = totalQuestions - questionsAnswered;
+      statsMessage += `🎯 <b>PRÓXIMO OBJETIVO:</b>\n`;
+      if (progress < 25) {
+        statsMessage += `   🚀 Completa 25 preguntas (faltan ${25 - questionsAnswered})\n`;
+      } else if (progress < 50) {
+        statsMessage += `   🎪 Alcanza el 50% del examen (faltan ${questionsRemaining} preguntas)\n`;
+      } else if (progress < 75) {
+        statsMessage += `   🎭 ¡Supera el 75%! (faltan ${questionsRemaining} preguntas)\n`;
+      } else {
+        statsMessage += `   🏆 ¡Completa el examen! (faltan ${questionsRemaining} preguntas)\n`;
+      }
+      statsMessage += `\n`;
+    } else {
+      statsMessage += `🎉 <b>¡EXAMEN COMPLETADO!</b>\n`;
+      statsMessage += `   🏆 Has respondido todas las preguntas oficiales de 2024\n`;
+      statsMessage += `   💪 ¡Sigue practicando para mejorar tu precisión!\n\n`;
+    }
+
+    // Comandos útiles
+    statsMessage += `🔧 <b>COMANDOS ÚTILES:</b>\n`;
+    statsMessage += `   📝 <code>/examen2024</code> - Nueva pregunta\n`;
+    statsMessage += `   📊 <code>/stats</code> - Estadísticas generales\n`;
+    statsMessage += `   🏆 <code>/ranking</code> - Ver clasificación\n`;
+
+    return statsMessage;
+  }
+  
+  /**
+   * Verificar disponibilidad del sistema
+   */
+  static async isSystemAvailable(): Promise<{ available: boolean; message?: string }> {
+    try {
+      const questionCount = await prisma.examenoficial2024.count({
+        where: { isactive: true }
+      });
+      
+      if (questionCount === 0) {
+        return {
+          available: false,
+          message: 'No hay preguntas activas del Examen Oficial 2024'
+        };
+      }
+      
+      return { available: true };
+      
+    } catch (error) {
+      console.error('Error verificando disponibilidad del examen 2024:', error);
+      return {
+        available: false,
+        message: 'Error interno verificando el sistema'
+      };
+    }
+  }
+}
+
+export default Examen2024Service;

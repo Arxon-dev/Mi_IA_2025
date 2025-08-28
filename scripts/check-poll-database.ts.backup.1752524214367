@@ -1,0 +1,90 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function checkPollDatabase() {
+  try {
+    console.log('🔍 VERIFICANDO BASE DE DATOS');
+    console.log('============================');
+    
+    // Verificar polls en la base de datos
+    console.log('📊 Buscando polls registrados...');
+    const polls = await prisma.telegramPoll.findMany({
+      orderBy: { sentAt: 'desc' },
+      take: 5
+    });
+    
+    console.log(`✅ Encontrados ${polls.length} polls:`);
+    polls.forEach((poll, index) => {
+      console.log(`   ${index + 1}. Poll ID: ${poll.pollId}`);
+      console.log(`      Pregunta ID: ${poll.questionId}`);
+      console.log(`      Enviado: ${poll.sentAt.toLocaleString()}`);
+      console.log(`      Respuesta correcta: Opción ${poll.correctAnswerIndex}`);
+      console.log(`      Chat ID: ${poll.chatId}`);
+      console.log('');
+    });
+    
+    // Verificar usuarios registrados
+    console.log('👥 Verificando usuarios registrados...');
+    const users = await prisma.telegramUser.findMany();
+    console.log(`✅ Encontrados ${users.length} usuarios:`);
+    users.forEach((user, index) => {
+      console.log(`   ${index + 1}. ${user.firstName} (@${user.username || 'sin_username'})`);
+      console.log(`      Telegram ID: ${user.telegramUserId}`);
+      console.log(`      Puntos: ${user.totalPoints}`);
+      console.log(`      Se unió: ${user.joinedAt.toLocaleString()}`);
+      console.log('');
+    });
+    
+    // Verificar respuestas registradas
+    console.log('💬 Verificando respuestas registradas...');
+    const responses = await prisma.telegramResponse.findMany({
+      orderBy: { answeredAt: 'desc' },
+      take: 10,
+      include: {
+        user: {
+          select: {
+            firstName: true,
+            username: true
+          }
+        }
+      }
+    });
+    
+    console.log(`✅ Encontradas ${responses.length} respuestas:`);
+    responses.forEach((response, index) => {
+      console.log(`   ${index + 1}. ${response.user.firstName} (@${response.user.username || 'sin_username'})`);
+      console.log(`      Pregunta ID: ${response.questionId}`);
+      console.log(`      Correcto: ${response.isCorrect ? '✅' : '❌'}`);
+      console.log(`      Puntos: ${response.points}`);
+      console.log(`      Respondido: ${response.answeredAt.toLocaleString()}`);
+      console.log('');
+    });
+    
+    // Buscar específicamente la pregunta final
+    console.log('🎯 Buscando la pregunta final específicamente...');
+    const finalPoll = await prisma.telegramPoll.findFirst({
+      where: {
+        pollId: '5890795620695803130' // Poll ID de la pregunta final
+      }
+    });
+    
+    if (finalPoll) {
+      console.log('✅ Pregunta final encontrada en la base de datos:');
+      console.log(`   Poll ID: ${finalPoll.pollId}`);
+      console.log(`   Pregunta ID: ${finalPoll.questionId}`);
+      console.log(`   Respuesta correcta: Opción ${finalPoll.correctAnswerIndex}`);
+      console.log(`   Enviado: ${finalPoll.sentAt.toLocaleString()}`);
+    } else {
+      console.log('❌ La pregunta final NO se encontró en la base de datos');
+      console.log('   Esto explica por qué no se procesan las respuestas');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error verificando base de datos:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+checkPollDatabase(); 

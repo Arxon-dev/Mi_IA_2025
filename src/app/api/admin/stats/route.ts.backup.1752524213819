@@ -1,0 +1,99 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+
+export async function GET() {
+  try {
+    // Estadísticas básicas del sistema
+    const [
+      totalUsers,
+      totalQuestions,
+      totalDocuments,
+      totalResponses
+    ] = await Promise.all([
+      prisma.telegramUser.count(),
+      prisma.question.count(),
+      prisma.document.count(),
+      prisma.telegramResponse.count()
+    ]);
+
+    // Verificar estado del sistema
+    const systemHealth = {
+      database: true, // Si llegamos aquí, la BD funciona
+      telegram: true, // TODO: Verificar API de Telegram
+      webhook: true,  // TODO: Verificar webhook status
+      ai: true       // TODO: Verificar servicios de IA
+    };
+
+    // Actividad reciente (opcional - simplificado por ahora)
+    const recentActivity = {
+      lastQuestion: 'N/A',
+      lastResponse: 'N/A', 
+      lastUser: 'N/A'
+    };
+
+    // Obtener información más detallada si es posible
+    try {
+      const lastUser = await prisma.telegramUser.findFirst({
+        orderBy: { joinedAt: 'desc' },
+        select: { firstName: true, joinedAt: true }
+      });
+
+      const lastResponse = await prisma.telegramResponse.findFirst({
+        orderBy: { answeredAt: 'desc' },
+        select: { answeredAt: true }
+      });
+
+      const lastQuestion = await prisma.question.findFirst({
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true }
+      });
+
+      if (lastUser) {
+        recentActivity.lastUser = `${lastUser.firstName} (${lastUser.joinedAt.toLocaleDateString()})`;
+      }
+
+      if (lastResponse) {
+        recentActivity.lastResponse = lastResponse.answeredAt.toLocaleString();
+      }
+
+      if (lastQuestion) {
+        recentActivity.lastQuestion = lastQuestion.createdAt.toLocaleString();
+      }
+    } catch (activityError) {
+      console.warn('Error getting recent activity:', activityError);
+    }
+
+    const stats = {
+      totalUsers,
+      totalQuestions,
+      totalDocuments,
+      totalResponses,
+      systemHealth,
+      recentActivity
+    };
+
+    return NextResponse.json(stats);
+
+  } catch (error) {
+    console.error('Error fetching admin stats:', error);
+    
+    // Devolver estadísticas mínimas en caso de error
+    return NextResponse.json({
+      totalUsers: 0,
+      totalQuestions: 0,
+      totalDocuments: 0,
+      totalResponses: 0,
+      systemHealth: {
+        database: false,
+        telegram: false,
+        webhook: false,
+        ai: false
+      },
+      recentActivity: {
+        lastQuestion: 'Error',
+        lastResponse: 'Error',
+        lastUser: 'Error'
+      }
+    });
+  }
+} 

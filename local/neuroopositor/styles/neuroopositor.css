@@ -1,0 +1,757 @@
+/*
+ * NeuroOpositor Plugin Styles
+ * 
+ * @package    local_neuroopositor
+ * @copyright  2025 OpoMelilla Team
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+/* ==========================================================================
+   Main Container
+   ========================================================================== */
+
+.neuroopositor-container {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.neuroopositor-welcome {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 30px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.neuroopositor-welcome h2 {
+    margin: 0;
+    font-size: 2.5rem;
+    font-weight: 300;
+}
+
+/* ==========================================================================
+   Navigation
+   ========================================================================== */
+
+.neuroopositor-nav {
+    margin-bottom: 30px;
+}
+
+.neuroopositor-nav .nav-tabs {
+    border-bottom: 2px solid #e9ecef;
+}
+
+.neuroopositor-nav .nav-link {
+    color: #495057;
+    font-weight: 500;
+    padding: 12px 24px;
+    border: none;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.neuroopositor-nav .nav-link:hover {
+    color: #007bff;
+    border-bottom-color: #007bff;
+    background-color: transparent;
+}
+
+.neuroopositor-nav .nav-link.active {
+    color: #007bff;
+    border-bottom-color: #007bff;
+    background-color: transparent;
+    font-weight: 600;
+}
+
+/* ==========================================================================
+   Statistics Cards
+   ========================================================================== */
+
+.neuroopositor-stats-cards {
+    margin-bottom: 30px;
+}
+
+.neuroopositor-stat-card {
+    border: none;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    height: 100%;
+}
+
+.neuroopositor-stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+}
+
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-bottom: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.progress-ring {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: conic-gradient(#007bff 0deg, #007bff calc(var(--progress, 0) * 3.6deg), #e9ecef calc(var(--progress, 0) * 3.6deg));
+    margin: 10px auto;
+    position: relative;
+}
+
+.progress-ring::before {
+    content: '';
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    right: 5px;
+    bottom: 5px;
+    background: white;
+    border-radius: 50%;
+}
+
+/* ==========================================================================
+   Topic Buttons
+   ========================================================================== */
+
+.topic-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 15px;
+}
+
+.topic-buttons .btn {
+    border-radius: 20px;
+    font-size: 0.85rem;
+    padding: 6px 16px;
+    transition: all 0.3s ease;
+}
+
+.topic-buttons .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* ==========================================================================
+   Neural Map
+   ========================================================================== */
+
+.neuroopositor-neuralmap-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.neuroopositor-neuralmap-header h2 {
+    color: #2c3e50;
+    font-weight: 300;
+    margin-bottom: 10px;
+}
+
+.neuroopositor-controls {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+}
+
+.neuroopositor-neuralmap-container {
+    margin-top: 20px;
+}
+
+.neural-map-2d,
+.neural-map-3d {
+    background: #ffffff;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+}
+
+.neural-map-preview {
+    height: 200px;
+    background: linear-gradient(45deg, #f8f9fa 25%, transparent 25%), 
+                linear-gradient(-45deg, #f8f9fa 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #f8f9fa 75%), 
+                linear-gradient(-45deg, transparent 75%, #f8f9fa 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6c757d;
+    font-style: italic;
+}
+
+.neural-map-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+}
+
+/* ==========================================================================
+   Node and Connection Styles
+   ========================================================================== */
+
+.neural-node {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.neural-node:hover {
+    stroke-width: 3px;
+    filter: drop-shadow(0 0 8px rgba(0, 123, 255, 0.6));
+}
+
+.neural-node.selected {
+    stroke: #007bff;
+    stroke-width: 4px;
+}
+
+.neural-node.mastered {
+    fill: #28a745;
+}
+
+.neural-node.intermediate {
+    fill: #ffc107;
+}
+
+.neural-node.beginner {
+    fill: #fd7e14;
+}
+
+.neural-node.unexplored {
+    fill: #6c757d;
+}
+
+.neural-connection {
+    transition: all 0.3s ease;
+}
+
+.neural-connection.strong {
+    stroke: #28a745;
+    stroke-width: 3px;
+}
+
+.neural-connection.medium {
+    stroke: #ffc107;
+    stroke-width: 2px;
+}
+
+.neural-connection.weak {
+    stroke: #dc3545;
+    stroke-width: 1px;
+}
+
+.neural-connection:hover {
+    stroke-width: 4px;
+    filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.3));
+}
+
+/* ==========================================================================
+   Legend
+   ========================================================================== */
+
+.legend-node {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+.legend-node.mastered {
+    background-color: #28a745;
+}
+
+.legend-node.intermediate {
+    background-color: #ffc107;
+}
+
+.legend-node.beginner {
+    background-color: #fd7e14;
+}
+
+.legend-node.unexplored {
+    background-color: #6c757d;
+}
+
+.legend-connection {
+    display: inline-block;
+    width: 30px;
+    height: 3px;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+.legend-connection.strong {
+    background-color: #28a745;
+    height: 3px;
+}
+
+.legend-connection.medium {
+    background-color: #ffc107;
+    height: 2px;
+}
+
+.legend-connection.weak {
+    background-color: #dc3545;
+    height: 1px;
+}
+
+/* ==========================================================================
+   Node Details Panel
+   ========================================================================== */
+
+#node-details-panel {
+    min-height: 150px;
+}
+
+.node-detail-item {
+    margin-bottom: 10px;
+    padding: 8px;
+    background: #f8f9fa;
+    border-radius: 4px;
+}
+
+.node-detail-label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 4px;
+}
+
+.node-detail-value {
+    color: #6c757d;
+}
+
+/* ==========================================================================
+   Progress Visualization
+   ========================================================================== */
+
+.progress-chart {
+    height: 300px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ==========================================================================
+   Recommended Path
+   ========================================================================== */
+
+.recommended-path-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.path-item {
+    padding: 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    background: white;
+    transition: all 0.3s ease;
+}
+
+.path-item:hover {
+    background: #f8f9fa;
+    border-color: #007bff;
+    transform: translateX(5px);
+}
+
+.path-item-title {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 4px;
+}
+
+.path-item-priority {
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+.path-item-reason {
+    font-size: 0.75rem;
+    color: #007bff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ==========================================================================
+   Topic Items
+   ========================================================================== */
+
+.topic-item {
+    padding: 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    background: white;
+    transition: all 0.3s ease;
+}
+
+.topic-item:hover {
+    background: #f8f9fa;
+    border-color: #007bff;
+    transform: translateX(5px);
+}
+
+/* Topic items styling - Enhanced with higher specificity */
+.neuroopositor-container .topic-item h4,
+.neuroopositor-container .topic-item .topic-info h4,
+.neuroopositor-container .topic-item .topic-title {
+    color: #000 !important;
+    font-weight: 600 !important;
+    margin-bottom: 0.5rem !important;
+    font-size: 1.1rem !important;
+    text-shadow: none !important;
+}
+
+.neuroopositor-container .topic-item p,
+.neuroopositor-container .topic-item .topic-info p,
+.neuroopositor-container .topic-item small {
+    color: #000 !important;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem !important;
+    text-shadow: none !important;
+}
+
+.neuroopositor-container .topic-item .study-btn,
+.neuroopositor-container .topic-item .topic-actions .study-btn,
+.neuroopositor-container .study-btn {
+    background-color: #007bff !important;
+    color: white !important;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    text-decoration: none;
+    font-weight: 500 !important;
+    transition: background-color 0.3s ease !important;
+}
+
+.neuroopositor-container .topic-item .study-btn:hover,
+.neuroopositor-container .topic-item .topic-actions .study-btn:hover,
+.neuroopositor-container .study-btn:hover {
+    background-color: #0056b3 !important;
+    color: white !important;
+}
+
+/* Force visibility for all topic elements */
+.neuroopositor-container .topic-item * {
+    color: inherit;
+}
+
+.neuroopositor-container .topic-item .topic-number {
+    color: #666 !important;
+    font-weight: 500 !important;
+}
+
+.neuroopositor-container .topic-item .topic-stats i {
+    color: #007bff !important;
+}
+
+.topic-item-title {
+    font-weight: 600;
+    color: #000 !important;
+    margin-bottom: 4px;
+}
+
+.topic-item-priority {
+    font-size: 0.85rem;
+    color: #000 !important;
+}
+
+.topic-item-reason {
+    font-size: 0.75rem;
+    color: #007bff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ==========================================================================
+   Questions Interface
+   ========================================================================== */
+
+.question-container {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 30px;
+    margin-bottom: 20px;
+}
+
+.question-text {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    margin-bottom: 25px;
+    color: #2c3e50;
+}
+
+.question-options {
+    list-style: none;
+    padding: 0;
+}
+
+.question-option {
+    margin-bottom: 12px;
+}
+
+.question-option label {
+    display: block;
+    padding: 15px 20px;
+    background: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.question-option label:hover {
+    background: #e9ecef;
+    border-color: #007bff;
+}
+
+.question-option input[type="radio"]:checked + label {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+.question-controls {
+    text-align: center;
+    margin-top: 30px;
+}
+
+.question-timer {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #dc3545;
+    margin-bottom: 20px;
+}
+
+/* ==========================================================================
+   Statistics
+   ========================================================================== */
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-widget {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+}
+
+.stat-widget-icon {
+    font-size: 2.5rem;
+    margin-bottom: 15px;
+    color: #007bff;
+}
+
+.stat-widget-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: #2c3e50;
+}
+
+.stat-widget-label {
+    font-size: 0.9rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ==========================================================================
+   Responsive Design
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .neuroopositor-container {
+        padding: 10px;
+    }
+    
+    .neuroopositor-welcome {
+        padding: 20px;
+    }
+    
+    .neuroopositor-welcome h2 {
+        font-size: 1.8rem;
+    }
+    
+    .stat-number {
+        font-size: 2rem;
+    }
+    
+    .topic-buttons {
+        justify-content: center;
+    }
+    
+    .neural-map-2d,
+    .neural-map-3d {
+        height: 400px !important;
+    }
+    
+    .neuroopositor-controls .row {
+        text-align: center;
+    }
+    
+    .neuroopositor-controls .col-md-4 {
+        margin-bottom: 15px;
+    }
+}
+
+@media (max-width: 576px) {
+    .neuroopositor-nav .nav-link {
+        padding: 8px 12px;
+        font-size: 0.9rem;
+    }
+    
+    .question-container {
+        padding: 20px;
+    }
+    
+    .question-option label {
+        padding: 12px 15px;
+        font-size: 0.9rem;
+    }
+}
+
+/* ==========================================================================
+   Animations
+   ========================================================================== */
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(-100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.6s ease-out;
+}
+
+.slide-in {
+    animation: slideIn 0.4s ease-out;
+}
+
+.pulse {
+    animation: pulse 2s infinite;
+}
+
+/* ==========================================================================
+   Utility Classes
+   ========================================================================== */
+
+.text-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.shadow-soft {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.shadow-medium {
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+}
+
+.border-gradient {
+    border: 2px solid;
+    border-image: linear-gradient(135deg, #667eea 0%, #764ba2 100%) 1;
+}
+
+.bg-neural {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* ==========================================================================
+   Dark Mode Support
+   ========================================================================== */
+
+@media (prefers-color-scheme: dark) {
+    .neuroopositor-container {
+        background-color: #1a1a1a;
+        color: #e9ecef;
+    }
+    
+    .neuroopositor-stat-card {
+        background-color: #2d3748;
+        border-color: #4a5568;
+    }
+    
+    .neural-map-2d,
+    .neural-map-3d {
+        background-color: #2d3748;
+        border-color: #4a5568;
+    }
+    
+    .question-container {
+        background-color: #2d3748;
+        border-color: #4a5568;
+    }
+    
+    .question-option label {
+        background-color: #4a5568;
+        border-color: #718096;
+        color: #e9ecef;
+    }
+    
+    .question-option label:hover {
+        background-color: #718096;
+    }
+}

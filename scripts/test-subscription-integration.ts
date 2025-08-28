@@ -1,0 +1,592 @@
+import { PrismaClient } from '@prisma/client';
+import { SubscriptionService } from '../src/services/subscriptionService';
+import { SubscriptionCommands } from '../src/services/subscriptionCommands';
+import { PaymentService } from '../src/services/paymentService';
+import { SubscriptionMiddleware } from '../src/middleware/subscriptionMiddleware';
+
+const prisma = new PrismaClient();
+
+interface TestResult {
+  test: string;
+  passed: boolean;
+  details?: any;
+  error?: string;
+}
+
+// Simular interfaz de bot para pruebas
+const mockBot = {
+  async sendMessage(chatid: number, text: string) {
+    console.log(`📤 [Mock Bot] Mensaje a ${chatid}:`, text.substring(0, 100) + '...');
+    return { message_id: Math.floor(Math.random() * 1000) };
+  },
+  async sendInvoice(chatid: number, invoiceData: any) {
+    console.log(`💰 [Mock Bot] Invoice a ${chatid}:`, {
+      title: invoiceData.title,
+      description: invoiceData.description,
+      payload: invoiceData.payload,
+      currency: invoiceData.currency,
+      prices: invoiceData.prices
+    });
+    return { message_id: Math.floor(Math.random() * 1000) };
+  }
+};
+
+// Simular mensaje de Telegram
+function createMockMessage(userid: string, command: string) {
+  return {
+    message_id: Math.floor(Math.random() * 1000),
+    from: {
+      id: parseInt(userid),
+      is_bot: false,
+      first_name: 'Usuario',
+      last_name: 'Test',
+      username: `user_${userid}`
+    },
+    chat: {
+      id: parseInt(userid),
+      type: 'private'
+    },
+    date: Math.floor(Date.now() / 1000),
+    text: command
+  };
+}
+
+class SubscriptionIntegrationTester {
+  private results: TestResult[] = [];
+  private testUserId = '999888777';
+
+  /**
+   * Ejecutar todas las pruebas
+   */
+  async runAllTests(): Promise<void> {
+    console.log('🧪 ======================================');
+    console.log('🧪 INICIANDO PRUEBAS DE INTEGRACIÓN');
+    console.log('🧪 ======================================\n');
+
+    try {
+      // Limpiar datos de prueba previos
+      await this.cleanupTestData();
+
+      // 1. Verificar planes disponibles
+      await this.testAvailablePlans();
+
+      // 2. Probar comandos básicos sin suscripción
+      await this.testCommandsWithoutSubscription();
+
+      // 3. Probar proceso de suscripción básica
+      await this.testBasicSubscriptionFlow();
+
+      // 4. Probar comandos con suscripción básica
+      await this.testCommandsWithBasicSubscription();
+
+      // 5. Probar upgrade a Premium
+      await this.testUpgradeToPremium();
+
+      // 6. Probar comandos Premium
+      await this.testPremiumCommands();
+
+      // 7. Probar middleware de permisos
+      await this.testPermissionMiddleware();
+
+      // 8. Probar gestión de cuotas
+      await this.testQuotaManagement();
+
+      // 9. Probar cancelación
+      await this.testCancellation();
+
+      // 10. Probar sistema de pagos
+      await this.testPaymentSystem();
+
+    } catch (error) {
+      console.error('💥 Error en las pruebas:', error);
+    } finally {
+      // Mostrar resultados
+      await this.showResults();
+      
+      // Limpiar datos de prueba
+      await this.cleanupTestData();
+      
+      await prisma.$disconnect();
+    }
+  }
+
+  /**
+   * Limpiar datos de prueba
+   */
+  private async cleanupTestData(): Promise<void> {
+    try {
+      await prisma.userQuotaUsage.deleteMany({
+        where: { userid: this.testUserId }
+      });
+      
+      await prisma.paymentTransaction.deleteMany({
+        where: { userid: this.testUserId }
+      });
+      
+      await prisma.usersubscription.deleteMany({
+        where: { userid: this.testUserId }
+      });
+      
+      await prisma.telegramuser.deleteMany({
+        where: { telegramuserid: this.testUserId }
+      });
+
+      console.log('🧹 Datos de prueba limpiados');
+    } catch (error) {
+      console.log('⚠️ Error limpiando datos de prueba:', error);
+    }
+  }
+
+  /**
+   * 1. Verificar planes disponibles
+   */
+  private async testAvailablePlans(): Promise<void> {
+    try {
+      const plans = await SubscriptionService.getAvailablePlans();
+      
+      this.addResult({
+        test: '📋 Planes disponibles',
+        passed: plans.length >= 2,
+        details: { totalPlans: plans.length, plans: plans.map(p => ({ name: p.name, price: p.price })) }
+      });
+
+    } catch (error) {
+      this.addResult({
+        test: '📋 Planes disponibles',
+        passed: false,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  /**
+   * 2. Probar comandos básicos sin suscripción
+   */
+  private async testCommandsWithoutSubscription(): Promise<void> {
+    try {
+      // Crear usuario de prueba
+      await prisma.telegramuser.create({
+        data: {
+          telegramuserid: this.testUserId,
+          username: 'test_user',
+          firstname: 'Usuario',
+          lastname: 'Test',
+          totalpoints: 0
+        }
+      });
+
+      // Probar comando /planes
+      const mockMessage = createMockMessage(this.testUserId, '/planes');
+      await SubscriptionCommands.handlePlanesCommand(mockMessage, mockBot);
+
+      // Verificar acceso a funcionalidades restringidas
+      const failedQuestionsAccess = await SubscriptionService.canUserAccessFeature(
+        this.testUserId, 
+        'failed_questions'
+      );
+
+      this.addResult({
+        test: '👤 Usuario sin suscripción',
+        passed: !failedQuestionsAccess.allowed,
+        details: { 
+          userCreated: true,
+          failedQuestionsBlocked: !failedQuestionsAccess.allowed,
+          reason: failedQuestionsAccess.reason
+        }
+      });
+
+    } catch (error) {
+      this.addResult({
+        test: '👤 Usuario sin suscripción',
+        passed: false,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * 3. Probar proceso de suscripción básica
+   */
+  private async testBasicSubscriptionFlow(): Promise<void> {
+    try {
+      // Simular suscripción básica
+      const plans = await SubscriptionService.getAvailablePlans();
+      const basicPlan = plans.find(p => p.name === 'basic');
+      
+      if (!basicPlan) {
+        throw new Error('Plan básico no encontrado');
+      }
+
+      const subscribed = await SubscriptionService.upgradeSubscription(this.testUserId, basicPlan.id);
+
+      // Verificar suscripción activa
+      const subscription = await SubscriptionService.getCurrentSubscription(this.testUserId);
+
+      this.addResult({
+        test: '🥉 Suscripción Básica',
+        passed: subscribed && subscription?.status === 'active',
+        details: {
+          subscribed,
+          planName: subscription?.plan.name,
+          status: subscription?.status
+        }
+      });
+
+    } catch (error) {
+      this.addResult({
+        test: '🥉 Suscripción Básica',
+        passed: false,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * 4. Probar comandos con suscripción básica
+   */
+  private async testCommandsWithBasicSubscription(): Promise<void> {
+    try {
+      // Verificar acceso a funcionalidades básicas
+      const failedQuestionsAccess = await SubscriptionService.canUserAccessFeature(
+        this.testUserId, 
+        'failed_questions'
+      );
+
+      const questionsAccess = await SubscriptionService.canUserAccessFeature(
+        this.testUserId, 
+        'questions',
+        5
+      );
+
+      // Verificar funcionalidades Premium bloqueadas
+      const moodleAccess = await SubscriptionService.canUserAccessFeature(
+        this.testUserId, 
+        'moodle_integration'
+      );
+
+      this.addResult({
+        test: '📚 Funcionalidades Básicas',
+        passed: failedQuestionsAccess.allowed && questionsAccess.allowed && !moodleAccess.allowed,
+        details: {
+          failedQuestions: failedQuestionsAccess.allowed,
+          questions: questionsAccess.allowed,
+          moodleBlocked: !moodleAccess.allowed
+        }
+      });
+
+    } catch (error) {
+      this.addResult({
+        test: '📚 Funcionalidades Básicas',
+        passed: false,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * 5. Probar upgrade a Premium
+   */
+  private async testUpgradeToPremium(): Promise<void> {
+    try {
+      const plans = await SubscriptionService.getAvailablePlans();
+      const premiumPlan = plans.find(p => p.name === 'premium');
+      
+      if (!premiumPlan) {
+        throw new Error('Plan Premium no encontrado');
+      }
+
+      const upgraded = await SubscriptionService.upgradeSubscription(this.testUserId, premiumPlan.id);
+      const subscription = await SubscriptionService.getCurrentSubscription(this.testUserId);
+
+      this.addResult({
+        test: '🥈 Upgrade a Premium',
+        passed: upgraded && subscription?.plan.name === 'premium',
+        details: {
+          upgraded,
+          planName: subscription?.plan.name,
+          status: subscription?.status
+        }
+      });
+
+    } catch (error) {
+      this.addResult({
+        test: '🥈 Upgrade a Premium',
+        passed: false,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * 6. Probar comandos Premium
+   */
+  private async testPremiumCommands(): Promise<void> {
+    try {
+      // Verificar todas las funcionalidades Premium
+      const moodleAccess = await SubscriptionService.canUserAccessFeature(
+        this.testUserId, 
+        'moodle_integration'
+      );
+
+      const aiAnalysisAccess = await SubscriptionService.canUserAccessFeature(
+        this.testUserId, 
+        'ai_analysis'
+      );
+
+      const simulationsAccess = await SubscriptionService.canUserAccessFeature(
+        this.testUserId, 
+        'simulations'
+      );
+
+      // Verificar preguntas ilimitadas
+      const unlimitedQuestionsAccess = await SubscriptionService.canUserAccessFeature(
+        this.testUserId, 
+        'questions',
+        1000
+      );
+
+      this.addResult({
+        test: '💎 Funcionalidades Premium',
+        passed: moodleAccess.allowed && aiAnalysisAccess.allowed && simulationsAccess.allowed && unlimitedQuestionsAccess.allowed,
+        details: {
+          moodle: moodleAccess.allowed,
+          aiAnalysis: aiAnalysisAccess.allowed,
+          simulations: simulationsAccess.allowed,
+          unlimitedQuestions: unlimitedQuestionsAccess.allowed
+        }
+      });
+
+    } catch (error) {
+      this.addResult({
+        test: '💎 Funcionalidades Premium',
+        passed: false,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * 7. Probar middleware de permisos
+   */
+  private async testPermissionMiddleware(): Promise<void> {
+    try {
+      // Probar comandos con permisos
+      const falladasPermission = await SubscriptionMiddleware.checkCommandPermission(
+        this.testUserId,
+        '/falladas'
+      );
+
+      const premiumPermission = await SubscriptionMiddleware.checkCommandPermission(
+        this.testUserId,
+        '/analisis_ia'
+      );
+
+      // Probar comando sin restricciones
+      const helpPermission = await SubscriptionMiddleware.checkCommandPermission(
+        this.testUserId,
+        '/help'
+      );
+
+      this.addResult({
+        test: '🛡️ Middleware de Permisos',
+        passed: falladasPermission.allowed && premiumPermission.allowed && helpPermission.allowed,
+        details: {
+          falladas: falladasPermission.allowed,
+          premiumFeature: premiumPermission.allowed,
+          help: helpPermission.allowed
+        }
+      });
+
+    } catch (error) {
+      this.addResult({
+        test: '🛡️ Middleware de Permisos',
+        passed: false,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * 8. Probar gestión de cuotas
+   */
+  private async testQuotaManagement(): Promise<void> {
+    try {
+      // Simular uso de cuota
+      await SubscriptionService.incrementQuotaUsage(this.testUserId, 'questions', 10);
+      await SubscriptionService.incrementQuotaUsage(this.testUserId, 'simulations', 1);
+
+      // Obtener estadísticas
+      const usage = await SubscriptionService.getUsageStats(this.testUserId);
+      const remaining = await SubscriptionService.getRemainingQuota(this.testUserId);
+
+      this.addResult({
+        test: '📊 Gestión de Cuotas',
+        passed: usage?.questionsUsed === 10 && usage?.simulationsUsed === 1,
+        details: {
+          questionsUsed: usage?.questionsUsed,
+          simulationsUsed: usage?.simulationsUsed,
+          remainingQuestions: remaining.questions,
+          remainingSimulations: remaining.simulations
+        }
+      });
+
+    } catch (error) {
+      this.addResult({
+        test: '📊 Gestión de Cuotas',
+        passed: false,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * 9. Probar cancelación
+   */
+  private async testCancellation(): Promise<void> {
+    try {
+      const cancelled = await SubscriptionService.cancelSubscription(
+        this.testUserId, 
+        'Testing cancellation'
+      );
+
+      const subscription = await SubscriptionService.getCurrentSubscription(this.testUserId);
+
+      this.addResult({
+        test: '🚫 Cancelación de Suscripción',
+        passed: cancelled && subscription?.status === 'cancelled',
+        details: {
+          cancelled,
+          status: subscription?.status,
+          reason: subscription?.cancelReason
+        }
+      });
+
+    } catch (error) {
+      this.addResult({
+        test: '🚫 Cancelación de Suscripción',
+        passed: false,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * 10. Probar sistema de pagos
+   */
+  private async testPaymentSystem(): Promise<void> {
+    try {
+      // Simular creación de invoice
+      const plans = await SubscriptionService.getAvailablePlans();
+      const basicPlan = plans.find(p => p.name === 'basic');
+      
+      if (!basicPlan) {
+        throw new Error('Plan básico no encontrado');
+      }
+
+      const invoiceData = PaymentService.createInvoiceData(basicPlan, this.testUserId);
+      
+      // Verificar datos de la invoice
+      const invoiceValid = invoiceData.title && 
+                          invoiceData.description && 
+                          invoiceData.payload &&
+                          invoiceData.currency === 'EUR' &&
+                          invoiceData.prices.length > 0;
+
+      this.addResult({
+        test: '💳 Sistema de Pagos',
+        passed: invoiceValid,
+        details: {
+          invoiceCreated: !!invoiceData,
+          currency: invoiceData.currency,
+          totalAmount: invoiceData.prices[0]?.amount,
+          payload: invoiceData.payload.substring(0, 50) + '...'
+        }
+      });
+
+    } catch (error) {
+      this.addResult({
+        test: '💳 Sistema de Pagos',
+        passed: false,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Añadir resultado de prueba
+   */
+  private addResult(result: TestResult): void {
+    this.results.push(result);
+    const status = result.passed ? '✅' : '❌';
+    console.log(`${status} ${result.test}`);
+    
+    if (result.details) {
+      console.log(`   📋 Detalles:`, result.details);
+    }
+    
+    if (result.error) {
+      console.log(`   💥 Error:`, result.error);
+    }
+    
+    console.log('');
+  }
+
+  /**
+   * Mostrar resultados finales
+   */
+  private async showResults(): Promise<void> {
+    const passed = this.results.filter(r => r.passed).length;
+    const total = this.results.length;
+    const percentage = Math.round((passed / total) * 100);
+
+    console.log('\n🧪 ======================================');
+    console.log('🧪 RESULTADOS DE PRUEBAS DE INTEGRACIÓN');
+    console.log('🧪 ======================================\n');
+
+    console.log(`📊 **RESUMEN GENERAL:**`);
+    console.log(`   ✅ Pruebas exitosas: ${passed}/${total} (${percentage}%)`);
+    console.log(`   ❌ Pruebas fallidas: ${total - passed}/${total}`);
+    console.log('');
+
+    console.log(`📋 **DETALLE POR CATEGORÍA:**`);
+    this.results.forEach(result => {
+      const status = result.passed ? '✅' : '❌';
+      console.log(`   ${status} ${result.test}`);
+    });
+
+    if (percentage >= 90) {
+      console.log('\n🎉 **¡SISTEMA COMPLETAMENTE FUNCIONAL!**');
+      console.log('   ✅ El sistema de suscripciones está listo para producción');
+    } else if (percentage >= 70) {
+      console.log('\n⚠️ **SISTEMA MAYORMENTE FUNCIONAL**');
+      console.log('   🔧 Algunas funcionalidades necesitan ajustes');
+    } else {
+      console.log('\n🚨 **SISTEMA REQUIERE CORRECCIONES**');
+      console.log('   🛠️ Múltiples componentes necesitan reparación');
+    }
+
+    console.log('\n🎯 **PRÓXIMOS PASOS:**');
+    if (percentage >= 90) {
+      console.log('   1. 🔑 Configurar variables de entorno de producción');
+      console.log('   2. 🔗 Configurar webhook de Telegram para pagos');
+      console.log('   3. 💸 Realizar prueba con €0.01');
+      console.log('   4. 🚀 ¡Lanzar a beta testing!');
+    } else {
+      console.log('   1. 🔧 Corregir las pruebas fallidas');
+      console.log('   2. 🧪 Re-ejecutar las pruebas');
+      console.log('   3. 📋 Verificar configuración de la base de datos');
+    }
+
+    console.log('\n💡 **Para ejecutar las pruebas:**');
+    console.log('   `npm run test:subscription-integration`');
+    console.log('');
+  }
+}
+
+// Ejecutar pruebas si el script se ejecuta directamente
+if (require.main === module) {
+  const tester = new SubscriptionIntegrationTester();
+  tester.runAllTests().catch(console.error);
+}
+
+export { SubscriptionIntegrationTester }; 

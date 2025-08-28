@@ -1,0 +1,86 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function verifyImport() {
+  try {
+    console.log('🔍 Verificando importación de preguntas EMAD...\n');
+
+    // Contar total de preguntas
+    const totalCount = await prisma.emad.count();
+    console.log(`📊 Total de preguntas en la tabla emad: ${totalCount}`);
+
+    // Obtener algunas preguntas de muestra
+    const sampleQuestions = await prisma.emad.findMany({
+      take: 3,
+      orderBy: { questionNumber: 'asc' }
+    });
+
+    console.log('\n📝 Ejemplos de preguntas importadas:\n');
+
+    sampleQuestions.forEach((question, index) => {
+      console.log(`═══════════════════════════════════════════════════════════════`);
+      console.log(`PREGUNTA ${question.questionNumber}`);
+      console.log(`═══════════════════════════════════════════════════════════════`);
+      console.log(`📋 Título: ${question.title}`);
+      console.log(`❓ Pregunta: ${question.question}`);
+      console.log(`📚 Categoría: ${question.category}`);
+      console.log(`🎯 Dificultad: ${question.difficulty}`);
+      console.log(`📖 Tipo: ${question.type}`);
+      console.log(`🔢 Opciones (${question.options.length}):`);
+      
+      question.options.forEach((option, optIndex) => {
+        const isCorrect = optIndex === question.correctAnswerIndex;
+        const marker = isCorrect ? '✅' : '❌';
+        console.log(`   ${marker} ${optIndex + 1}. ${option}`);
+      });
+      
+      if (question.feedback) {
+        console.log(`💡 Retroalimentación:`);
+        console.log(`   ${question.feedback.substring(0, 150)}${question.feedback.length > 150 ? '...' : ''}`);
+      }
+      
+      console.log(`📅 Creado: ${question.createdAt.toLocaleDateString()}`);
+      console.log('');
+    });
+
+    // Verificar distribución por estado
+    const activeCount = await prisma.emad.count({ where: { isActive: true } });
+    const inactiveCount = await prisma.emad.count({ where: { isActive: false } });
+
+    console.log(`📈 Estado de las preguntas:`);
+    console.log(`   🟢 Activas: ${activeCount}`);
+    console.log(`   🔴 Inactivas: ${inactiveCount}`);
+
+    // Verificar que todas tengan opciones válidas
+    const questionsWithoutOptions = await prisma.emad.count({
+      where: {
+        OR: [
+          { options: { isEmpty: true } },
+          { correctAnswerIndex: { lt: 0 } }
+        ]
+      }
+    });
+
+    console.log(`\n🔍 Validación de integridad:`);
+    console.log(`   ❌ Preguntas con problemas: ${questionsWithoutOptions}`);
+    console.log(`   ✅ Preguntas válidas: ${totalCount - questionsWithoutOptions}`);
+
+    if (questionsWithoutOptions === 0) {
+      console.log('\n🎉 ¡Todas las preguntas se importaron correctamente!');
+    } else {
+      console.log('\n⚠️  Algunas preguntas tienen problemas de validación');
+    }
+
+  } catch (error) {
+    console.error('❌ Error durante la verificación:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+if (require.main === module) {
+  verifyImport().catch(console.error);
+}
+
+export { verifyImport }; 

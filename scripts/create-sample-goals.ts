@@ -1,0 +1,193 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function createSampleGoals() {
+  console.log('🎯 CREANDO METAS DE EJEMPLO');
+  console.log('==========================');
+  console.log('');
+
+  try {
+    // Obtener usuarios existentes
+    const users = await prisma.telegramuser.findMany({
+      select: {
+        id: true,
+        telegramuserid: true,
+        firstname: true,
+        username: true
+      }
+    });
+
+    if (users.length === 0) {
+      console.log('❌ No hay usuarios para crear metas');
+      return;
+    }
+
+    console.log(`📊 Encontrados ${users.length} usuarios`);
+    console.log('');
+
+    // Tipos de metas que vamos a crear
+    const goalTemplates = [
+      {
+        type: 'weekly',
+        target: 50,
+        reward: 100,
+        daysToComplete: 7,
+        description: 'Ganar 50 puntos esta semana'
+      },
+      {
+        type: 'daily',
+        target: 3,
+        reward: 25,
+        daysToComplete: 1,
+        description: 'Responder 3 preguntas hoy'
+      },
+      {
+        type: 'monthly',
+        target: 200,
+        reward: 300,
+        daysToComplete: 30,
+        description: 'Ganar 200 puntos este mes'
+      },
+      {
+        type: 'weekly',
+        target: 7,
+        reward: 150,
+        daysToComplete: 7,
+        description: 'Mantener racha de 7 días'
+      },
+      {
+        type: 'custom',
+        target: 10,
+        reward: 75,
+        daysToComplete: 5,
+        description: 'Responder 10 preguntas en 5 días'
+      }
+    ];
+
+    // Crear metas para cada usuario
+    for (const user of users) {
+      console.log(`👤 Creando metas para ${user.firstname} (@${user.username || 'sin_username'})`);
+      
+      // Cada usuario tendrá 2-4 metas aleatorias
+      const numGoals = Math.floor(Math.random() * 3) + 2; // 2-4 metas
+      const selectedGoals = goalTemplates
+        .sort(() => 0.5 - Math.random())
+        .slice(0, numGoals);
+
+      for (const goalTemplate of selectedGoals) {
+        // Calcular fecha límite
+        const deadline = new Date();
+        deadline.setDate(deadline.getDate() + goalTemplate.daysToComplete);
+
+        // Simular progreso (0-80% para que no todas estén completadas)
+        const currentProgress = Math.floor(Math.random() * (goalTemplate.target * 0.8));
+        const isCompleted = currentProgress >= goalTemplate.target;
+
+        try {
+          const goal = await prisma.userGoal.create({
+            data: {
+              userid: user.id,
+              type: goalTemplate.type,
+              target: goalTemplate.target,
+              current: currentProgress,
+              reward: goalTemplate.reward,
+              deadline: deadline,
+              completed: isCompleted
+            }
+          });
+
+          console.log(`   ✅ ${goalTemplate.type}: ${currentProgress}/${goalTemplate.target} (${goalTemplate.reward} pts)`);
+        } catch (error) {
+          console.log(`   ❌ Error creando meta ${goalTemplate.type}:`, error);
+        }
+      }
+      console.log('');
+    }
+
+    // Mostrar estadísticas finales
+    const totalGoals = await prisma.userGoal.count();
+    const completedGoals = await prisma.userGoal.count({ where: { completed: true } });
+    const activeGoals = await prisma.userGoal.count({ where: { completed: false } });
+
+    console.log('📊 ESTADÍSTICAS FINALES:');
+    console.log('========================');
+    console.log(`🎯 Total metas creadas: ${totalGoals}`);
+    console.log(`✅ Metas completadas: ${completedGoals}`);
+    console.log(`🔄 Metas activas: ${activeGoals}`);
+    console.log('');
+
+    // Mostrar distribución por tipo
+    const goalsByType = await prisma.userGoal.groupBy({
+      by: ['type'],
+      _count: { type: true }
+    });
+
+    console.log('📈 DISTRIBUCIÓN POR TIPO:');
+    goalsByType.forEach(stat => {
+      const emoji = getGoalTypeEmoji(stat.type);
+      console.log(`${emoji} ${stat.type}: ${stat._count.type} metas`);
+    });
+
+  } catch (error) {
+    console.error('❌ Error creando metas de ejemplo:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+function getGoalTypeEmoji(type: string): string {
+  switch (type.toLowerCase()) {
+    case 'daily': return '📅';
+    case 'weekly': return '📈';
+    case 'monthly': return '🗓️';
+    case 'custom': return '🎯';
+    default: return '⭐';
+  }
+}
+
+// Función para mostrar ejemplos de lo que verán los usuarios
+function showExampleOutputs() {
+  console.log('');
+  console.log('🎮 EJEMPLOS DE LO QUE VERÁN LOS USUARIOS:');
+  console.log('========================================');
+  console.log('');
+  
+  console.log('📱 COMANDO: /metas');
+  console.log('');
+  console.log('🎯 TUS METAS 🎯');
+  console.log('');
+  console.log('🔄 METAS ACTIVAS (3):');
+  console.log('');
+  console.log('📈 Meta Semanal');
+  console.log('📈 Progreso: 35/50 (70%)');
+  console.log('███████░░░ 70%');
+  console.log('💰 Recompensa: +100 pts');
+  console.log('⏰ 3 días restantes');
+  console.log('');
+  console.log('📅 Meta Diaria');
+  console.log('📈 Progreso: 1/3 (33%)');
+  console.log('███░░░░░░░ 33%');
+  console.log('💰 Recompensa: +25 pts');
+  console.log('⏰ 🚨 1 día restante');
+  console.log('');
+  console.log('✅ METAS COMPLETADAS RECIENTES:');
+  console.log('');
+  console.log('🗓️ Meta Mensual ✅');
+  console.log('🏆 200/200 - 15/12/2024');
+  console.log('💰 +300 pts obtenidos');
+  console.log('');
+  console.log('📊 ESTADÍSTICAS DE METAS:');
+  console.log('🏆 Completadas: 5');
+  console.log('🔄 Activas: 3');
+  console.log('💎 Puntos ganados: 875');
+  console.log('');
+  console.log('🚀 ¡Sigue trabajando en tus metas!');
+}
+
+async function main() {
+  await createSampleGoals();
+  showExampleOutputs();
+}
+
+main().catch(console.error); 

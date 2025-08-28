@@ -1,0 +1,426 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_neuroopositor/questions
+
+    Interfaz de preguntas del plugin NeuroOpositor
+
+    Context variables required for this template:
+    * temas - Array de temas disponibles
+    * current_tema - Tema actual seleccionado
+    * session_stats - Estadísticas de la sesión actual
+    * courseid - ID del curso
+}}
+
+<div class="neuroopositor-questions">
+    <!-- Header de Preguntas -->
+    <div class="questions-header">
+        <div class="row">
+            <div class="col-md-8">
+                <h2 class="questions-title">
+                    <i class="fa fa-question-circle"></i>
+                    {{#str}}practice_questions, local_neuroopositor{{/str}}
+                </h2>
+                <p class="questions-subtitle">{{#str}}questions_description, local_neuroopositor{{/str}}</p>
+            </div>
+            <div class="col-md-4">
+                <div class="session-timer">
+                    <div class="timer-display">
+                        <i class="fa fa-clock"></i>
+                        <span id="session-timer">00:00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estadísticas de Sesión -->
+    <div class="session-stats">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fa fa-list-ol"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-value" id="questions-answered">{{session_stats.answered}}</span>
+                        <span class="stat-label">{{#str}}answered, local_neuroopositor{{/str}}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fa fa-check-circle"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-value" id="questions-correct">{{session_stats.correct}}</span>
+                        <span class="stat-label">{{#str}}correct, local_neuroopositor{{/str}}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fa fa-bullseye"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-value" id="accuracy-percentage">{{session_stats.accuracy}}%</span>
+                        <span class="stat-label">{{#str}}accuracy, local_neuroopositor{{/str}}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fa fa-fire"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-value" id="current-streak">{{session_stats.streak}}</span>
+                        <span class="stat-label">{{#str}}streak, local_neuroopositor{{/str}}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="questions-content">
+        <div class="row">
+            <!-- Panel Lateral de Temas -->
+            <div class="col-md-3">
+                <div class="topics-sidebar">
+                    <div class="sidebar-header">
+                        <h4>{{#str}}topics, local_neuroopositor{{/str}}</h4>
+                        <div class="topic-filters">
+                            <select id="block-filter" class="form-control form-control-sm">
+                                <option value="all">{{#str}}all_blocks, local_neuroopositor{{/str}}</option>
+                                <option value="1">{{#str}}block, local_neuroopositor{{/str}} I</option>
+                                <option value="2">{{#str}}block, local_neuroopositor{{/str}} II</option>
+                                <option value="3">{{#str}}block, local_neuroopositor{{/str}} III</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="topics-list">
+                        {{#temas}}
+                        <div class="topic-item {{#is_current}}active{{/is_current}}" data-tema-id="{{id}}" style="display: block !important; visibility: visible !important; opacity: 1 !important; color: #000000 !important; background: #ffffff !important; border: 1px solid #dee2e6 !important; border-radius: 0.375rem !important; padding: 1rem !important; margin-bottom: 1rem !important;">
+                            <div class="topic-info" style="color: #000000 !important;">
+                                <div class="topic-header">
+                                    <span class="topic-number" style="color: #000 !important; visibility: visible !important; opacity: 1 !important; display: inline-block !important; text-shadow: none !important;">{{bloque}}.{{numero}}</span>
+                                    <h4 class="topic-title" style="color: #000 !important; font-weight: 600 !important; visibility: visible !important; opacity: 1 !important; display: block !important; text-shadow: none !important; font-size: 1.1rem !important; margin-bottom: 0.5rem !important;">{{titulo}}</h4>
+                                </div>
+                                <div class="topic-progress">
+                                    <div class="progress">
+                                        <div class="progress-bar" style="width: {{progress}}%"></div>
+                                    </div>
+                                    <p style="color: #000 !important; font-size: 0.9rem; visibility: visible !important; opacity: 1 !important; display: block !important; text-shadow: none !important;">{{progress}}% {{#str}}completed, local_neuroopositor{{/str}}</p>
+                                </div>
+                                <div class="topic-stats">
+                                    <p style="color: #000 !important; font-size: 0.9rem; visibility: visible !important; opacity: 1 !important; display: block !important; text-shadow: none !important;">
+                                        <i class="fa fa-question"></i> {{questions_count}} |
+                                        <i class="fa fa-clock"></i> {{estimated_time}}m
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="topic-actions" style="margin-top: auto !important; display: flex !important; justify-content: center !important; padding-top: 1.5rem !important; flex-shrink: 0 !important; min-height: 60px !important; align-items: center !important;">
+                                <button class="study-btn btn btn-primary" data-tema-id="{{id}}" style="background-color: #007bff !important; background-image: none !important; color: #ffffff !important; display: inline-block !important; visibility: visible !important; opacity: 1 !important; border: 1px solid #007bff !important; padding: 12px 24px !important; border-radius: 6px !important; text-decoration: none !important; cursor: pointer !important; font-weight: 600 !important; font-size: 16px !important; text-align: center !important; min-width: 120px !important; min-height: 44px !important; flex-shrink: 0 !important; white-space: nowrap !important;">
+                                    {{#str}}study, local_neuroopositor{{/str}}
+                                </button>
+                            </div>
+                        </div>
+                        {{/temas}}
+                    </div>
+                    
+                    <!-- Modo de Estudio -->
+                    <div class="study-mode">
+                        <h5>{{#str}}study_mode, local_neuroopositor{{/str}}</h5>
+                        <div class="mode-options">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="study-mode" id="mode-sequential" value="sequential" checked>
+                                <label class="form-check-label" for="mode-sequential">
+                                    {{#str}}sequential_mode, local_neuroopositor{{/str}}
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="study-mode" id="mode-random" value="random">
+                                <label class="form-check-label" for="mode-random">
+                                    {{#str}}random_mode, local_neuroopositor{{/str}}
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="study-mode" id="mode-adaptive" value="adaptive">
+                                <label class="form-check-label" for="mode-adaptive">
+                                    {{#str}}adaptive_mode, local_neuroopositor{{/str}}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Área Principal de Preguntas -->
+            <div class="col-md-9">
+                <div class="question-area">
+                    <!-- Información del Tema Actual -->
+                    <div id="current-topic-info" class="topic-info">
+                        <div class="topic-header">
+                            <h3 id="topic-title">{{current_tema.titulo}}</h3>
+                            <span class="topic-number">{{current_tema.bloque}}.{{current_tema.numero}}</span>
+                        </div>
+                        <div class="topic-description">
+                            <p id="topic-description">{{current_tema.descripcion}}</p>
+                        </div>
+                    </div>
+
+                    <!-- Contenedor de Pregunta -->
+                    <div id="question-container" class="question-container">
+                        <div class="question-loading">
+                            <i class="fa fa-spinner fa-spin fa-2x"></i>
+                            <p>{{#str}}loading_question, local_neuroopositor{{/str}}</p>
+                        </div>
+                    </div>
+
+                    <!-- Template para Pregunta de Opción Múltiple -->
+                    <div id="multiple-choice-template" class="question-template" style="display: none;">
+                        <div class="question-header">
+                            <div class="question-number">
+                                {{#str}}question, local_neuroopositor{{/str}} <span class="q-number"></span>
+                            </div>
+                            <div class="question-difficulty">
+                                <span class="difficulty-badge"></span>
+                            </div>
+                        </div>
+                        <div class="question-text">
+                            <p class="question-content"></p>
+                        </div>
+                        <div class="question-options">
+                            <!-- Las opciones se generarán dinámicamente -->
+                        </div>
+                        <div class="question-actions">
+                            <button type="button" class="btn btn-primary" id="submit-answer" disabled>
+                                {{#str}}submit_answer, local_neuroopositor{{/str}}
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="skip-question">
+                                {{#str}}skip_question, local_neuroopositor{{/str}}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Template para Pregunta Verdadero/Falso -->
+                    <div id="true-false-template" class="question-template" style="display: none;">
+                        <div class="question-header">
+                            <div class="question-number">
+                                {{#str}}question, local_neuroopositor{{/str}} <span class="q-number"></span>
+                            </div>
+                            <div class="question-difficulty">
+                                <span class="difficulty-badge"></span>
+                            </div>
+                        </div>
+                        <div class="question-text">
+                            <p class="question-content"></p>
+                        </div>
+                        <div class="question-options">
+                            <div class="true-false-options">
+                                <button type="button" class="btn btn-outline-success tf-option" data-value="1">
+                                    <i class="fa fa-check"></i> {{#str}}true, local_neuroopositor{{/str}}
+                                </button>
+                                <button type="button" class="btn btn-outline-danger tf-option" data-value="0">
+                                    <i class="fa fa-times"></i> {{#str}}false, local_neuroopositor{{/str}}
+                                </button>
+                            </div>
+                        </div>
+                        <div class="question-actions">
+                            <button type="button" class="btn btn-primary" id="submit-answer" disabled>
+                                {{#str}}submit_answer, local_neuroopositor{{/str}}
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="skip-question">
+                                {{#str}}skip_question, local_neuroopositor{{/str}}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Template para Pregunta de Respuesta Corta -->
+                    <div id="short-answer-template" class="question-template" style="display: none;">
+                        <div class="question-header">
+                            <div class="question-number">
+                                {{#str}}question, local_neuroopositor{{/str}} <span class="q-number"></span>
+                            </div>
+                            <div class="question-difficulty">
+                                <span class="difficulty-badge"></span>
+                            </div>
+                        </div>
+                        <div class="question-text">
+                            <p class="question-content"></p>
+                        </div>
+                        <div class="question-input">
+                            <textarea class="form-control" id="short-answer-input" rows="3" 
+                                placeholder="{{#str}}enter_your_answer, local_neuroopositor{{/str}}"></textarea>
+                        </div>
+                        <div class="question-actions">
+                            <button type="button" class="btn btn-primary" id="submit-answer">
+                                {{#str}}submit_answer, local_neuroopositor{{/str}}
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="skip-question">
+                                {{#str}}skip_question, local_neuroopositor{{/str}}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Resultado de Pregunta -->
+                    <div id="question-result" class="question-result" style="display: none;">
+                        <div class="result-header">
+                            <div class="result-icon">
+                                <i class="result-icon-element"></i>
+                            </div>
+                            <div class="result-text">
+                                <h4 class="result-title"></h4>
+                                <p class="result-message"></p>
+                            </div>
+                        </div>
+                        <div class="result-explanation">
+                            <h5>{{#str}}explanation, local_neuroopositor{{/str}}</h5>
+                            <p class="explanation-text"></p>
+                        </div>
+                        <div class="result-actions">
+                            <button type="button" class="btn btn-primary" id="next-question">
+                                {{#str}}next_question, local_neuroopositor{{/str}}
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="review-topic">
+                                {{#str}}review_topic, local_neuroopositor{{/str}}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Controles de Navegación -->
+                    <div class="question-navigation">
+                        <div class="nav-controls">
+                            <button type="button" class="btn btn-outline-secondary" id="prev-question" disabled>
+                                <i class="fa fa-chevron-left"></i> {{#str}}previous, local_neuroopositor{{/str}}
+                            </button>
+                            <span class="question-counter">
+                                <span id="current-question-num">1</span> / <span id="total-questions">--</span>
+                            </span>
+                            <button type="button" class="btn btn-outline-secondary" id="next-question-nav">
+                                {{#str}}next, local_neuroopositor{{/str}} <i class="fa fa-chevron-right"></i>
+                            </button>
+                        </div>
+                        <div class="session-controls">
+                            <button type="button" class="btn btn-warning" id="pause-session">
+                                <i class="fa fa-pause"></i> {{#str}}pause, local_neuroopositor{{/str}}
+                            </button>
+                            <button type="button" class="btn btn-danger" id="end-session">
+                                <i class="fa fa-stop"></i> {{#str}}end_session, local_neuroopositor{{/str}}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Resultados de Sesión -->
+<div class="modal fade" id="session-results-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fa fa-chart-line"></i>
+                    {{#str}}session_results, local_neuroopositor{{/str}}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="session-summary">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="summary-stat">
+                                <h3 id="final-score">0%</h3>
+                                <p>{{#str}}final_score, local_neuroopositor{{/str}}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="summary-stat">
+                                <h3 id="final-time">0m</h3>
+                                <p>{{#str}}total_time, local_neuroopositor{{/str}}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="summary-detail">
+                                <span class="detail-value" id="total-answered">0</span>
+                                <span class="detail-label">{{#str}}questions_answered, local_neuroopositor{{/str}}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="summary-detail">
+                                <span class="detail-value" id="total-correct">0</span>
+                                <span class="detail-label">{{#str}}correct_answers, local_neuroopositor{{/str}}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="summary-detail">
+                                <span class="detail-value" id="best-streak">0</span>
+                                <span class="detail-label">{{#str}}best_streak, local_neuroopositor{{/str}}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="topics-performance">
+                    <h6>{{#str}}performance_by_topic, local_neuroopositor{{/str}}</h6>
+                    <div id="topics-performance-list"></div>
+                </div>
+                
+                <div class="recommendations">
+                    <h6>{{#str}}recommendations, local_neuroopositor{{/str}}</h6>
+                    <div id="session-recommendations"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {{#str}}close, local_neuroopositor{{/str}}
+                </button>
+                <button type="button" class="btn btn-primary" id="start-new-session">
+                    <i class="fa fa-play"></i> {{#str}}start_new_session, local_neuroopositor{{/str}}
+                </button>
+                <button type="button" class="btn btn-success" id="view-statistics">
+                    <i class="fa fa-chart-bar"></i> {{#str}}view_statistics, local_neuroopositor{{/str}}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Datos para JavaScript -->
+<script type="application/json" id="questions-data">
+{
+    "courseid": {{courseid}},
+    "current_tema": {{current_tema_id}},
+    "urls": {
+        "ajax": "{{ajax_url}}",
+        "statistics": "{{statistics_url}}",
+        "neuralmap": "{{neuralmap_url}}"
+    }
+}
+</script>
+
+{{#js}}
+require(['local_neuroopositor/questions'], function(Questions) {
+    Questions.init();
+});
+{{/js}}

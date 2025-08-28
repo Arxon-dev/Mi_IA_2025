@@ -1,0 +1,596 @@
+#!/usr/bin/env tsx
+
+/**
+ * SCRIPT DE ANÁLISIS DE CUMPLIMIENTO DE LIMITACIONES DE TELEGRAM
+ * 
+ * Analiza todas las preguntas disponibles para verificar si cumplen con:
+ * - Pregunta: 200 caracteres máximo (sin truncamiento)
+ * - Opciones: 100 caracteres máximo cada una (sin truncamiento)  
+ * - Explicaciones: 200 caracteres máximo (acepta truncamiento)
+ * 
+ * Tablas analizadas:
+ * - Question (7000+ preguntas con content JSON)
+ * - ValidQuestion (preguntas ya parseadas)
+ * - ExamenOficial2018 (preguntas específicas del examen)
+ */
+
+import { PrismaClient } from '@prisma/client';
+import fs from 'fs';
+import path from 'path';
+
+const prisma = new PrismaClient();
+
+// Límites de Telegram para polls
+const TELEGRAM_LIMITS = {
+  QUESTION_MAX_LENGTH: 200,      // Sin truncamiento
+  OPTION_MAX_LENGTH: 100,        // Sin truncamiento  
+  EXPLANATION_MAX_LENGTH: 200    // Acepta truncamiento
+};
+
+interface AnalysisResult {
+  tableName: string;
+  totalquestions: number;
+  validQuestions: number;
+  invalidQuestions: number;
+  validPercentage: number;
+  errors: {
+    questionTooLong: number;
+    optionsTooLong: number;
+    explanationTooLong: number;
+    invalidFormat: number;
+    missingData: number;
+  };
+  examples: {
+    valid: any[];
+    invalid: any[];
+  };
+}
+
+interface QuestionData {
+  id: string;
+  question: string;
+  options: string[];
+  explanation?: string;
+  source: string;
+}
+
+/**
+ * Parsear el content JSON de la tabla Question
+ */
+function parseQuestionContent(content: string): QuestionData | null {
+  try {
+    const parsed = JSON.parse(content);
+    
+    // Formato estándar esperado
+    if (parsed.question && parsed.options && Array.isArray(parsed.options)) {
+      return {
+        id: parsed.id || 'unknown',
+        question: parsed.question,
+        options: parsed.options,
+        explanation: parsed.explanation || parsed.feedback,
+        source: 'Question'
+      };
+    }
+    
+    // Formato alternativo GIFT
+    if (parsed.text && parsed.choices) {
+      return {
+        id: parsed.id || 'unknown',
+        question: parsed.text,
+        options: parsed.choices.map((choice: any) => choice.text || choice),
+        explanation: parsed.explanation || parsed.feedback,
+        source: 'Question-GIFT'
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Validar una pregunta contra los límites de Telegram
+ */
+function validateQuestion(question: QuestionData): { 
+  isValid: boolean; 
+  errors: string[]; 
+  warnings: string[] 
+} {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  
+  // Validar pregunta
+  if (!question.question || question.question.trim().length === 0) {
+    errors.push('Pregunta vacía');
+  } else if (question.question.length > TELEGRAM_LIMITS.QUESTION_MAX_LENGTH) {
+    errors.push(`Pregunta demasiado larga: ${question.question.length}/${TELEGRAM_LIMITS.QUESTION_MAX_LENGTH} caracteres`);
+  }
+  
+  // Validar opciones
+  if (!question.options || !Array.isArray(question.options) || question.options.length === 0) {
+    errors.push('Opciones faltantes o inválidas');
+  } else {
+    // Telegram requiere entre 2-10 opciones
+    if (question.options.length < 2) {
+      errors.push('Necesita al menos 2 opciones');
+    } else if (question.options.length > 10) {
+      errors.push('Máximo 10 opciones permitidas');
+    }
+    
+    // Validar longitud de cada opción
+    question.options.forEach((option, index) => {
+      if (!option || option.trim().length === 0) {
+        errors.push(`Opción ${index + 1} está vacía`);
+      } else if (option.length > TELEGRAM_LIMITS.OPTION_MAX_LENGTH) {
+        errors.push(`Opción ${index + 1} demasiado larga: ${option.length}/${TELEGRAM_LIMITS.OPTION_MAX_LENGTH} caracteres`);
+      }
+    });
+  }
+  
+  // Validar explicación (warning, no error)
+  if (question.explanation && question.explanation.length > TELEGRAM_LIMITS.EXPLANATION_MAX_LENGTH) {
+    warnings.push(`Explicación será truncada: ${question.explanation.length}/${TELEGRAM_LIMITS.EXPLANATION_MAX_LENGTH} caracteres`);
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors,
+    warnings
+  };
+}
+
+/**
+ * Analizar tabla Question
+ */
+async function analyzeQuestionTable(): Promise<AnalysisResult> {
+  console.log('📊 Analizando tabla Question...');
+  
+  const questions = await prisma.question.findMany({
+    select: {
+      id: true,
+      content: true,
+      type: true,
+      difficulty: true,
+      archived: true
+    },
+    where: {
+      archived: false // Solo preguntas activas
+    }
+  });
+  
+  const result: AnalysisResult = {
+    tableName: 'Question',
+    totalquestions: questions.length,
+    validQuestions: 0,
+    invalidQuestions: 0,
+    validPercentage: 0,
+    errors: {
+      questionTooLong: 0,
+      optionsTooLong: 0,
+      explanationTooLong: 0,
+      invalidFormat: 0,
+      missingData: 0
+    },
+    examples: {
+      valid: [],
+      invalid: []
+    }
+  };
+  
+  for (const question of questions) {
+    const parsed = parseQuestionContent(question.content);
+    
+    if (!parsed) {
+      result.errors.invalidFormat++;
+      result.invalidQuestions++;
+      if (result.examples.invalid.length < 5) {
+        result.examples.invalid.push({
+          id: question.id,
+          issue: 'Formato JSON inválido',
+          content: question.content.substring(0, 200) + '...'
+        });
+      }
+      continue;
+    }
+    
+    const validation = validateQuestion(parsed);
+    
+    if (validation.isValid) {
+      result.validQuestions++;
+      if (result.examples.valid.length < 5) {
+        result.examples.valid.push({
+          id: question.id,
+          question: parsed.question.substring(0, 100) + (parsed.question.length > 100 ? '...' : ''),
+          optionCount: parsed.options.length,
+          hasExplanation: !!parsed.explanation
+        });
+      }
+    } else {
+      result.invalidQuestions++;
+      
+      // Contar tipos de errores
+      validation.errors.forEach(error => {
+        if (error.includes('Pregunta demasiado larga')) {
+          result.errors.questionTooLong++;
+        } else if (error.includes('demasiado larga')) {
+          result.errors.optionsTooLong++;
+        } else if (error.includes('vacía') || error.includes('faltantes')) {
+          result.errors.missingData++;
+        }
+      });
+      
+      if (result.examples.invalid.length < 5) {
+        result.examples.invalid.push({
+          id: question.id,
+          question: parsed.question?.substring(0, 100) + '...',
+          errors: validation.errors
+        });
+      }
+    }
+  }
+  
+  result.validPercentage = result.totalquestions > 0 
+    ? (result.validQuestions / result.totalquestions) * 100 
+    : 0;
+  
+  return result;
+}
+
+/**
+ * Analizar tabla ValidQuestion
+ */
+async function analyzeValidQuestionTable(): Promise<AnalysisResult> {
+  console.log('📊 Analizando tabla ValidQuestion...');
+  
+  const questions = await prisma.validQuestion.findMany({
+    where: {
+      isactive: true
+    }
+  });
+  
+  const result: AnalysisResult = {
+    tableName: 'ValidQuestion',
+    totalquestions: questions.length,
+    validQuestions: 0,
+    invalidQuestions: 0,
+    validPercentage: 0,
+    errors: {
+      questionTooLong: 0,
+      optionsTooLong: 0,
+      explanationTooLong: 0,
+      invalidFormat: 0,
+      missingData: 0
+    },
+    examples: {
+      valid: [],
+      invalid: []
+    }
+  };
+  
+  for (const question of questions) {
+    const questionData: QuestionData = {
+      id: question.id,
+      question: question.parsedQuestion,
+      options: Array.isArray(question.parsedOptions) 
+        ? question.parsedOptions as string[]
+        : [],
+      explanation: question.parsedExplanation || undefined,
+      source: 'ValidQuestion'
+    };
+    
+    const validation = validateQuestion(questionData);
+    
+    if (validation.isValid) {
+      result.validQuestions++;
+      if (result.examples.valid.length < 5) {
+        result.examples.valid.push({
+          id: question.id,
+          question: questionData.question.substring(0, 100) + (questionData.question.length > 100 ? '...' : ''),
+          optionCount: questionData.options.length,
+          hasExplanation: !!questionData.explanation
+        });
+      }
+    } else {
+      result.invalidQuestions++;
+      
+      // Contar tipos de errores
+      validation.errors.forEach(error => {
+        if (error.includes('Pregunta demasiado larga')) {
+          result.errors.questionTooLong++;
+        } else if (error.includes('demasiado larga')) {
+          result.errors.optionsTooLong++;
+        } else if (error.includes('vacía') || error.includes('faltantes')) {
+          result.errors.missingData++;
+        }
+      });
+      
+      if (result.examples.invalid.length < 5) {
+        result.examples.invalid.push({
+          id: question.id,
+          question: questionData.question?.substring(0, 100) + '...',
+          errors: validation.errors
+        });
+      }
+    }
+  }
+  
+  result.validPercentage = result.totalquestions > 0 
+    ? (result.validQuestions / result.totalquestions) * 100 
+    : 0;
+  
+  return result;
+}
+
+/**
+ * Analizar tabla ExamenOficial2018
+ */
+async function analyzeExamenOficial2018Table(): Promise<AnalysisResult> {
+  console.log('📊 Analizando tabla ExamenOficial2018...');
+  
+  const questions = await prisma.examenOficial2018.findMany({
+    where: {
+      isactive: true
+    }
+  });
+  
+  const result: AnalysisResult = {
+    tableName: 'ExamenOficial2018',
+    totalquestions: questions.length,
+    validQuestions: 0,
+    invalidQuestions: 0,
+    validPercentage: 0,
+    errors: {
+      questionTooLong: 0,
+      optionsTooLong: 0,
+      explanationTooLong: 0,
+      invalidFormat: 0,
+      missingData: 0
+    },
+    examples: {
+      valid: [],
+      invalid: []
+    }
+  };
+  
+  for (const question of questions) {
+    const questionData: QuestionData = {
+      id: question.id,
+      question: question.question,
+      options: question.options,
+      explanation: undefined, // ExamenOficial2018 no tiene explicaciones
+      source: 'ExamenOficial2018'
+    };
+    
+    const validation = validateQuestion(questionData);
+    
+    if (validation.isValid) {
+      result.validQuestions++;
+      if (result.examples.valid.length < 5) {
+        result.examples.valid.push({
+          id: question.id,
+          questionnumber: question.questionnumber,
+          question: questionData.question.substring(0, 100) + (questionData.question.length > 100 ? '...' : ''),
+          optionCount: questionData.options.length
+        });
+      }
+    } else {
+      result.invalidQuestions++;
+      
+      // Contar tipos de errores
+      validation.errors.forEach(error => {
+        if (error.includes('Pregunta demasiado larga')) {
+          result.errors.questionTooLong++;
+        } else if (error.includes('demasiado larga')) {
+          result.errors.optionsTooLong++;
+        } else if (error.includes('vacía') || error.includes('faltantes')) {
+          result.errors.missingData++;
+        }
+      });
+      
+      if (result.examples.invalid.length < 5) {
+        result.examples.invalid.push({
+          id: question.id,
+          questionnumber: question.questionnumber,
+          question: questionData.question?.substring(0, 100) + '...',
+          errors: validation.errors
+        });
+      }
+    }
+  }
+  
+  result.validPercentage = result.totalquestions > 0 
+    ? (result.validQuestions / result.totalquestions) * 100 
+    : 0;
+  
+  return result;
+}
+
+/**
+ * Generar reporte completo
+ */
+function generateReport(results: AnalysisResult[]): string {
+  const totalQuestions = results.reduce((sum, r) => sum + r.totalquestions, 0);
+  const totalValid = results.reduce((sum, r) => sum + r.validQuestions, 0);
+  const totalInvalid = results.reduce((sum, r) => sum + r.invalidQuestions, 0);
+  const overallPercentage = totalQuestions > 0 ? (totalValid / totalQuestions) * 100 : 0;
+  
+  let report = `
+# 📊 REPORTE DE CUMPLIMIENTO DE LIMITACIONES DE TELEGRAM
+
+**Fecha de análisis:** ${new Date().toLocaleString()}
+
+## 🎯 RESUMEN EJECUTIVO
+
+- **Total de preguntas analizadas:** ${totalQuestions.toLocaleString()}
+- **Preguntas válidas:** ${totalValid.toLocaleString()} (${overallPercentage.toFixed(2)}%)
+- **Preguntas inválidas:** ${totalInvalid.toLocaleString()} (${(100 - overallPercentage).toFixed(2)}%)
+
+## 📋 LIMITACIONES DE TELEGRAM PARA POLLS
+
+- **Pregunta:** Máximo 200 caracteres (sin truncamiento)
+- **Opciones:** Máximo 100 caracteres cada una (sin truncamiento)
+- **Explicaciones:** Máximo 200 caracteres (acepta truncamiento)
+- **Cantidad de opciones:** Entre 2 y 10 opciones
+
+`;
+
+  // Análisis por tabla
+  results.forEach(result => {
+    report += `
+## 📈 TABLA: ${result.tableName}
+
+### Estadísticas Generales
+- **Total:** ${result.totalquestions.toLocaleString()} preguntas
+- **Válidas:** ${result.validQuestions.toLocaleString()} (${result.validPercentage.toFixed(2)}%)
+- **Inválidas:** ${result.invalidQuestions.toLocaleString()} (${(100 - result.validPercentage).toFixed(2)}%)
+
+### Tipos de Errores Encontrados
+- **Pregunta demasiado larga:** ${result.errors.questionTooLong.toLocaleString()}
+- **Opciones demasiado largas:** ${result.errors.optionsTooLong.toLocaleString()}
+- **Explicación demasiado larga:** ${result.errors.explanationTooLong.toLocaleString()}
+- **Formato inválido:** ${result.errors.invalidFormat.toLocaleString()}
+- **Datos faltantes:** ${result.errors.missingData.toLocaleString()}
+
+### Ejemplos de Preguntas Válidas
+`;
+    
+    result.examples.valid.forEach((example, index) => {
+      report += `
+**Ejemplo ${index + 1}:**
+- ID: ${example.id}
+- Pregunta: ${example.question}
+- Opciones: ${example.optionCount}
+- Explicación: ${example.hasExplanation ? 'Sí' : 'No'}
+`;
+    });
+    
+    if (result.examples.invalid.length > 0) {
+      report += `
+### Ejemplos de Preguntas Inválidas
+`;
+      
+      result.examples.invalid.forEach((example, index) => {
+        report += `
+**Ejemplo ${index + 1}:**
+- ID: ${example.id}
+- Pregunta: ${example.question || 'N/A'}
+- Errores: ${example.errors ? example.errors.join(', ') : example.issue || 'Desconocido'}
+`;
+      });
+    }
+  });
+  
+  // Recomendaciones
+  report += `
+## 💡 RECOMENDACIONES
+
+### Para Mejorar el Cumplimiento
+
+1. **Preguntas demasiado largas:**
+   - Simplificar la redacción
+   - Eliminar información redundante
+   - Dividir preguntas complejas en múltiples preguntas
+
+2. **Opciones demasiado largas:**
+   - Usar abreviaciones cuando sea apropiado
+   - Simplificar el lenguaje
+   - Eliminar palabras innecesarias
+
+3. **Formato inválido:**
+   - Revisar y corregir el JSON de las preguntas
+   - Implementar validación antes de guardar
+   - Migrar formatos antiguos al formato estándar
+
+4. **Datos faltantes:**
+   - Completar preguntas sin opciones
+   - Verificar que todas las opciones tengan contenido
+   - Implementar validaciones obligatorias
+
+### Tabla con Mejor Rendimiento
+`;
+
+  const bestTable = results.reduce((best, current) => 
+    current.validPercentage > best.validPercentage ? current : best
+  );
+  
+  report += `
+**${bestTable.tableName}** tiene el mejor rendimiento con ${bestTable.validPercentage.toFixed(2)}% de preguntas válidas.
+
+### Próximos Pasos
+
+1. Priorizar la corrección de errores en la tabla con más preguntas inválidas
+2. Implementar validaciones automáticas para nuevas preguntas
+3. Crear herramientas de migración/corrección masiva
+4. Establecer estándares de calidad para content creators
+
+---
+
+*Reporte generado automáticamente el ${new Date().toLocaleString()}*
+`;
+
+  return report;
+}
+
+/**
+ * Función principal
+ */
+async function main() {
+  console.log('🚀 Iniciando análisis de cumplimiento de limitaciones de Telegram...\n');
+  
+  try {
+    // Analizar todas las tablas
+    const results: AnalysisResult[] = [];
+    
+    results.push(await analyzeQuestionTable());
+    results.push(await analyzeValidQuestionTable());
+    results.push(await analyzeExamenOficial2018Table());
+    
+    // Generar reporte
+    const report = generateReport(results);
+    
+    // Guardar reporte
+    const reportPath = path.join(process.cwd(), 'scripts', 'output', 'telegram-limits-compliance-report.md');
+    const outputDir = path.dirname(reportPath);
+    
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+    
+    fs.writeFileSync(reportPath, report, 'utf-8');
+    
+    // Mostrar resumen en consola
+    console.log('\n🎉 ¡Análisis completado!');
+    console.log('\n📊 RESUMEN RÁPIDO:');
+    
+    results.forEach(result => {
+      console.log(`\n📋 ${result.tableName}:`);
+      console.log(`   Total: ${result.totalquestions.toLocaleString()}`);
+      console.log(`   Válidas: ${result.validQuestions.toLocaleString()} (${result.validPercentage.toFixed(2)}%)`);
+      console.log(`   Inválidas: ${result.invalidQuestions.toLocaleString()}`);
+    });
+    
+    const totalQuestions = results.reduce((sum, r) => sum + r.totalquestions, 0);
+    const totalValid = results.reduce((sum, r) => sum + r.validQuestions, 0);
+    const overallPercentage = totalQuestions > 0 ? (totalValid / totalQuestions) * 100 : 0;
+    
+    console.log(`\n🎯 TOTAL GENERAL:`);
+    console.log(`   ${totalQuestions.toLocaleString()} preguntas analizadas`);
+    console.log(`   ${totalValid.toLocaleString()} válidas (${overallPercentage.toFixed(2)}%)`);
+    
+    console.log(`\n📄 Reporte completo guardado en: ${reportPath}`);
+    
+  } catch (error) {
+    console.error('❌ Error durante el análisis:', error);
+    process.exit(1);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Ejecutar si se llama directamente
+if (require.main === module) {
+  main();
+}
+
+export default main; 

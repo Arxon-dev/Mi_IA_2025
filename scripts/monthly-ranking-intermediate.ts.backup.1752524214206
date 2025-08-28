@@ -1,0 +1,120 @@
+#!/usr/bin/env npx tsx
+
+/**
+ * Script para mostrar el ranking mensual intermedio (TOP 8)
+ * Se ejecuta periódicamente durante el mes para mostrar clasificación temporal
+ */
+
+import { GamificationService } from '../src/services/gamificationService';
+
+async function sendMonthlyIntermediateRanking() {
+  console.log('🏆 Enviando ranking mensual intermedio...');
+
+  try {
+    // Obtener datos del ranking mensual (Top 8)
+    const monthlyLeaderboard = await GamificationService.getMonthlyLeaderboard(8);
+    
+    if (monthlyLeaderboard.length === 0) {
+      console.log('⚠️ No hay datos de ranking mensual aún');
+      return;
+    }
+
+    const currentDate = new Date();
+    const monthName = currentDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+
+    // Crear mensaje motivacional
+    const motivationalPhrases = [
+      '¡La competencia está ardiendo! 🔥',
+      '¡El mes aún no termina! ⏰',
+      '¡Sigue luchando por tu lugar! 💪',
+      '¡Los primeros puestos aún están en juego! ⚡',
+      '¡Tu oportunidad sigue viva! 🌟'
+    ];
+
+    const randomPhrase = motivationalPhrases[Math.floor(Math.random() * motivationalPhrases.length)];
+
+    // Formatear mensaje del ranking
+    let message = `📊 *RANKING MENSUAL - ${monthName.toUpperCase()}* 📊\n`;
+    message += `_(Clasificación temporal - ¡Sigue compitiendo!)_\n\n`;
+    message += `${randomPhrase}\n\n`;
+    
+    // Top 8 usuarios
+    monthlyLeaderboard.forEach((entry, index) => {
+      const rankEmoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅';
+      const name = entry.user.firstName || entry.user.username || 'Usuario';
+      message += `${rankEmoji} **${index + 1}.** ${name} - **${entry.points}** pts\n`;
+    });
+
+    message += `\n🔄 _Este ranking se actualiza automáticamente_\n`;
+    message += `🎯 _¡El día 1 del próximo mes volvemos a empezar!_\n\n`;
+    message += `📱 *Comandos disponibles:*\n`;
+    message += `• /ranking mensual - Ver este ranking\n`;
+    message += `• /ranking semanal - Ranking de 7 días\n`;
+    message += `• /ranking - Clasificación histórica`;
+
+    // Enviar mensaje a Telegram
+    const telegramResult = await sendTelegramMessage(message);
+    
+    if (telegramResult.success) {
+      console.log(`✅ Ranking mensual intermedio enviado exitosamente (ID: ${telegramResult.messageId})`);
+      console.log(`📈 Mostrados ${monthlyLeaderboard.length} usuarios del top 8`);
+    } else {
+      console.error('❌ Error enviando ranking mensual intermedio:', telegramResult.error);
+    }
+
+  } catch (error) {
+    console.error('❌ Error en el proceso de ranking mensual intermedio:', error);
+    process.exit(1);
+  }
+}
+
+async function sendTelegramMessage(message: string) {
+  try {
+    const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+    const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+
+    if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+      throw new Error('Variables de entorno TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID son requeridas');
+    }
+
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CHAT_ID,
+        text: message,
+        parse_mode: 'Markdown',
+        disable_web_page_preview: true,
+      }),
+    });
+
+    const result = await response.json() as any;
+
+    if (result.ok) {
+      return { success: true, messageId: result.result.message_id };
+    } else {
+      return { success: false, error: result.description };
+    }
+  } catch (error) {
+    return { success: false, error: error };
+  }
+}
+
+// Verificar argumentos de línea de comandos
+const args = process.argv.slice(2);
+const isTestMode = args.includes('--test');
+
+if (isTestMode) {
+  console.log('🧪 Modo de prueba - Solo mostrando datos sin enviar mensaje');
+  GamificationService.getMonthlyLeaderboard(8).then(leaderboard => {
+    console.log('📊 Datos del ranking mensual:');
+    console.log(JSON.stringify(leaderboard, null, 2));
+    process.exit(0);
+  });
+} else {
+  sendMonthlyIntermediateRanking().then(() => {
+    process.exit(0);
+  });
+} 

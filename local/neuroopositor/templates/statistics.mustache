@@ -1,0 +1,448 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_neuroopositor/statistics
+
+    Página de estadísticas del plugin NeuroOpositor
+
+    Context variables required for this template:
+    * user_stats - Estadísticas generales del usuario
+    * block_stats - Estadísticas por bloques
+    * recent_activity - Actividad reciente
+    * courseid - ID del curso
+}}
+
+<div class="neuroopositor-statistics">
+    <!-- Header de Estadísticas -->
+    <div class="statistics-header">
+        <div class="row">
+            <div class="col-md-8">
+                <h2 class="statistics-title">
+                    <i class="fa fa-chart-bar"></i>
+                    {{#str}}detailed_statistics, local_neuroopositor{{/str}}
+                </h2>
+                <p class="statistics-subtitle">{{#str}}statistics_description, local_neuroopositor{{/str}}</p>
+            </div>
+            <div class="col-md-4">
+                <div class="statistics-controls">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-primary active" data-period="week">
+                            {{#str}}this_week, local_neuroopositor{{/str}}
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" data-period="month">
+                            {{#str}}this_month, local_neuroopositor{{/str}}
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" data-period="all">
+                            {{#str}}all_time, local_neuroopositor{{/str}}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumen General -->
+    <div class="statistics-summary">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="summary-card overall-progress">
+                    <div class="card-icon">
+                        <i class="fa fa-graduation-cap"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3>{{user_stats.overall_progress}}%</h3>
+                        <p>{{#str}}overall_progress, local_neuroopositor{{/str}}</p>
+                        <div class="progress">
+                            <div class="progress-bar" style="width: {{user_stats.overall_progress}}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card accuracy">
+                    <div class="card-icon">
+                        <i class="fa fa-bullseye"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3>{{user_stats.accuracy}}%</h3>
+                        <p>{{#str}}accuracy, local_neuroopositor{{/str}}</p>
+                        <small>{{user_stats.correct_answers}}/{{user_stats.total_answers}}</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card study-time">
+                    <div class="card-icon">
+                        <i class="fa fa-clock"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3>{{user_stats.study_time_formatted}}</h3>
+                        <p>{{#str}}total_study_time, local_neuroopositor{{/str}}</p>
+                        <small>{{user_stats.avg_session_time}} {{#str}}avg_session, local_neuroopositor{{/str}}</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card streak">
+                    <div class="card-icon">
+                        <i class="fa fa-fire"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3>{{user_stats.current_streak}}</h3>
+                        <p>{{#str}}current_streak, local_neuroopositor{{/str}}</p>
+                        <small>{{#str}}best, local_neuroopositor{{/str}}: {{user_stats.best_streak}}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráficos Principales -->
+    <div class="statistics-charts">
+        <div class="row">
+            <div class="col-md-8">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h4>{{#str}}progress_evolution, local_neuroopositor{{/str}}</h4>
+                        <div class="chart-controls">
+                            <select id="chart-metric" class="form-control form-control-sm">
+                                <option value="progress">{{#str}}progress, local_neuroopositor{{/str}}</option>
+                                <option value="accuracy">{{#str}}accuracy, local_neuroopositor{{/str}}</option>
+                                <option value="time">{{#str}}study_time, local_neuroopositor{{/str}}</option>
+                                <option value="questions">{{#str}}questions_answered, local_neuroopositor{{/str}}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="chart-content">
+                        <canvas id="progress-chart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h4>{{#str}}progress_by_blocks, local_neuroopositor{{/str}}</h4>
+                    </div>
+                    <div class="chart-content">
+                        <canvas id="blocks-chart" width="200" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estadísticas Detalladas -->
+    <div class="detailed-statistics">
+        <div class="row">
+            <!-- Rendimiento por Temas -->
+            <div class="col-md-6">
+                <div class="stats-section">
+                    <div class="section-header">
+                        <h4>
+                            <i class="fa fa-list"></i>
+                            {{#str}}performance_by_topics, local_neuroopositor{{/str}}
+                        </h4>
+                        <div class="section-controls">
+                            <select id="topic-sort" class="form-control form-control-sm">
+                                <option value="progress">{{#str}}by_progress, local_neuroopositor{{/str}}</option>
+                                <option value="accuracy">{{#str}}by_accuracy, local_neuroopositor{{/str}}</option>
+                                <option value="time">{{#str}}by_time, local_neuroopositor{{/str}}</option>
+                                <option value="difficulty">{{#str}}by_difficulty, local_neuroopositor{{/str}}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="topics-performance" id="topics-performance">
+                        <!-- Se cargará dinámicamente -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Estadísticas Comparativas -->
+            <div class="col-md-6">
+                <div class="stats-section">
+                    <div class="section-header">
+                        <h4>
+                            <i class="fa fa-users"></i>
+                            {{#str}}comparative_statistics, local_neuroopositor{{/str}}
+                        </h4>
+                    </div>
+                    <div class="comparative-stats">
+                        <div class="comparison-item">
+                            <div class="comparison-metric">
+                                <span class="metric-label">{{#str}}your_rank, local_neuroopositor{{/str}}</span>
+                                <span class="metric-value">#{{user_stats.rank}}</span>
+                            </div>
+                            <div class="comparison-detail">
+                                {{#str}}out_of, local_neuroopositor{{/str}} {{user_stats.total_users}} {{#str}}students, local_neuroopositor{{/str}}
+                            </div>
+                        </div>
+                        
+                        <div class="comparison-item">
+                            <div class="comparison-metric">
+                                <span class="metric-label">{{#str}}vs_average, local_neuroopositor{{/str}}</span>
+                                <span class="metric-value {{#above_average}}positive{{/above_average}}{{^above_average}}negative{{/above_average}}">
+                                    {{progress_vs_average}}%
+                                </span>
+                            </div>
+                            <div class="comparison-detail">
+                                {{#str}}class_average, local_neuroopositor{{/str}}: {{class_average}}%
+                            </div>
+                        </div>
+                        
+                        <div class="comparison-chart">
+                            <canvas id="comparison-chart" width="300" height="150"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actividad Reciente y Conexiones Neurales -->
+    <div class="activity-and-connections">
+        <div class="row">
+            <!-- Actividad Reciente -->
+            <div class="col-md-6">
+                <div class="stats-section">
+                    <div class="section-header">
+                        <h4>
+                            <i class="fa fa-history"></i>
+                            {{#str}}recent_activity, local_neuroopositor{{/str}}
+                        </h4>
+                    </div>
+                    <div class="activity-timeline">
+                        {{#recent_activity}}
+                        <div class="timeline-item">
+                            <div class="timeline-marker {{type}}">
+                                <i class="fa fa-{{icon}}"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-header">
+                                    <span class="activity-type">{{type_name}}</span>
+                                    <span class="activity-time">{{time_ago}}</span>
+                                </div>
+                                <div class="timeline-description">
+                                    {{description}}
+                                </div>
+                                {{#details}}
+                                <div class="timeline-details">
+                                    {{details}}
+                                </div>
+                                {{/details}}
+                            </div>
+                        </div>
+                        {{/recent_activity}}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Conexiones Neurales -->
+            <div class="col-md-6">
+                <div class="stats-section">
+                    <div class="section-header">
+                        <h4>
+                            <i class="fa fa-project-diagram"></i>
+                            {{#str}}neural_connections, local_neuroopositor{{/str}}
+                        </h4>
+                    </div>
+                    <div class="neural-connections-stats">
+                        <div class="connections-summary">
+                            <div class="connection-type">
+                                <div class="type-icon directa">
+                                    <i class="fa fa-arrow-right"></i>
+                                </div>
+                                <div class="type-info">
+                                    <span class="type-name">{{#str}}direct_connections, local_neuroopositor{{/str}}</span>
+                                    <span class="type-count">{{neural_stats.direct_connections}}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="connection-type">
+                                <div class="type-icon conceptual">
+                                    <i class="fa fa-lightbulb"></i>
+                                </div>
+                                <div class="type-info">
+                                    <span class="type-name">{{#str}}conceptual_connections, local_neuroopositor{{/str}}</span>
+                                    <span class="type-count">{{neural_stats.conceptual_connections}}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="connection-type">
+                                <div class="type-icon practica">
+                                    <i class="fa fa-tools"></i>
+                                </div>
+                                <div class="type-info">
+                                    <span class="type-name">{{#str}}practical_connections, local_neuroopositor{{/str}}</span>
+                                    <span class="type-count">{{neural_stats.practical_connections}}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="connection-type">
+                                <div class="type-icon temporal">
+                                    <i class="fa fa-clock"></i>
+                                </div>
+                                <div class="type-info">
+                                    <span class="type-name">{{#str}}temporal_connections, local_neuroopositor{{/str}}</span>
+                                    <span class="type-count">{{neural_stats.temporal_connections}}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="strongest-connections">
+                            <h6>{{#str}}strongest_connections, local_neuroopositor{{/str}}</h6>
+                            {{#strongest_connections}}
+                            <div class="connection-item">
+                                <div class="connection-topics">
+                                    <span class="topic-from">{{from_topic}}</span>
+                                    <i class="fa fa-arrow-right"></i>
+                                    <span class="topic-to">{{to_topic}}</span>
+                                </div>
+                                <div class="connection-strength">
+                                    <div class="strength-bar">
+                                        <div class="strength-fill" style="width: {{strength_percentage}}%"></div>
+                                    </div>
+                                    <span class="strength-value">{{strength}}</span>
+                                </div>
+                            </div>
+                            {{/strongest_connections}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acciones y Exportación -->
+    <div class="statistics-actions">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-primary" id="refresh-stats">
+                        <i class="fa fa-sync"></i> {{#str}}refresh_statistics, local_neuroopositor{{/str}}
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="reset-progress">
+                        <i class="fa fa-undo"></i> {{#str}}reset_progress, local_neuroopositor{{/str}}
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="export-options">
+                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#export-modal">
+                        <i class="fa fa-download"></i> {{#str}}export_statistics, local_neuroopositor{{/str}}
+                    </button>
+                    <button type="button" class="btn btn-info" id="share-progress">
+                        <i class="fa fa-share"></i> {{#str}}share_progress, local_neuroopositor{{/str}}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Exportación -->
+<div class="modal fade" id="export-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fa fa-download"></i>
+                    {{#str}}export_statistics, local_neuroopositor{{/str}}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="export-options">
+                    <h6>{{#str}}select_format, local_neuroopositor{{/str}}</h6>
+                    <div class="format-options">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="export-format" id="format-pdf" value="pdf" checked>
+                            <label class="form-check-label" for="format-pdf">
+                                <i class="fa fa-file-pdf"></i> PDF {{#str}}report, local_neuroopositor{{/str}}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="export-format" id="format-excel" value="excel">
+                            <label class="form-check-label" for="format-excel">
+                                <i class="fa fa-file-excel"></i> Excel {{#str}}spreadsheet, local_neuroopositor{{/str}}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="export-format" id="format-csv" value="csv">
+                            <label class="form-check-label" for="format-csv">
+                                <i class="fa fa-file-csv"></i> CSV {{#str}}data, local_neuroopositor{{/str}}
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <h6>{{#str}}select_data, local_neuroopositor{{/str}}</h6>
+                    <div class="data-options">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="include-summary" checked>
+                            <label class="form-check-label" for="include-summary">
+                                {{#str}}general_summary, local_neuroopositor{{/str}}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="include-topics" checked>
+                            <label class="form-check-label" for="include-topics">
+                                {{#str}}topic_performance, local_neuroopositor{{/str}}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="include-history">
+                            <label class="form-check-label" for="include-history">
+                                {{#str}}progress_history, local_neuroopositor{{/str}}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="include-connections">
+                            <label class="form-check-label" for="include-connections">
+                                {{#str}}neural_connections, local_neuroopositor{{/str}}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {{#str}}cancel, local_neuroopositor{{/str}}
+                </button>
+                <button type="button" class="btn btn-success" id="generate-export">
+                    <i class="fa fa-download"></i> {{#str}}generate_export, local_neuroopositor{{/str}}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Datos para JavaScript -->
+<script type="application/json" id="statistics-data">
+{
+    "courseid": {{courseid}},
+    "user_stats": {{{user_stats_json}}},
+    "urls": {
+        "ajax": "{{ajax_url}}",
+        "export": "{{export_url}}"
+    }
+}
+</script>
+
+{{#js}}
+require(['local_neuroopositor/statistics'], function(Statistics) {
+    Statistics.init();
+});
+{{/js}}

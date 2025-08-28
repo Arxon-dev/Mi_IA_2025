@@ -1,0 +1,164 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// RESPUESTAS CORRECTAS DEL EXAMEN OFICIAL 2024 (CORRECTOR CORRECTO)
+const RESPUESTAS_CORRECTAS_2024: { [key: number]: string } = {
+  // Preguntas oficiales 1-100
+  1: 'b', 2: 'a', 3: 'b', 4: 'd', 5: 'c',
+  6: 'a', 7: 'b', 8: 'c', 9: 'b', 10: 'd',
+  11: 'a', 12: 'c', 13: 'd', 14: 'd', 15: 'a',
+  16: 'b', 17: 'c', 18: 'd', 19: 'b', 20: 'a',
+  21: 'c', 22: 'a', 23: 'd', 24: 'b', 25: 'd',
+  26: 'c', 27: 'a', 28: 'd', 29: 'b', 30: 'd',
+  31: 'd', 32: 'a', 33: 'c', 34: 'c', 35: 'b',
+  36: 'a', 37: 'b', 38: 'a', 39: 'c', 40: 'c',
+  41: 'a', 42: 'd', 43: 'd', 44: 'c', 45: 'b',
+  46: 'd', 47: 'b', 48: 'c', 49: 'c', 50: 'd',
+  51: 'a', 52: 'a', 53: 'b', 54: 'd', 55: 'b',
+  56: 'a', 57: 'a', 58: 'b', 59: 'd', 60: 'c',
+  61: 'b', 62: 'a', 63: 'b', 64: 'b', 65: 'b',
+  66: 'b', 67: 'c', 68: 'b', 69: 'b', 70: 'c',
+  71: 'b', 72: 'd', 73: 'd', 74: 'd', 75: 'a',
+  76: 'd', 77: 'b', 78: 'd', 79: 'c', 80: 'b',
+  81: 'd', 82: 'c', 83: 'a', 84: 'b', 85: 'c',
+  86: 'a', 87: 'a', 88: 'b', 89: 'd', 90: 'a',
+  91: 'b', 92: 'a', 93: 'b', 94: 'a', 95: 'b',
+  96: 'c', 97: 'b', 98: 'c', 99: 'c', 100: 'b',
+  
+  // Preguntas de reserva 101-105
+  101: 'd', 102: 'a', 103: 'c', 104: 'd', 105: 'a'
+};
+
+function getCorrectAnswerIndex(correctLetter: string): number {
+  switch (correctLetter.toLowerCase()) {
+    case 'a': return 0;
+    case 'b': return 1;
+    case 'c': return 2;
+    case 'd': return 3;
+    default: return 0;
+  }
+}
+
+async function fixExamen2024Answers() {
+  try {
+    console.log('🔧 CORRIGIENDO RESPUESTAS EXAMEN OFICIAL 2024');
+    console.log('=============================================');
+    console.log('📋 Aplicando corrector oficial correcto...\n');
+
+    // Verificar estado actual
+    const currentQuestions = await prisma.examenOficial2024.findMany({
+      select: { 
+        questionnumber: true, 
+        correctanswerindex: true,
+        options: true 
+      },
+      orderBy: { questionnumber: 'asc' }
+    });
+
+    console.log(`📊 Preguntas encontradas en base de datos: ${currentQuestions.length}`);
+    
+    let updatedCount = 0;
+    let errorCount = 0;
+    let changesCount = 0;
+
+    console.log('\n🔄 ACTUALIZANDO RESPUESTAS:');
+    console.log('============================');
+
+    for (const question of currentQuestions) {
+      try {
+        const correctLetter = RESPUESTAS_CORRECTAS_2024[question.questionnumber];
+        
+        if (!correctLetter) {
+          console.log(`⚠️ Pregunta ${question.questionnumber}: No hay respuesta en el corrector`);
+          continue;
+        }
+
+        const newCorrectAnswerIndex = getCorrectAnswerIndex(correctLetter);
+        const oldCorrectAnswerIndex = question.correctanswerindex;
+
+        // Verificar si necesita actualización
+        if (oldCorrectAnswerIndex !== newCorrectAnswerIndex) {
+          const oldLetter = String.fromCharCode(97 + oldCorrectAnswerIndex);
+          
+          await prisma.examenOficial2024.update({
+            where: { questionnumber: question.questionnumber },
+            data: { correctanswerindex: newCorrectAnswerIndex }
+          });
+
+          console.log(`🔄 Pregunta ${question.questionnumber}: ${oldLetter.toUpperCase()} → ${correctLetter.toUpperCase()}`);
+          changesCount++;
+        } else {
+          console.log(`✅ Pregunta ${question.questionnumber}: ${correctLetter.toUpperCase()} (sin cambios)`);
+        }
+
+        updatedCount++;
+
+      } catch (error) {
+        console.error(`❌ Error actualizando pregunta ${question.questionnumber}:`, error);
+        errorCount++;
+      }
+    }
+
+    console.log('\n🎉 CORRECCIÓN COMPLETADA');
+    console.log('========================');
+    console.log(`✅ Preguntas procesadas: ${updatedCount}`);
+    console.log(`🔄 Respuestas cambiadas: ${changesCount}`);
+    console.log(`❌ Errores: ${errorCount}`);
+
+    // Verificar distribución final
+    const finalQuestions = await prisma.examenOficial2024.findMany({
+      select: { correctanswerindex: true }
+    });
+
+    const answerDistribution = {
+      a: finalQuestions.filter(q => q.correctanswerindex === 0).length,
+      b: finalQuestions.filter(q => q.correctanswerindex === 1).length,
+      c: finalQuestions.filter(q => q.correctanswerindex === 2).length,
+      d: finalQuestions.filter(q => q.correctanswerindex === 3).length
+    };
+
+    console.log('\n📈 DISTRIBUCIÓN FINAL DE RESPUESTAS:');
+    console.log('===================================');
+    Object.entries(answerDistribution).forEach(([letter, count]) => {
+      const percentage = ((count / finalQuestions.length) * 100).toFixed(1);
+      console.log(`   Opción ${letter.toUpperCase()}: ${count} preguntas (${percentage}%)`);
+    });
+
+    // Verificar algunas preguntas de muestra
+    console.log('\n🔍 VERIFICACIÓN DE MUESTRA (primeras 10 preguntas):');
+    console.log('==================================================');
+    
+    const sampleQuestions = await prisma.examenOficial2024.findMany({
+      take: 10,
+      orderBy: { questionnumber: 'asc' },
+      select: {
+        questionnumber: true,
+        correctanswerindex: true,
+        options: true
+      }
+    });
+
+    sampleQuestions.forEach(q => {
+      const correctLetter = String.fromCharCode(97 + q.correctanswerindex);
+      const expectedLetter = RESPUESTAS_CORRECTAS_2024[q.questionnumber];
+      const iscorrect = correctLetter === expectedLetter;
+      const icon = iscorrect ? '✅' : '❌';
+      
+      console.log(`${icon} Pregunta ${q.questionnumber}: Respuesta ${correctLetter.toUpperCase()} (esperada: ${expectedLetter?.toUpperCase()})`);
+    });
+
+    if (changesCount > 0) {
+      console.log(`\n🎯 Se corrigieron ${changesCount} respuestas incorrectas`);
+    } else {
+      console.log('\n🎯 Todas las respuestas ya estaban correctas');
+    }
+
+  } catch (error) {
+    console.error('❌ Error general:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+fixExamen2024Answers().catch(console.error); 

@@ -1,0 +1,169 @@
+// Función para parsear el contenido de SectionQuestion
+export interface ParsedSectionQuestion {
+  question: string;
+  options: string[];
+  correctanswerindex: number;
+  success: boolean;
+  error?: string;
+}
+
+export function parseSectionQuestionContent(content: string): ParsedSectionQuestion {
+  try {
+    // 1. Limpiar el contenido inicial
+    let cleanContent = content;
+    
+    // Remover comentarios iniciales (// Pregunta X...)
+    cleanContent = cleanContent.replace(/^\/\/[^\n]*\n/, '');
+    
+    // Remover HTML tags pero mantener el texto
+    cleanContent = cleanContent.replace(/<[^>]*>/g, ' ');
+    
+    // Normalizar espacios
+    cleanContent = cleanContent.replace(/\s+/g, ' ').trim();
+    
+    // 2. Extraer la pregunta principal
+    let questionText = '';
+    
+    // Buscar donde empiezan las opciones (a), b), c), d) o A), B), C), D))
+    const optionsPattern = /\s*[a-d]\)\s*/i;
+    const optionsMatch = cleanContent.search(optionsPattern);
+    
+    if (optionsMatch > 0) {
+      questionText = cleanContent.substring(0, optionsMatch).trim();
+    } else {
+      // Si no encuentra opciones con formato a), buscar otros patrones
+      const alternativePattern = /\s*{\s*=/;
+      const altMatch = cleanContent.search(alternativePattern);
+      if (altMatch > 0) {
+        questionText = cleanContent.substring(0, altMatch).trim();
+      } else {
+        // Como último recurso, tomar los primeros 200 caracteres
+        questionText = cleanContent.substring(0, 200).trim();
+      }
+    }
+    
+    // 3. Extraer opciones
+    const options: string[] = [];
+    
+    // Buscar patrones de opciones a), b), c), d)
+    const optionMatches = cleanContent.match(/[a-d]\)\s*([^a-d\)]*?)(?=[a-d]\)|$)/gi);
+    
+    if (optionMatches && optionMatches.length > 0) {
+      optionMatches.forEach(match => {
+        // Limpiar la opción
+        const option = match.replace(/^[a-d]\)\s*/i, '').trim();
+        if (option.length > 0 && option.length < 200) { // Filtrar opciones muy largas
+          options.push(option);
+        }
+      });
+    }
+    
+    // Si no encontró opciones con el patrón a), crear opciones genéricas
+    if (options.length === 0) {
+      options.push('Verdadero', 'Falso');
+    }
+    
+    // 4. Determinar respuesta correcta
+    let correctanswerindex = 0;
+    
+    // Buscar indicadores de respuesta correcta {=...}
+    const correctAnswerPattern = /{\s*=([^}]*?)}/;
+    const correctMatch = cleanContent.match(correctAnswerPattern);
+    
+    if (correctMatch && options.length > 2) {
+      const correctText = correctMatch[1].toLowerCase().trim();
+      // Buscar en las opciones cual coincide mejor
+      for (let i = 0; i < options.length; i++) {
+        if (options[i].toLowerCase().includes(correctText.substring(0, 20))) {
+          correctanswerindex = i;
+          break;
+        }
+      }
+    }
+    
+    // 5. Validar resultado
+    if (questionText.length === 0) {
+      return {
+        question: '',
+        options: [],
+        correctanswerindex: 0,
+        success: false,
+        error: 'No se pudo extraer la pregunta'
+      };
+    }
+    
+    // Verificar longitud para Telegram (con prefijo)
+    const telegramFormat = `🧪 PRUEBA SECTIONQUESTION\n\n${questionText}`;
+    if (telegramFormat.length > 300) {
+      // Truncar la pregunta para que quepa
+      const maxQuestionLength = 300 - 35; // 35 chars para el prefijo
+      questionText = questionText.substring(0, maxQuestionLength - 3) + '...';
+    }
+    
+    return {
+      question: questionText,
+      options: options.length > 0 ? options : ['Verdadero', 'Falso'],
+      correctanswerindex,
+      success: true
+    };
+    
+  } catch (error) {
+    return {
+      question: '',
+      options: [],
+      correctanswerindex: 0,
+      success: false,
+      error: `Error al parsear: ${error}`
+    };
+  }
+}
+
+// Función de prueba
+export async function testSectionQuestionParser() {
+  console.log('🧪 PRUEBA DEL PARSER DE SECTIONQUESTION');
+  console.log('='.repeat(50));
+  
+  const { PrismaClient } = await import('@prisma/client');
+  const prisma = new PrismaClient();
+  
+  try {
+    // Obtener algunas preguntas de prueba
+    const testQuestions = await prisma.sectionQuestion.findMany({
+      take: 3,
+      orderBy: { sendCount: 'asc' }
+    });
+    
+    for (const [index, question] of testQuestions.entries()) {
+      console.log(`\n${index + 1}. Testing ID: ${question.id}`);
+      console.log(`Original length: ${question.content.length} chars`);
+      
+      const parsed = parseSectionQuestionContent(question.content);
+      
+      if (parsed.success) {
+        console.log('✅ Parsing exitoso:');
+        console.log(`   Pregunta: ${parsed.question.substring(0, 100)}...`);
+        console.log(`   Opciones: ${JSON.stringify(parsed.options)}`);
+        console.log(`   Respuesta correcta: ${parsed.correctanswerindex} (${parsed.options[parsed.correctanswerindex]})`);
+        
+        const telegramFormat = `🧪 PRUEBA SECTIONQUESTION\n\n${parsed.question}`;
+        console.log(`   Longitud final: ${telegramFormat.length}/300 chars`);
+        console.log(`   ¿Válido para Telegram?: ${telegramFormat.length <= 300 ? '✅ SÍ' : '❌ NO'}`);
+      } else {
+        console.log(`❌ Error en parsing: ${parsed.error}`);
+      }
+      
+      console.log('-'.repeat(80));
+    }
+    
+    await prisma.$disconnect();
+    
+  } catch (error) {
+    console.error('❌ Error en la prueba:', error);
+    await prisma.$disconnect();
+  }
+}
+
+// Si se ejecuta directamente
+if (require.main === module) {
+  testSectionQuestionParser().catch(console.error);
+} 

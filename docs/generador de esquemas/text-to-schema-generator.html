@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Esquemas Tradicionales</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 0;
+            min-height: 700px;
+        }
+
+        .input-section {
+            padding: 30px;
+            background: #f8f9fa;
+            border-right: 1px solid #e9ecef;
+        }
+
+        .output-section {
+            padding: 30px;
+            background: white;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+            transition: all 0.3s ease;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #4facfe;
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 13px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+
+        .btn-download {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .btn-download:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(56, 239, 125, 0.4);
+        }
+
+        .schema-options {
+            background: #e8f4f8;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .schema-options h4 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .option-group {
+            margin-bottom: 10px;
+        }
+
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 13px;
+        }
+
+        #schemaCanvas {
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            max-width: 100%;
+            margin-top: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            background: white;
+        }
+
+        .schema-info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196f3;
+            font-size: 13px;
+        }
+
+        @media (max-width: 1024px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+            
+            .input-section {
+                border-right: none;
+                border-bottom: 1px solid #e9ecef;
+            }
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #4facfe;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📋 Generador de Esquemas Tradicionales</h1>
+            <p>Crea esquemas con flechas, recuadros y conexiones visuales</p>
+        </div>
+        
+        <div class="content">
+            <div class="input-section">
+                <div class="form-group">
+                    <label for="inputText">Introduce tu texto:</label>
+                    <textarea id="inputText" rows="12" placeholder="Pega aquí tu texto...
+
+Ejemplo:
+Constitución Española 1978
+• Aprobada por las Cortes el 31 de Octubre de 1978
+• Ratificada por referéndum el 6 de Diciembre de 1978
+• Sancionada por el Rey el 27 de Diciembre de 1978
+• Publicada en BOE el 29 de Diciembre de 1978"></textarea>
+                </div>
+
+                <div class="schema-options">
+                    <h4>🎨 Opciones de diseño</h4>
+                    <div class="option-group">
+                        <label for="schemaType">Tipo de esquema:</label>
+                        <select id="schemaType">
+                            <option value="hierarchical">Jerárquico (vertical)</option>
+                            <option value="flowchart">Diagrama de flujo</option>
+                            <option value="timeline">Línea de tiempo</option>
+                            <option value="mind-map">Mapa mental</option>
+                        </select>
+                    </div>
+                    <div class="option-group">
+                        <label for="colorScheme">Esquema de colores:</label>
+                        <select id="colorScheme">
+                            <option value="blue">Azul profesional</option>
+                            <option value="green">Verde natural</option>
+                            <option value="purple">Morado elegante</option>
+                            <option value="orange">Naranja vibrante</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <button class="btn-primary" onclick="generateSchema()">
+                        🎨 Generar Esquema
+                    </button>
+                    <button class="btn-secondary" onclick="clearAll()">
+                        🗑️ Limpiar
+                    </button>
+                </div>
+                
+                <div class="schema-info">
+                    <strong>💡 Consejos para mejores esquemas:</strong><br>
+                    • Usa un título principal en la primera línea<br>
+                    • Usa viñetas (•, -, *) para elementos<br>
+                    • Indenta con espacios para subniveles<br>
+                    • Separa secciones con líneas vacías<br>
+                    • Incluye fechas para líneas de tiempo
+                </div>
+            </div>
+            
+            <div class="output-section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="color: #495057;">📊 Esquema generado</h3>
+                    <button class="btn-download" onclick="downloadSchema()" id="downloadBtn" style="display: none;">
+                        💾 Descargar PNG
+                    </button>
+                </div>
+                
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Generando esquema tradicional...</p>
+                </div>
+                
+                <canvas id="schemaCanvas" width="800" height="600"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentSchemaData = null;
+
+        const colorSchemes = {
+            blue: {
+                primary: '#3498db',
+                secondary: '#2980b9',
+                accent: '#e74c3c',
+                text: '#2c3e50',
+                background: '#ecf0f1',
+                border: '#34495e'
+            },
+            green: {
+                primary: '#27ae60',
+                secondary: '#229954',
+                accent: '#e67e22',
+                text: '#2c3e50',
+                background: '#e8f8f5',
+                border: '#196f3d'
+            },
+            purple: {
+                primary: '#9b59b6',
+                secondary: '#8e44ad',
+                accent: '#f39c12',
+                text: '#2c3e50',
+                background: '#f4ecf7',
+                border: '#6c3483'
+            },
+            orange: {
+                primary: '#e67e22',
+                secondary: '#d35400',
+                accent: '#3498db',
+                text: '#2c3e50',
+                background: '#fef9e7',
+                border: '#a04000'
+            }
+        };
+
+        function parseTextToSchema(text) {
+            const lines = text.split('\n').filter(line => line.trim() !== '');
+            const items = [];
+            let title = '';
+            
+            lines.forEach((line, index) => {
+                line = line.trim();
+                
+                if (index === 0 && !line.startsWith('•') && !line.startsWith('-') && !line.startsWith('*')) {
+                    title = line;
+                    items.push({
+                        type: 'title',
+                        text: line,
+                        level: 0,
+                        id: 'title'
+                    });
+                } else if (line.startsWith('•') || line.startsWith('-') || line.startsWith('*')) {
+                    const indent = line.search(/[•\-*]/);
+                    const level = Math.floor(indent / 2) + 1;
+                    items.push({
+                        type: 'bullet',
+                        text: line.replace(/^[\s•\-*]+/, ''),
+                        level: level,
+                        id: `item_${items.length}`
+                    });
+                } else if (line.length > 0) {
+                    items.push({
+                        type: 'text',
+                        text: line,
+                        level: 1,
+                        id: `text_${items.length}`
+                    });
+                }
+            });
+            
+            return { title: title || 'Esquema', items: items };
+        }
+
+        function drawArrow(ctx, fromX, fromY, toX, toY, color = '#34495e') {
+            const headlen = 10;
+            const angle = Math.atan2(toY - fromY, toX - fromX);
+            
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(toX, toY);
+            ctx.stroke();
+            
+            // Punta de flecha
+            ctx.beginPath();
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.stroke();
+        }
+
+        function drawRoundedRect(ctx, x, y, width, height, radius, fillColor, borderColor) {
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            
+            ctx.fillStyle = fillColor;
+            ctx.fill();
+            ctx.strokeStyle = borderColor;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        function wrapText(ctx, text, maxWidth) {
+            const words = text.split(' ');
+            const lines = [];
+            let currentLine = words[0];
+
+            for (let i = 1; i < words.length; i++) {
+                const word = words[i];
+                const width = ctx.measureText(currentLine + " " + word).width;
+                if (width < maxWidth) {
+                    currentLine += " " + word;
+                } else {
+                    lines.push(currentLine);
+                    currentLine = word;
+                }
+            }
+            lines.push(currentLine);
+            return lines;
+        }
+
+        function drawHierarchicalSchema(ctx, schemaData, colors) {
+            const canvas = ctx.canvas;
+            
+            // Calcular dimensiones necesarias
+            const mainItems = schemaData.items.filter(item => item.type !== 'title' && item.level === 1);
+            const itemWidth = 280;  // Más ancho para textos largos
+            const itemSpacing = 50;
+            const totalWidth = Math.max(1200, mainItems.length * (itemWidth + itemSpacing) + 200);
+            
+            canvas.width = totalWidth;
+            canvas.height = 500;
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            let y = 60;
+            const centerX = canvas.width / 2;
+            const boxHeight = 80;  // Más alto para múltiples líneas
+            const verticalSpacing = 100;
+            
+            // Dibujar título principal
+            if (schemaData.title) {
+                const titleWidth = Math.min(400, ctx.measureText(schemaData.title).width + 60);
+                const titleX = centerX - titleWidth / 2;
+                
+                drawRoundedRect(ctx, titleX, y, titleWidth, boxHeight, 10, colors.primary, colors.border);
+                
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 18px Arial';
+                ctx.textAlign = 'center';
+                
+                // Dividir título si es muy largo
+                const titleLines = wrapText(ctx, schemaData.title, titleWidth - 20);
+                const lineHeight = 22;
+                const startY = y + boxHeight / 2 - (titleLines.length - 1) * lineHeight / 2;
+                
+                titleLines.forEach((line, index) => {
+                    ctx.fillText(line, centerX, startY + index * lineHeight);
+                });
+                
+                y += boxHeight + verticalSpacing;
+            }
+            
+            // Calcular posición inicial para centrar los elementos
+            const totalItemsWidth = mainItems.length * itemWidth + (mainItems.length - 1) * itemSpacing;
+            let startX = (canvas.width - totalItemsWidth) / 2;
+            
+            mainItems.forEach((item, index) => {
+                const itemX = startX + index * (itemWidth + itemSpacing);
+                
+                // Flecha desde título
+                if (schemaData.title) {
+                    drawArrow(ctx, centerX, 60 + boxHeight, itemX + itemWidth / 2, y - 20, colors.secondary);
+                }
+                
+                // Recuadro del elemento (más alto para acomodar texto)
+                drawRoundedRect(ctx, itemX, y, itemWidth, boxHeight, 8, colors.background, colors.primary);
+                
+                // Texto del elemento
+                ctx.fillStyle = colors.text;
+                ctx.font = '13px Arial';
+                ctx.textAlign = 'center';
+                
+                // Dividir texto en múltiples líneas
+                const lines = wrapText(ctx, item.text, itemWidth - 30);
+                const lineHeight = 18;
+                const textStartY = y + boxHeight / 2 - (lines.length - 1) * lineHeight / 2;
+                
+                lines.forEach((line, lineIndex) => {
+                    ctx.fillText(line, itemX + itemWidth / 2, textStartY + lineIndex * lineHeight);
+                });
+                
+                // Viñeta decorativa
+                ctx.fillStyle = colors.accent;
+                ctx.beginPath();
+                ctx.arc(itemX + 15, y + 25, 6, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+        }
+
+        function drawTimelineSchema(ctx, schemaData, colors) {
+            const canvas = ctx.canvas;
+            const mainItems = schemaData.items.filter(item => item.type !== 'title');
+            
+            canvas.width = Math.max(1200, mainItems.length * 200 + 200);
+            canvas.height = 450;
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const timelineY = canvas.height / 2;
+            const startX = 100;
+            const endX = canvas.width - 100;
+            
+            // Línea principal de tiempo
+            ctx.strokeStyle = colors.primary;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(startX, timelineY);
+            ctx.lineTo(endX, timelineY);
+            ctx.stroke();
+            
+            // Título
+            if (schemaData.title) {
+                ctx.fillStyle = colors.text;
+                ctx.font = 'bold 24px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(schemaData.title, canvas.width / 2, 40);
+            }
+            
+            const stepWidth = (endX - startX) / (mainItems.length + 1);
+            
+            mainItems.forEach((item, index) => {
+                const x = startX + (index + 1) * stepWidth;
+                const isEven = index % 2 === 0;
+                const boxY = isEven ? timelineY - 150 : timelineY + 70;
+                const boxWidth = 220;  // Más ancho
+                const boxHeight = 70;  // Más alto
+                
+                // Punto en la línea de tiempo
+                ctx.fillStyle = colors.accent;
+                ctx.beginPath();
+                ctx.arc(x, timelineY, 8, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Línea conectora
+                ctx.strokeStyle = colors.secondary;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(x, timelineY + (isEven ? -8 : 8));
+                ctx.lineTo(x, boxY + (isEven ? boxHeight : 0));
+                ctx.stroke();
+                
+                // Recuadro del evento
+                drawRoundedRect(ctx, x - boxWidth / 2, boxY, boxWidth, boxHeight, 8, colors.background, colors.primary);
+                
+                // Texto del evento con múltiples líneas
+                ctx.fillStyle = colors.text;
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                
+                const lines = wrapText(ctx, item.text, boxWidth - 20);
+                const lineHeight = 16;
+                const textStartY = boxY + boxHeight / 2 - (lines.length - 1) * lineHeight / 2;
+                
+                lines.forEach((line, lineIndex) => {
+                    ctx.fillText(line, x, textStartY + lineIndex * lineHeight);
+                });
+            });
+        }
+
+        function drawFlowchartSchema(ctx, schemaData, colors) {
+            const canvas = ctx.canvas;
+            canvas.width = 900;
+            canvas.height = Math.max(600, schemaData.items.length * 120 + 200);
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const centerX = canvas.width / 2;
+            let y = 60;
+            const boxWidth = 320;  // Más ancho
+            const boxHeight = 80;  // Más alto
+            const verticalSpacing = 50;
+            
+            // Título en forma de óvalo
+            if (schemaData.title) {
+                ctx.fillStyle = colors.primary;
+                ctx.beginPath();
+                ctx.ellipse(centerX, y + boxHeight / 2, boxWidth / 2, boxHeight / 2, 0, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                ctx.strokeStyle = colors.border;
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                
+                const titleLines = wrapText(ctx, schemaData.title, boxWidth - 40);
+                const lineHeight = 20;
+                const textStartY = y + boxHeight / 2 - (titleLines.length - 1) * lineHeight / 2;
+                
+                titleLines.forEach((line, lineIndex) => {
+                    ctx.fillText(line, centerX, textStartY + lineIndex * lineHeight);
+                });
+                
+                y += boxHeight + verticalSpacing;
+            }
+            
+            const mainItems = schemaData.items.filter(item => item.type !== 'title');
+            
+            mainItems.forEach((item, index) => {
+                // Flecha conectora
+                if (index > 0 || schemaData.title) {
+                    drawArrow(ctx, centerX, y - verticalSpacing + 5, centerX, y - 5, colors.secondary);
+                }
+                
+                // Forma según el tipo
+                if (item.text.toLowerCase().includes('decisión') || item.text.includes('?')) {
+                    // Rombo para decisiones
+                    ctx.fillStyle = colors.accent;
+                    ctx.beginPath();
+                    ctx.moveTo(centerX, y);
+                    ctx.lineTo(centerX + boxWidth / 2, y + boxHeight / 2);
+                    ctx.lineTo(centerX, y + boxHeight);
+                    ctx.lineTo(centerX - boxWidth / 2, y + boxHeight / 2);
+                    ctx.closePath();
+                    ctx.fill();
+                    
+                    ctx.strokeStyle = colors.border;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                } else {
+                    // Rectángulo normal
+                    drawRoundedRect(ctx, centerX - boxWidth / 2, y, boxWidth, boxHeight, 10, colors.background, colors.primary);
+                }
+                
+                // Texto con múltiples líneas
+                ctx.fillStyle = colors.text;
+                ctx.font = '13px Arial';
+                ctx.textAlign = 'center';
+                
+                const lines = wrapText(ctx, item.text, boxWidth - 40);
+                const lineHeight = 16;
+                const textStartY = y + boxHeight / 2 - (lines.length - 1) * lineHeight / 2;
+                
+                lines.forEach((line, lineIndex) => {
+                    ctx.fillText(line, centerX, textStartY + lineIndex * lineHeight);
+                });
+                
+                y += boxHeight + verticalSpacing;
+            });
+        }
+
+        function drawMindMapSchema(ctx, schemaData, colors) {
+            const canvas = ctx.canvas;
+            canvas.width = 1200;
+            canvas.height = 800;
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const centralBoxSize = 140;
+            
+            // Nodo central
+            drawRoundedRect(ctx, centerX - centralBoxSize / 2, centerY - centralBoxSize / 2, 
+                          centralBoxSize, centralBoxSize, 15, colors.primary, colors.border);
+            
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            
+            // Texto del título central con múltiples líneas
+            const titleLines = wrapText(ctx, schemaData.title, centralBoxSize - 20);
+            const lineHeight = 18;
+            const textStartY = centerY - (titleLines.length - 1) * lineHeight / 2;
+            
+            titleLines.forEach((line, lineIndex) => {
+                ctx.fillText(line, centerX, textStartY + lineIndex * lineHeight);
+            });
+            
+            const mainItems = schemaData.items.filter(item => item.type !== 'title');
+            const angleStep = (2 * Math.PI) / mainItems.length;
+            const radius = 250;
+            
+            mainItems.forEach((item, index) => {
+                const angle = index * angleStep;
+                const x = centerX + Math.cos(angle) * radius;
+                const y = centerY + Math.sin(angle) * radius;
+                
+                const boxWidth = 200;  // Más ancho
+                const boxHeight = 80;  // Más alto
+                
+                // Línea conectora curvada
+                ctx.strokeStyle = colors.secondary;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(centerX + Math.cos(angle) * (centralBoxSize / 2), 
+                          centerY + Math.sin(angle) * (centralBoxSize / 2));
+                ctx.quadraticCurveTo(centerX + Math.cos(angle) * radius * 0.6,
+                                   centerY + Math.sin(angle) * radius * 0.6,
+                                   x, y);
+                ctx.stroke();
+                
+                // Nodo secundario
+                const nodeColor = index % 2 === 0 ? colors.background : colors.accent;
+                drawRoundedRect(ctx, x - boxWidth / 2, y - boxHeight / 2, 
+                              boxWidth, boxHeight, 10, nodeColor, colors.primary);
+                
+                // Texto con múltiples líneas
+                ctx.fillStyle = colors.text;
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                
+                const lines = wrapText(ctx, item.text, boxWidth - 20);
+                const itemLineHeight = 14;
+                const itemTextStartY = y - (lines.length - 1) * itemLineHeight / 2;
+                
+                lines.forEach((line, lineIndex) => {
+                    ctx.fillText(line, x, itemTextStartY + lineIndex * itemLineHeight);
+                });
+                
+                // Punto decorativo
+                ctx.fillStyle = colors.primary;
+                ctx.beginPath();
+                ctx.arc(x + boxWidth / 2 - 15, y - boxHeight / 2 + 15, 5, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+        }
+
+        function generateSchema() {
+            const text = document.getElementById('inputText').value.trim();
+            const schemaType = document.getElementById('schemaType').value;
+            const colorScheme = document.getElementById('colorScheme').value;
+            
+            if (!text) {
+                alert('Por favor, introduce algún texto para generar el esquema.');
+                return;
+            }
+            
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('downloadBtn').style.display = 'none';
+            
+            setTimeout(() => {
+                currentSchemaData = parseTextToSchema(text);
+                const canvas = document.getElementById('schemaCanvas');
+                const ctx = canvas.getContext('2d');
+                const colors = colorSchemes[colorScheme];
+                
+                switch (schemaType) {
+                    case 'hierarchical':
+                        drawHierarchicalSchema(ctx, currentSchemaData, colors);
+                        break;
+                    case 'timeline':
+                        drawTimelineSchema(ctx, currentSchemaData, colors);
+                        break;
+                    case 'flowchart':
+                        drawFlowchartSchema(ctx, currentSchemaData, colors);
+                        break;
+                    case 'mind-map':
+                        drawMindMapSchema(ctx, currentSchemaData, colors);
+                        break;
+                }
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('downloadBtn').style.display = 'inline-block';
+            }, 800);
+        }
+
+        function downloadSchema() {
+            if (!currentSchemaData) {
+                alert('Primero genera un esquema.');
+                return;
+            }
+            
+            try {
+                const canvas = document.getElementById('schemaCanvas');
+                
+                // Crear imagen con mejor calidad
+                const dataURL = canvas.toDataURL('image/png', 1.0);
+                
+                // Método más robusto para la descarga
+                const link = document.createElement('a');
+                link.download = `esquema-${Date.now()}.png`;
+                link.href = dataURL;
+                
+                // Añadir al DOM temporalmente para asegurar compatibilidad
+                document.body.appendChild(link);
+                
+                // Forzar la descarga
+                link.click();
+                
+                // Limpiar
+                document.body.removeChild(link);
+                
+                // Mostrar confirmación
+                setTimeout(() => {
+                    alert('✅ Esquema descargado correctamente');
+                }, 100);
+                
+            } catch (error) {
+                console.error('Error al descargar:', error);
+                
+                // Método alternativo si falla el primero
+                const canvas = document.getElementById('schemaCanvas');
+                const newWindow = window.open();
+                newWindow.document.write(`
+                    <html>
+                        <head><title>Esquema - Click derecho para guardar</title></head>
+                        <body style="margin:0; display:flex; justify-content:center; align-items:center; min-height:100vh; background:#f0f0f0;">
+                            <div style="text-align:center;">
+                                <p style="margin-bottom:20px; font-family:Arial;">Haz click derecho en la imagen y selecciona "Guardar imagen como..."</p>
+                                <img src="${canvas.toDataURL()}" style="max-width:90%; border:2px solid #ccc; border-radius:8px;"/>
+                            </div>
+                        </body>
+                    </html>
+                `);
+            }
+        }
+
+        function clearAll() {
+            document.getElementById('inputText').value = '';
+            const canvas = document.getElementById('schemaCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            document.getElementById('downloadBtn').style.display = 'none';
+            document.getElementById('loading').style.display = 'none';
+            currentSchemaData = null;
+        }
+
+        // Ejemplo inicial
+        window.onload = function() {
+            const exampleText = `Constitución Española 1978
+• Aprobada por las Cortes el 31 de Octubre de 1978
+• Ratificada por referéndum el 6 de Diciembre de 1978
+• Sancionada por el Rey el 27 de Diciembre de 1978
+• Publicada en BOE el 29 de Diciembre de 1978`;
+            
+            document.getElementById('inputText').value = exampleText;
+            generateSchema();
+        };
+    </script>
+</body>
+</html>

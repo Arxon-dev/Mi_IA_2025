@@ -1,0 +1,176 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+/**
+ * 🏆 SCRIPT: ARREGLAR SISTEMA DE PRIZEPOOL DE TORNEOS
+ * 
+ * Problema identificado: Los torneos siempre muestran "0 puntos en juego"
+ * porque el prizePool está hardcodeado en 0 durante la creación.
+ * 
+ * Solución: Implementar cálculo automático del prizePool basado en:
+ * - Número de participantes registrados
+ * - Número de preguntas del torneo
+ * - Formula atractiva que motive la participación
+ */
+
+// ✅ FUNCIÓN PARA CALCULAR PRIZEPOOL AUTOMÁTICAMENTE
+function calculatePrizePool(participantCount: number, questionsCount: number): number {
+  // Fórmula: Base por pregunta + bonus por participante + multiplicador de competitividad
+  const basePerQuestion = 5; // 5 puntos base por pregunta
+  const participantBonus = participantCount * 10; // 10 puntos adicionales por participante
+  const competitivenessMultiplier = participantCount > 10 ? 1.5 : 1.2; // Más atractivo con más gente
+  
+  const basePrize = (questionsCount * basePerQuestion) + participantBonus;
+  const finalPrize = Math.round(basePrize * competitivenessMultiplier);
+  
+  // Mínimo garantizado de 100 puntos
+  return Math.max(finalPrize, 100);
+}
+
+// ✅ FUNCIÓN PARA CALCULAR DISTRIBUCIÓN DE PREMIOS POR POSICIÓN
+function calculatePrizeDistribution(totalPrizePool: number, participantCount: number): any[] {
+  const distribution = [];
+  
+  // Top 3 obtienen premios especiales del pool
+  const firstPlace = Math.round(totalPrizePool * 0.5);   // 50% para el 1er lugar
+  const secondPlace = Math.round(totalPrizePool * 0.3);  // 30% para el 2do lugar  
+  const thirdPlace = Math.round(totalPrizePool * 0.2);   // 20% para el 3er lugar
+  
+  distribution.push(
+    { position: 1, prize: firstPlace, percentage: 50 },
+    { position: 2, prize: secondPlace, percentage: 30 },
+    { position: 3, prize: thirdPlace, percentage: 20 }
+  );
+  
+  // Posiciones 4-10 obtienen puntos fijos menores
+  for (let i = 4; i <= Math.min(10, participantCount); i++) {
+    const fixedPrize = Math.max(20, 100 - (i * 5)); // Decremento gradual
+    distribution.push({ position: i, prize: fixedPrize, percentage: 0 });
+  }
+  
+  return distribution;
+}
+
+// ✅ ANÁLISIS DE TORNEOS EXISTENTES
+async function analyzeTournamentPrizePools() {
+  console.log('🔍 ANALIZANDO SISTEMA DE PREMIOS DE TORNEOS EXISTENTES...\n');
+  
+  // Obtener torneos con participantes
+  const tournaments = await prisma.tournament.findMany({
+    include: {
+      participants: true,
+      _count: {
+        select: { participants: true }
+      }
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 10
+  });
+  
+  console.log(`📊 Analizando ${tournaments.length} torneos recientes:\n`);
+  
+  for (const tournament of tournaments) {
+    const participantCount = tournament._count.participants;
+    const currentPrizePool = tournament.prizePool;
+    const suggestedPrizePool = calculatePrizePool(participantCount, tournament.questionsCount);
+    const prizeDistribution = calculatePrizeDistribution(suggestedPrizePool, participantCount);
+    
+    console.log(`🏆 ${tournament.name}:`);
+    console.log(`   📝 Preguntas: ${tournament.questionsCount}`);
+    console.log(`   👥 Participantes: ${participantCount}`);
+    console.log(`   💰 PrizePool actual: ${currentPrizePool} puntos`);
+    console.log(`   💰 PrizePool sugerido: ${suggestedPrizePool} puntos`);
+    console.log(`   🏅 Distribución sugerida:`);
+    prizeDistribution.slice(0, 3).forEach(p => {
+      console.log(`      ${p.position}º lugar: ${p.prize} pts (${p.percentage}%)`);
+    });
+    console.log('');
+  }
+}
+
+// ✅ SIMULAR DIFERENTES ESCENARIOS
+async function simulatePrizePoolScenarios() {
+  console.log('🎮 SIMULANDO DIFERENTES ESCENARIOS DE TORNEOS:\n');
+  
+  const scenarios = [
+    { name: 'Torneo Pequeño', participants: 5, questions: 20 },
+    { name: 'Torneo Mediano', participants: 15, questions: 30 },
+    { name: 'Torneo Grande', participants: 50, questions: 50 },
+    { name: 'Torneo Masivo', participants: 100, questions: 25 }
+  ];
+  
+  scenarios.forEach(scenario => {
+    const prizePool = calculatePrizePool(scenario.participants, scenario.questions);
+    const distribution = calculatePrizeDistribution(prizePool, scenario.participants);
+    
+    console.log(`🎯 ${scenario.name}:`);
+    console.log(`   👥 ${scenario.participants} participantes | 📝 ${scenario.questions} preguntas`);
+    console.log(`   💰 Pool total: ${prizePool} puntos`);
+    console.log(`   🏆 Top 3:`);
+    distribution.slice(0, 3).forEach(p => {
+      console.log(`      ${p.position}º: ${p.prize} pts`);
+    });
+    console.log('');
+  });
+}
+
+// ✅ PROPUESTA DE IMPLEMENTACIÓN
+async function showImplementationProposal() {
+  console.log('🛠️ PROPUESTA DE IMPLEMENTACIÓN:\n');
+  
+  console.log('📝 1. MODIFICAR CREACIÓN DE TORNEOS:');
+  console.log('   - Calcular prizePool automáticamente en lugar de usar 0');
+  console.log('   - Actualizar cuando se registren/cancelen participantes');
+  console.log('');
+  
+  console.log('📝 2. ARCHIVOS A MODIFICAR:');
+  console.log('   - src/app/api/admin/tournaments/route.ts (línea 721)');
+  console.log('   - src/services/tournamentService.ts (actualización dinámica)');
+  console.log('   - Notificaciones de torneos (mostrar pool atractivo)');
+  console.log('');
+  
+  console.log('📝 3. BENEFICIOS:');
+  console.log('   ✅ Torneos más atractivos visualmente');
+  console.log('   ✅ Motivación clara para participar');
+  console.log('   ✅ Escalabilidad automática del premio');
+  console.log('   ✅ Transparencia en la distribución de premios');
+  console.log('');
+  
+  console.log('📝 4. MENSAJE MEJORADO QUEDARÍA ASÍ:');
+  const exampleParticipants = 25;
+  const exampleQuestions = 20;
+  const examplePrizePool = calculatePrizePool(exampleParticipants, exampleQuestions);
+  
+  console.log(`   🏆 PERMA 42 #4d82dd92-f5be-4bef-90f0-ecef3d39d317`);
+  console.log(`   ⏰ Inicio: 18:00:00`);
+  console.log(`   👥 ${exampleParticipants}/100 participantes`);
+  console.log(`   📝 ${exampleQuestions} preguntas | 💰 ${examplePrizePool} puntos en juego`);
+  console.log(`   🏅 1º: ${Math.round(examplePrizePool * 0.5)} pts | 2º: ${Math.round(examplePrizePool * 0.3)} pts | 3º: ${Math.round(examplePrizePool * 0.2)} pts`);
+  console.log('');
+}
+
+// 🎯 EJECUTAR ANÁLISIS COMPLETO
+async function main() {
+  try {
+    console.log('🏆 ===== ANÁLISIS DEL SISTEMA DE PREMIOS DE TORNEOS =====\n');
+    
+    await analyzeTournamentPrizePools();
+    await simulatePrizePoolScenarios();
+    await showImplementationProposal();
+    
+    console.log('✅ ANÁLISIS COMPLETADO - Listo para implementar las mejoras!');
+    
+  } catch (error) {
+    console.error('❌ Error en el análisis:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Ejecutar si es llamado directamente
+if (require.main === module) {
+  main();
+}
+
+export { calculatePrizePool, calculatePrizeDistribution }; 

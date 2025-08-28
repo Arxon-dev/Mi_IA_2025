@@ -1,0 +1,272 @@
+import { MilitarySimulationService } from './militarySimulationService';
+import { checkMilitarySimulationPermission } from './militarySimulationPermissions';
+import { prisma } from '@/lib/prisma';
+
+// ==========================================
+// 🎖️ COMANDOS DE SIMULACROS MILITARES PREMIUM
+// ==========================================
+
+/**
+ * Comando /simulacro_premium_et - Simulacro Ejército de Tierra
+ */
+export async function handleSimulacroEjercitoTierraCommand(userId: string, fromUser: any): Promise<string | null> {
+  try {
+    console.log('🎖️ SIMULACRO_PREMIUM_ET COMMAND - Iniciando simulacro Ejército de Tierra');
+
+    // Verificar permisos Premium
+    const permission = await checkMilitarySimulationPermission(userId);
+    
+    if (!permission.allowed) {
+      return permission.message || '🥈 Los simulacros militares premium requieren plan **Premium**';
+    }
+
+    // Verificar si tiene un simulacro activo
+    const activeSimulation = await MilitarySimulationService.getActiveSimulation(userId, 'et');
+    
+    if (activeSimulation) {
+      const progress = activeSimulation.currentQuestionIndex || 0;
+      const total = activeSimulation.totalQuestions || 100;
+      const timeElapsed = activeSimulation.timeElapsed || 0;
+      const timeRemaining = Math.max(0, activeSimulation.timeLimit - timeElapsed);
+      const minutesRemaining = Math.floor(timeRemaining / 60);
+      
+      return `🎖️ **SIMULACRO EJÉRCITO DE TIERRA ACTIVO**\n\n` +
+        `📊 **Progreso:** ${progress}/${total} preguntas\n` +
+        `⏱️ **Tiempo restante:** ${minutesRemaining} minutos\n\n` +
+        `💡 **Opciones disponibles:**\n` +
+        `• /simulacro_continuar - Continuar simulacro\n` +
+        `• /simulacro_abandonar - Abandonar y empezar nuevo`;
+    }
+
+    // Crear nuevo simulacro
+    const result = await MilitarySimulationService.createMilitarySimulation(userId, 'et');
+    
+    return `🎖️ **SIMULACRO EJÉRCITO DE TIERRA INICIADO**\n\n` +
+      `🎯 **Características:**\n` +
+      `• 📚 100 preguntas con distribución oficial ET\n` +
+      `• ⏱️ Tiempo límite: 105 minutos\n` +
+      `• 📊 Distribución exacta por materias\n` +
+      `• 🏆 Formato examen oficial\n\n` +
+      `📋 **Distribución principal:**\n` +
+      `• PDC: 12 preguntas\n` +
+      `• ET: 9 preguntas\n` +
+      `• PAC: 9 preguntas\n` +
+      `• Carrera: 8 preguntas\n` +
+      `• Y 21 materias más...\n\n` +
+      `✅ **Simulacro creado exitosamente**\n` +
+      `📤 Enviando primera pregunta por privado...\n\n` +
+      `💡 /simulacro_continuar para gestionar el simulacro`;
+
+  } catch (error) {
+    console.error('Error en comando simulacro_premium_et:', error);
+    
+    if (error.message.includes('premium')) {
+      return '🥈 **Plan Premium requerido**\n\nLos simulacros militares premium están disponibles exclusivamente para usuarios Premium.\n\n🚀 /premium - Suscríbete al plan Premium';
+    }
+    
+    if (error.message.includes('Insuficientes preguntas')) {
+      return '⚠️ **Insuficientes preguntas disponibles**\n\nActualmente no hay suficientes preguntas para crear un simulacro completo del Ejército de Tierra.\n\nContacta con @Carlos_esp para más información.';
+    }
+    
+    return '❌ Error al crear el simulacro del Ejército de Tierra. Inténtalo más tarde.';
+  }
+}
+
+/**
+ * Comando /simulacro_premium_aire - Simulacro Ejército del Aire
+ */
+export async function handleSimulacroEjercitoAireCommand(userId: string, fromUser: any): Promise<string | null> {
+  try {
+    console.log('✈️ SIMULACRO_PREMIUM_AIRE COMMAND - Iniciando simulacro Ejército del Aire');
+
+    // Verificar permisos Premium
+    const permission = await checkMilitarySimulationPermission(userId);
+    
+    if (!permission.allowed) {
+      return permission.message || '🥈 Los simulacros militares premium requieren plan **Premium**';
+    }
+
+    // Verificar si tiene un simulacro activo
+    const activeSimulation = await MilitarySimulationService.getActiveSimulation(userId, 'aire');
+    
+    if (activeSimulation) {
+      const progress = activeSimulation.currentQuestionIndex || 0;
+      const total = activeSimulation.totalQuestions || 100;
+      const timeElapsed = activeSimulation.timeElapsed || 0;
+      const timeRemaining = Math.max(0, activeSimulation.timeLimit - timeElapsed);
+      const minutesRemaining = Math.floor(timeRemaining / 60);
+      
+      return `✈️ **SIMULACRO EJÉRCITO DEL AIRE ACTIVO**\n\n` +
+        `📊 **Progreso:** ${progress}/${total} preguntas\n` +
+        `⏱️ **Tiempo restante:** ${minutesRemaining} minutos\n\n` +
+        `💡 **Opciones disponibles:**\n` +
+        `• /simulacro_continuar - Continuar simulacro\n` +
+        `• /simulacro_abandonar - Abandonar y empezar nuevo`;
+    }
+
+    // Crear nuevo simulacro
+    const result = await MilitarySimulationService.createMilitarySimulation(userId, 'aire');
+    
+    return `✈️ **SIMULACRO EJÉRCITO DEL AIRE INICIADO**\n\n` +
+      `🎯 **Características:**\n` +
+      `• 📚 100 preguntas con distribución oficial EA\n` +
+      `• ⏱️ Tiempo límite: 105 minutos\n` +
+      `• 📊 Distribución exacta por materias\n` +
+      `• 🏆 Formato examen oficial\n\n` +
+      `📋 **Distribución principal:**\n` +
+      `• Aire: 9 preguntas\n` +
+      `• PAC: 8 preguntas\n` +
+      `• Carrera: 8 preguntas\n` +
+      `• Minsdef: 7 preguntas\n` +
+      `• Y 21 materias más...\n\n` +
+      `✅ **Simulacro creado exitosamente**\n` +
+      `📤 Enviando primera pregunta por privado...\n\n` +
+      `💡 /simulacro_continuar para gestionar el simulacro`;
+
+  } catch (error) {
+    console.error('Error en comando simulacro_premium_aire:', error);
+    
+    if (error.message.includes('premium')) {
+      return '🥈 **Plan Premium requerido**\n\nLos simulacros militares premium están disponibles exclusivamente para usuarios Premium.\n\n🚀 /premium - Suscríbete al plan Premium';
+    }
+    
+    if (error.message.includes('Insuficientes preguntas')) {
+      return '⚠️ **Insuficientes preguntas disponibles**\n\nActualmente no hay suficientes preguntas para crear un simulacro completo del Ejército del Aire.\n\nContacta con @Carlos_esp para más información.';
+    }
+    
+    return '❌ Error al crear el simulacro del Ejército del Aire. Inténtalo más tarde.';
+  }
+}
+
+/**
+ * Comando /simulacro_premium_armada - Simulacro Armada
+ */
+export async function handleSimulacroArmadaCommand(userId: string, fromUser: any): Promise<string | null> {
+  try {
+    console.log('⚓ SIMULACRO_PREMIUM_ARMADA COMMAND - Iniciando simulacro Armada');
+
+    // Verificar permisos Premium
+    const permission = await checkMilitarySimulationPermission(userId);
+    
+    if (!permission.allowed) {
+      return permission.message || '🥈 Los simulacros militares premium requieren plan **Premium**';
+    }
+
+    // Verificar si tiene un simulacro activo
+    const activeSimulation = await MilitarySimulationService.getActiveSimulation(userId, 'armada');
+    
+    if (activeSimulation) {
+      const progress = activeSimulation.currentQuestionIndex || 0;
+      const total = activeSimulation.totalQuestions || 100;
+      const timeElapsed = activeSimulation.timeElapsed || 0;
+      const timeRemaining = Math.max(0, activeSimulation.timeLimit - timeElapsed);
+      const minutesRemaining = Math.floor(timeRemaining / 60);
+      
+      return `⚓ **SIMULACRO ARMADA ACTIVO**\n\n` +
+        `📊 **Progreso:** ${progress}/${total} preguntas\n` +
+        `⏱️ **Tiempo restante:** ${minutesRemaining} minutos\n\n` +
+        `💡 **Opciones disponibles:**\n` +
+        `• /simulacro_continuar - Continuar simulacro\n` +
+        `• /simulacro_abandonar - Abandonar y empezar nuevo`;
+    }
+
+    // Crear nuevo simulacro
+    const result = await MilitarySimulationService.createMilitarySimulation(userId, 'armada');
+    
+    return `⚓ **SIMULACRO ARMADA INICIADO**\n\n` +
+      `🎯 **Características:**\n` +
+      `• 📚 100 preguntas con distribución oficial Armada\n` +
+      `• ⏱️ Tiempo límite: 105 minutos\n` +
+      `• 📊 Distribución exacta por materias\n` +
+      `• 🏆 Formato examen oficial\n\n` +
+      `📋 **Distribución principal:**\n` +
+      `• PDC: 14 preguntas\n` +
+      `• Carrera: 10 preguntas\n` +
+      `• Armada: 6 preguntas\n` +
+      `• Seguiridad Nacional: 6 preguntas\n` +
+      `• Y 21 materias más...\n\n` +
+      `✅ **Simulacro creado exitosamente**\n` +
+      `📤 Enviando primera pregunta por privado...\n\n` +
+      `💡 /simulacro_continuar para gestionar el simulacro`;
+
+  } catch (error) {
+    console.error('Error en comando simulacro_premium_armada:', error);
+    
+    if (error.message.includes('premium')) {
+      return '🥈 **Plan Premium requerido**\n\nLos simulacros militares premium están disponibles exclusivamente para usuarios Premium.\n\n🚀 /premium - Suscríbete al plan Premium';
+    }
+    
+    if (error.message.includes('Insuficientes preguntas')) {
+      return '⚠️ **Insuficientes preguntas disponibles**\n\nActualmente no hay suficientes preguntas para crear un simulacro completo de la Armada.\n\nContacta con @Carlos_esp para más información.';
+    }
+    
+    return '❌ Error al crear el simulacro de la Armada. Inténtalo más tarde.';
+  }
+}
+
+/**
+ * Comando helper para información general de simulacros militares
+ */
+export async function handleSimulacrosPremiumInfoCommand(userId: string, fromUser: any): Promise<string | null> {
+  try {
+    const canAccess = await MilitarySimulationService.canUserCreatePremiumSimulation(userId);
+    
+    if (!canAccess) {
+      return `🎖️ **SIMULACROS PREMIUM** 🥈\n\n` +
+        `Los simulacros militares son una funcionalidad **exclusiva Premium** que simula exámenes oficiales por arma militar.\n\n` +
+        `🚀 **¿Qué incluye?**\n` +
+        `✈️ Ejército del Aire - 100 preguntas\n` +
+        `🎖️ Ejército de Tierra - 100 preguntas\n` +
+        `⚓ Armada - 100 preguntas\n\n` +
+        `🎯 **Características:**\n` +
+        `• Distribución exacta por arma militar\n` +
+        `• 105 minutos como examen oficial\n` +
+        `• Orden específico de envío\n` +
+        `• Materias especializadas por rama\n\n` +
+        `💎 **Suscríbete a Premium:**\n` +
+        `/premium - €9.99/mes\n` +
+        `/planes - Ver comparativa completa`;
+    }
+
+    // Usuario Premium - mostrar comandos disponibles
+    const activeSimulation = await MilitarySimulationService.getActiveSimulation(userId);
+    
+    let message = `🎖️ **SIMULACROS PREMIUM** 💎\n\n`;
+    
+    if (activeSimulation) {
+      const branchNames = {
+        'simulacro_premium_et': '🎖️ Ejército de Tierra',
+        'simulacro_premium_aire': '✈️ Ejército del Aire', 
+        'simulacro_premium_armada': '⚓ Armada'
+      };
+      
+      const branchName = branchNames[activeSimulation.examType] || 'Simulacro Militar';
+      const progress = activeSimulation.currentQuestionIndex || 0;
+      const total = activeSimulation.totalQuestions || 100;
+      
+      message += `🔄 **SIMULACRO ACTIVO:** ${branchName}\n`;
+      message += `📊 **Progreso:** ${progress}/${total} preguntas\n\n`;
+      message += `💡 /simulacro_continuar para continuar\n\n`;
+    }
+    
+    message += `🚀 **Comandos disponibles:**\n`;
+    message += `🎖️ /simulacro_premium_et - Ejército de Tierra\n`;
+    message += `✈️ /simulacro_premium_aire - Ejército del Aire\n`;
+    message += `⚓ /simulacro_premium_armada - Armada\n\n`;
+    
+    message += `📊 **Características:**\n`;
+    message += `• 100 preguntas por simulacro\n`;
+    message += `• Distribución oficial por arma\n`;
+    message += `• 105 minutos tiempo límite\n`;
+    message += `• Materias especializadas\n`;
+    message += `• Formato examen real\n\n`;
+    
+    message += `💡 **Tip:** Cada simulacro refleja la especialización de cada rama militar española.`;
+    
+    return message;
+
+  } catch (error) {
+    console.error('Error en comando simulacros premium info:', error);
+    return '❌ Error al obtener información de simulacros premium.';
+  }
+} 

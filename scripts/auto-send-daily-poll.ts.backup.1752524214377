@@ -1,0 +1,583 @@
+import { PrismaClient } from '@prisma/client';
+import fetch from 'node-fetch';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+
+const prisma = new PrismaClient();
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
+const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002352049779';
+
+interface ParsedQuestion {
+  title: string;
+  question: string;
+  options: string[];
+  correctAnswerIndex: number;
+  explanation: string;
+}
+
+interface SchedulerConfig {
+  dailyPolls: {
+    enabled: boolean;
+    questionsPerSend?: number;
+  };
+}
+
+// Cargar configuración del scheduler
+function loadSchedulerConfig(): SchedulerConfig {
+  const configFile = join(process.cwd(), 'scheduler-config.json');
+  if (existsSync(configFile)) {
+    try {
+      const content = readFileSync(configFile, 'utf-8');
+      return JSON.parse(content);
+    } catch (error) {
+      console.log('⚠️ Error leyendo configuración del scheduler, usando defaults');
+    }
+  }
+  return { dailyPolls: { enabled: true, questionsPerSend: 1 } };
+}
+
+// Función para mezclar opciones aleatoriamente manteniendo el índice correcto
+function shuffleOptions(parsedData: ParsedQuestion): ParsedQuestion {
+  const originalOptions = [...parsedData.options];
+  const originalCorrectIndex = parsedData.correctAnswerIndex;
+  const correctAnswer = originalOptions[originalCorrectIndex];
+  
+  // Crear array de índices y mezclarlo
+  const indices = Array.from({ length: originalOptions.length }, (_, i) => i);
+  
+  // Algoritmo Fisher-Yates para mezcla aleatoria
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  
+  // Aplicar la mezcla a las opciones
+  const shuffledOptions = indices.map(index => originalOptions[index]);
+  
+  // Encontrar la nueva posición de la respuesta correcta
+  const newCorrectIndex = shuffledOptions.findIndex(option => option === correctAnswer);
+  
+  console.log(`   🔀 Opciones mezcladas: respuesta correcta movida de posición ${originalCorrectIndex + 1} → ${newCorrectIndex + 1}`);
+  
+  return {
+    ...parsedData,
+    options: shuffledOptions,
+    correctAnswerIndex: newCorrectIndex
+  };
+}
+
+// Función para truncar solo explicaciones manteniendo palabras completas
+function truncateExplanation(explanation: string, maxLength: number = 200): string {
+  if (explanation.length <= maxLength) {
+    return explanation;
+  }
+  
+  // Limpiar saltos de línea y espacios múltiples primero
+  const cleanExplanation = explanation.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+  
+  if (cleanExplanation.length <= maxLength) {
+    return cleanExplanation;
+  }
+  
+  // Buscar el primer punto significativo que quepa
+  const sentences = cleanExplanation.split(/[.!?]/);
+  let truncatedExplanation = '';
+  
+  for (const sentence of sentences) {
+    const cleanSentence = sentence.trim();
+    if (cleanSentence && cleanSentence.length > 10) { // Evitar fragmentos muy cortos
+      if ((truncatedExplanation + cleanSentence + '.').length <= maxLength - 3) {
+        truncatedExplanation += (truncatedExplanation ? ' ' : '') + cleanSentence + '.';
+      } else {
+        break;
+      }
+    }
+  }
+  
+  // Fallback: tomar caracteres completos
+  if (truncatedExplanation.length < 30) {
+    truncatedExplanation = cleanExplanation.substring(0, maxLength - 3).trim() + '...';
+  }
+  
+  return truncatedExplanation;
+}
+
+// Función para validar límites estrictos de Telegram
+function validateTelegramLimits(parsedData: ParsedQuestion): boolean {
+  // Quiz question: 1-200 caracteres
+  if (!parsedData.question || parsedData.question.length < 1 || parsedData.question.length > 200) {
+    console.log(`   ❌ Pregunta no válida: ${parsedData.question.length} caracteres (límite: 1-200)`);
+    return false;
+  }
+  
+  // Poll options: 1-100 caracteres cada una
+  for (let i = 0; i < parsedData.options.length; i++) {
+    const option = parsedData.options[i];
+    if (!option || option.length < 1 || option.length > 100) {
+      console.log(`   ❌ Opción ${i + 1} no válida: "${option}" (${option?.length || 0} caracteres, límite: 1-100)`);
+      return false;
+    }
+  }
+  
+  // Mínimo 2 opciones requeridas
+  if (parsedData.options.length < 2) {
+    console.log(`   ❌ Insuficientes opciones: ${parsedData.options.length} (mínimo: 2)`);
+    return false;
+  }
+  
+  console.log(`   ✅ Cumple límites de Telegram: pregunta(${parsedData.question.length}), opciones(${parsedData.options.map(o => o.length).join(', ')})`);
+  return true;
+}
+
+function parseGiftContent(content: string): ParsedQuestion | null {
+  try {
+    console.log('🔧 Parseando contenido GIFT...');
+    
+    // Dividir por líneas y limpiar
+    const lines = content.split('\n').map(line => line.trim()).filter(line => line);
+    
+    // Buscar el título (primera línea sin caracteres especiales)
+    let title = '';
+    let questionStartIndex = 0;
+    
+    if (lines.length > 0 && !lines[0].includes('{') && !lines[0].includes('::')) {
+      title = lines[0];
+      questionStartIndex = 1;
+    }
+    
+    // Encontrar la pregunta y las opciones
+    let questionText = '';
+    let optionsText = '';
+    let foundOptionsStart = false;
+    
+    for (let i = questionStartIndex; i < lines.length; i++) {
+      const line = lines[i];
+      
+      if (line.includes('::') && !foundOptionsStart) {
+        // Línea con formato "texto::pregunta" 
+        const parts = line.split('::');
+        if (parts.length > 1) {
+          questionText = parts[parts.length - 1].trim();
+        }
+        continue;
+      }
+      
+      if (line.includes('{')) {
+        foundOptionsStart = true;
+        // Esta línea contiene opciones
+        const beforeBrace = line.split('{')[0].trim();
+        if (beforeBrace && !questionText) {
+          questionText = beforeBrace;
+        }
+        
+        const afterBrace = line.split('{')[1];
+        if (afterBrace) {
+          optionsText += afterBrace;
+        }
+        continue;
+      }
+      
+      if (foundOptionsStart) {
+        optionsText += ' ' + line;
+      } else if (!questionText) {
+        questionText += ' ' + line;
+      }
+    }
+    
+    // Limpiar texto de pregunta
+    questionText = questionText.replace(/\{[^}]*\}/, '').trim();
+    
+    // Parsear opciones GIFT
+    const options: string[] = [];
+    let correctAnswerIndex = -1;
+    let explanation = '';
+    
+    // Remover el último } si existe
+    optionsText = optionsText.replace(/}$/, '');
+    
+    // NUEVA ESTRATEGIA: Buscar explicación con #### primero
+    const explanationMatch = optionsText.match(/####[^~=]*$/);
+    if (explanationMatch) {
+      explanation = explanationMatch[0].replace(/^####\s*/, '').trim();
+      
+      // Limpiar marcadores de formato al inicio
+      explanation = explanation.replace(/RETROALIMENTACIÓN[^:]*:\s*/i, '');
+      explanation = explanation.replace(/Explicación detallada[^:]*:\s*/i, '');
+      explanation = explanation.replace(/^\s*-\s*/, '');
+      explanation = explanation.replace(/^\n+/, ''); // Remover saltos de línea iniciales
+      
+      // MEJORAR TRUNCAMIENTO: Buscar contenido significativo
+      if (explanation.length > 200) {
+        explanation = truncateExplanation(explanation);
+      } else {
+        // Limpiar saltos de línea para explicaciones cortas también
+        explanation = explanation.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+      }
+      
+      // Remover la explicación del texto de opciones para no interferir
+      optionsText = optionsText.replace(/####[^~=]*$/, '');
+    }
+    
+    // Dividir por ~ y = para encontrar opciones
+    const optionParts = optionsText.split(/[~=]/).filter(part => part.trim());
+    
+    for (let i = 0; i < optionParts.length; i++) {
+      let optionText = optionParts[i].trim();
+      
+      // Verificar si esta opción es la correcta (viene después de =)
+      const fullText = optionsText;
+      const optionPosition = fullText.indexOf(optionText);
+      const textBefore = fullText.substring(0, optionPosition);
+      const isCorrect = textBefore.lastIndexOf('=') > textBefore.lastIndexOf('~');
+      
+      // Limpiar opción de comentarios y feedback adicionales
+      optionText = optionText.split('#')[0].trim();
+      optionText = optionText.split('//')[0].trim();
+      
+      if (optionText && optionText.length > 0) {
+        // NO TRUNCAR - mantener texto original para validación estricta
+        options.push(optionText);
+        if (isCorrect && correctAnswerIndex === -1) {
+          correctAnswerIndex = options.length - 1;
+        }
+      }
+    }
+    
+    // Si no encontramos explicación con ####, buscar con # simple
+    if (!explanation) {
+      const simpleExplanationMatch = optionsText.match(/#[^~=}]*/);
+      if (simpleExplanationMatch) {
+        explanation = simpleExplanationMatch[0].replace(/^#\s*/, '').trim();
+        if (explanation.length > 200) {
+          explanation = explanation.substring(0, 197) + '...';
+        }
+      }
+    }
+    
+    // Fallback si no hay explicación
+    if (!explanation) {
+      explanation = 'Consulta la documentación oficial para más detalles.';
+    }
+    
+    console.log(`   📖 Explicación extraída: "${explanation.substring(0, 100)}${explanation.length > 100 ? '...' : ''}"`);
+    
+    if (!questionText || options.length < 2 || correctAnswerIndex === -1) {
+      return null;
+    }
+    
+    return {
+      title: title || '',
+      question: questionText,
+      options: options,
+      correctAnswerIndex,
+      explanation: truncateExplanation(explanation || 'Respuesta correcta')
+    };
+    
+  } catch (error) {
+    console.error('❌ Error parseando GIFT:', error);
+    return null;
+  }
+}
+
+async function sendDailyPoll() {
+  try {
+    console.log('🚀 ===== INICIANDO ENVÍO AUTOMÁTICO DE PREGUNTAS =====');
+    
+    // 1. Cargar configuración y determinar cantidad de preguntas
+    const config = loadSchedulerConfig();
+    if (!config.dailyPolls.enabled) {
+      console.log('❌ Envío automático deshabilitado en configuración');
+      return;
+    }
+    
+    const questionsToSend = config.dailyPolls.questionsPerSend || 1;
+    console.log(`🎯 Configurado para enviar: ${questionsToSend} pregunta(s)`);
+    
+    // 2. Obtener preguntas válidas disponibles
+    const preguntasDisponibles = await prisma.validQuestion.findMany({
+      where: {
+        isActive: true
+      },
+      orderBy: [
+        { sendCount: 'asc' },
+        { lastSuccessfulSendAt: { sort: 'asc', nulls: 'first' } },
+        { id: 'asc' }
+      ],
+      take: questionsToSend * 2 // Buffer por si alguna falla
+    });
+    
+    if (preguntasDisponibles.length === 0) {
+      console.log('❌ No hay preguntas válidas disponibles');
+      return;
+    }
+    
+    const actualQuestionsToSend = Math.min(questionsToSend, preguntasDisponibles.length);
+    console.log(`📊 Preguntas disponibles: ${preguntasDisponibles.length}`);
+    console.log(`📤 Preguntas a enviar: ${actualQuestionsToSend}`);
+    
+    // 3. ENVIAR MENSAJE DE CONTEXTO UNA SOLA VEZ (solo si hay más de 1 pregunta)
+    if (actualQuestionsToSend > 1) {
+      console.log('\n📢 Enviando mensaje de contexto único...');
+      await sendContextMessage(preguntasDisponibles[0], actualQuestionsToSend);
+      
+      // Esperar 2 segundos después del mensaje de contexto
+      console.log('⏱️ Esperando 2 segundos después del mensaje de contexto...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    // 4. Enviar las preguntas (CON o SIN mensaje de contexto según la cantidad)
+    for (let i = 0; i < actualQuestionsToSend; i++) {
+      const preguntaSeleccionada = preguntasDisponibles[i];
+      
+      console.log(`\n📝 ========== PREGUNTA ${i + 1}/${actualQuestionsToSend} ==========`);
+      console.log(`✅ PREGUNTA SELECCIONADA:`);
+      console.log(`   🆔 ID: ${preguntaSeleccionada.id.substring(0, 8)}...`);
+      console.log(`   📊 Tipo: ${preguntaSeleccionada.type} | Dificultad: ${preguntaSeleccionada.difficulty}`);
+      console.log(`   🎯 Método: ${preguntaSeleccionada.parseMethod}`);
+      console.log(`   📈 Envíos previos: ${preguntaSeleccionada.sendCount}`);
+      
+      try {
+        // Procesar y enviar la pregunta (sin mensaje de contexto individual si ya se envió el grupal)
+        const sendIndividualContext = actualQuestionsToSend === 1; // Solo si es una sola pregunta
+        const success = await processSingleQuestion(preguntaSeleccionada, sendIndividualContext);
+        if (success) {
+          successCount++;
+          console.log(`✅ Pregunta ${i + 1} enviada exitosamente`);
+        } else {
+          errorCount++;
+          console.log(`❌ Error enviando pregunta ${i + 1}`);
+        }
+        
+        // Delay entre preguntas (2 segundos) para evitar rate limiting
+        if (i < actualQuestionsToSend - 1) {
+          console.log('⏱️ Esperando 2 segundos antes de la siguiente pregunta...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
+      } catch (error) {
+        errorCount++;
+        console.error(`❌ Error procesando pregunta ${i + 1}:`, error);
+      }
+    }
+    
+    // 5. Resumen final
+    console.log(`\n📊 ========== RESUMEN DE ENVÍO ==========`);
+    console.log(`✅ Preguntas enviadas exitosamente: ${successCount}`);
+    console.log(`❌ Preguntas con error: ${errorCount}`);
+    console.log(`🎯 Total procesadas: ${actualQuestionsToSend}`);
+    console.log('='.repeat(40));
+    
+  } catch (error) {
+    console.error('❌ Error en envío automático:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+async function processSingleQuestion(preguntaSeleccionada: any, sendContextMessage: boolean = true): Promise<boolean> {
+  try {
+    // 3. Usar datos PRE-PARSEADOS de ValidQuestion
+    const parsedData: ParsedQuestion = {
+      title: '',
+      question: preguntaSeleccionada.parsedQuestion,
+      options: preguntaSeleccionada.parsedOptions as string[],
+      correctAnswerIndex: preguntaSeleccionada.correctAnswerIndex,
+      explanation: preguntaSeleccionada.parsedExplanation || 'Respuesta correcta'
+    };
+    
+    // 3.1 CONVERTIR \n LITERALES A SALTOS DE LÍNEA REALES
+    console.log('🔧 Convirtiendo \\n literales a saltos de línea reales...');
+    const originalQuestionLength = parsedData.question.length;
+    const originalOptionsLengths = parsedData.options.map(opt => opt.length);
+    
+    // Convertir en pregunta
+    parsedData.question = parsedData.question.replace(/\\n/g, '\n');
+    
+    // Convertir en opciones
+    parsedData.options = parsedData.options.map(option => 
+      option.replace(/\\n/g, '\n')
+    );
+    
+    // Convertir en explicación
+    parsedData.explanation = parsedData.explanation.replace(/\\n/g, '\n');
+    
+    // Calcular ahorro de caracteres
+    const newQuestionLength = parsedData.question.length;
+    const newOptionsLengths = parsedData.options.map(opt => opt.length);
+    const charactersSaved = (originalQuestionLength - newQuestionLength) + 
+                           originalOptionsLengths.reduce((sum, len, i) => sum + (len - newOptionsLengths[i]), 0);
+    
+    if (charactersSaved > 0) {
+      console.log(`   💾 Caracteres ahorrados: ${charactersSaved}`);
+      console.log(`   📏 Longitud pregunta: ${originalQuestionLength} → ${newQuestionLength}`);
+    }
+    
+    console.log(`   📝 Pregunta: "${parsedData.question.substring(0, 50)}..."`);
+    console.log(`   🔘 Opciones: ${parsedData.options.length} disponibles`);
+    
+    // 4. MEZCLAR OPCIONES ALEATORIAMENTE
+    console.log('\n🔀 Mezclando opciones aleatoriamente...');
+    const finalParsedData = shuffleOptions(parsedData);
+    
+    // 5. Enviar poll a Telegram
+    console.log('\n📤 Enviando poll a Telegram...');
+    
+    const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPoll`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        question: finalParsedData.question,
+        options: finalParsedData.options,
+        type: 'quiz',
+        correct_option_id: finalParsedData.correctAnswerIndex,
+        explanation: finalParsedData.explanation,
+        explanation_parse_mode: 'HTML',
+        is_anonymous: false,
+      })
+    });
+    
+    const result = await response.json() as any;
+    
+    if (result.ok && result.result) {
+      console.log('✅ ¡Poll enviado exitosamente!');
+      console.log(`   📩 Message ID: ${result.result.message_id}`);
+      console.log(`   🗳️  Poll ID: ${result.result.poll.id}`);
+      
+      // 6. Registrar en base de datos
+      await prisma.telegramPoll.create({
+        data: {
+          pollId: result.result.poll.id,
+          questionId: preguntaSeleccionada.originalQuestionId, // Referencia a la pregunta original
+          sourceModel: 'validQuestion', // Indicar que viene de tabla optimizada
+          correctAnswerIndex: finalParsedData.correctAnswerIndex,
+          options: finalParsedData.options,
+          chatId: CHAT_ID
+        }
+      });
+      
+      // Actualizar estadísticas en ValidQuestion
+      await prisma.validQuestion.update({
+        where: { id: preguntaSeleccionada.id },
+        data: {
+          sendCount: { increment: 1 },
+          lastSuccessfulSendAt: new Date()
+        }
+      });
+      
+      console.log('📝 Estadísticas actualizadas en tabla optimizada');
+      
+      // 7. Enviar mensaje de contexto SOLO si se especifica (para preguntas individuales)
+      if (sendContextMessage) {
+        await sendIndividualContextMessage(preguntaSeleccionada);
+      } else {
+        console.log('🚫 Mensaje de contexto omitido (ya enviado grupalmente)');
+      }
+      
+      return true;
+    } else {
+      console.error('❌ Error enviando poll:', result);
+      throw new Error(`Error de Telegram: ${result.description || 'Error desconocido'}`);
+    }
+  } catch (error) {
+    console.error('❌ Error procesando pregunta:', error);
+    return false;
+  }
+}
+
+// Mensaje de contexto para múltiples preguntas (UNA SOLA VEZ)
+async function sendContextMessage(firstQuestionData: any, totalQuestions: number) {
+  try {
+    const difficulty = firstQuestionData?.difficulty || 'medium';
+    const type = firstQuestionData?.type || 'multiple_choice';
+    const bloom = firstQuestionData?.bloomLevel || 'conocimiento';
+    
+    const contextMessage = `📚 <b>PREGUNTAS DIARIAS DEL DÍA</b> 📚
+
+🎯 <b>Total de preguntas:</b> ${totalQuestions}
+📊 <b>Dificultad:</b> ${difficulty}
+🌸 <b>Bloom:</b> ${bloom}
+🏆 <b>¡Compite por puntos y sube en el ranking!</b>
+
+💡 <b>Recuerda:</b>
+• ✅ Respuestas correctas = +20 puntos
+• ⚡ Respuestas rápidas = bonificación
+• 🔥 Mantén tu racha diaria activa
+
+📈 Usa /ranking para ver tu posición
+📊 Usa /stats para ver tus estadísticas
+
+¡Buena suerte con todas las preguntas! 🍀`;
+
+    const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        text: contextMessage,
+        parse_mode: 'HTML'
+      })
+    });
+    
+    const result = await response.json() as any;
+    if (result.ok) {
+      console.log(`📝 Mensaje de contexto grupal enviado para ${totalQuestions} preguntas`);
+    } else {
+      console.log('⚠️  Error enviando mensaje de contexto grupal:', result);
+    }
+    
+  } catch (error) {
+    console.log('⚠️  Error enviando mensaje de contexto grupal:', error);
+  }
+}
+
+// Mensaje de contexto para pregunta individual (solo cuando es UNA pregunta)
+async function sendIndividualContextMessage(questionData: any) {
+  try {
+    const difficulty = questionData?.difficulty || 'medium';
+    const type = questionData?.type || 'multiple_choice';
+    const bloom = questionData?.bloomLevel || 'conocimiento';
+    
+    const contextMessage = `📚 <b>PREGUNTA DIARIA DEL DÍA</b> 📚
+
+🎯 <b>Dificultad:</b> ${difficulty}
+📊 <b>Tipo:</b> ${type}
+🌸 <b>Bloom:</b> ${bloom}
+🏆 <b>Compite por puntos y sube en el ranking!</b>
+
+💡 <b>Recuerda:</b>
+• ✅ Respuestas correctas = +20 puntos
+• ⚡ Respuestas rápidas = bonificación
+• 🔥 Mantén tu racha diaria activa
+
+📈 Usa /ranking para ver tu posición
+📊 Usa /stats para ver tus estadísticas
+
+¡Buena suerte! 🍀`;
+
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        text: contextMessage,
+        parse_mode: 'HTML'
+      })
+    });
+    
+    console.log('📝 Mensaje de contexto individual enviado');
+    
+  } catch (error) {
+    console.log('⚠️  Error enviando mensaje de contexto individual:', error);
+  }
+}
+
+// Ejecutar si se llama directamente
+if (require.main === module) {
+  sendDailyPoll();
+}
+
+export { sendDailyPoll }; 

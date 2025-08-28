@@ -1,0 +1,1148 @@
+import { NotificationConfig } from '@/config/notifications';
+import { prisma } from '@/lib/prisma';
+import { NotificationEventType } from '@prisma/client';
+
+interface NotificationResult {
+  success: boolean;
+  method: 'private' | 'group' | 'failed';
+  message?: string;
+}
+
+interface User {
+  telegramUserId: string;
+  username?: string;
+  firstName?: string;
+}
+
+interface NotificationData {
+  userId: string;
+  type: NotificationEventType;
+  eventData?: any;
+  triggerContext?: any;
+}
+
+interface TelegramBot {
+  sendMessage: (chatId: string, text: string, options?: any) => Promise<any>;
+}
+
+export class NotificationService {
+  private telegramBot: TelegramBot | null = null;
+
+  /**
+   * 🔧 Configurar el bot de Telegram para envío de notificaciones
+   */
+  setTelegramBot(bot: TelegramBot) {
+    this.telegramBot = bot;
+  }
+
+  /**
+   * Enviar notificación inteligente (privada primero, fallback después)
+   */
+  static async sendIntelligentNotification(
+    type: 'duel' | 'achievement' | 'goal',
+    targetUser: User,
+    data: any,
+    groupChatId: string
+  ): Promise<NotificationResult> {
+    
+    // 1. Intentar notificación privada primero
+    if (NotificationConfig.private[type]) {
+      const privateMessage = this.buildPrivateMessage(type, data);
+      const privateSuccess = await this.sendPrivateMessage(targetUser.telegramUserId, privateMessage);
+      
+      if (privateSuccess) {
+        console.log(`✅ Notificación privada enviada a ${targetUser.firstName}`);
+        return {
+          success: true,
+          method: 'private',
+          message: 'Notificación enviada privadamente'
+        };
+      }
+    }
+    
+    // 2. Si falla privada, usar fallback discreto en grupo
+    if (NotificationConfig.fallback.enabled && NotificationConfig.groupMode[type]?.fallbackMessage) {
+      const fallbackMessage = this.buildFallbackMessage(type, data);
+      const groupSuccess = await this.sendGroupMessage(groupChatId, fallbackMessage);
+      
+      if (groupSuccess) {
+        console.log(`📢 Fallback enviado al grupo para ${targetUser.firstName}`);
+        return {
+          success: true,
+          method: 'group',
+          message: fallbackMessage
+        };
+      }
+    }
+    
+    // 3. Si todo falla
+    console.log(`❌ No se pudo notificar a ${targetUser.firstName}`);
+    return {
+      success: false,
+      method: 'failed',
+      message: 'No se pudo enviar notificación'
+    };
+  }
+  
+  /**
+   * Construir mensaje privado detallado
+   */
+  private static buildPrivateMessage(type: string, data: any): string {
+    switch (type) {
+      case 'duel':
+        const timeLeftMinutes = Math.max(0, Math.ceil((new Date(data.expiresAt).getTime() - Date.now()) / (1000 * 60)));
+        
+        return `🗡️ ¡TE HAN RETADO A DUELO! ⚔️
+
+👤 <b>${data.challenger.firstName}</b> te ha desafiado
+📋 ${data.questionsCount} preguntas | ⏱️ ${Math.floor(data.timeLimit / 60)} min | 💰 ${data.stake} pts en juego
+⏰ Expira en ${timeLeftMinutes} minutos
+
+⚡ <b>RESPONDE AHORA:</b>
+• <code>/aceptar ${data.id}</code> - Aceptar desafío
+• <code>/rechazar ${data.id}</code> - Rechazar duelo
+
+🎯 <b>MÁS OPCIONES:</b>
+• <code>/duelos</code> - Ver todos tus duelos
+• <code>/mi_stats</code> - Tus estadísticas
+• <code>/duelo @${data.challenger.firstName}</code> - Retarle después
+
+💡 <b>TIP:</b> Los duelos mejoran tu precisión bajo presión
+⚔️ ¡La competición directa te hace mejor!
+
+⏳ Tienes ${timeLeftMinutes} minutos para decidir`;
+        
+      case 'achievement':
+        return `🏅 <b>¡LOGRO DESBLOQUEADO!</b> 🏅
+        
+🎊 <b>${data.achievement.name}</b>
+📝 ${data.achievement.description}
+💎 Rareza: ${data.achievement.rarity}
+🎁 Bonus: +${data.achievement.points} puntos
+
+🔗 <code>/logros</code> para ver todos tus logros`;
+        
+      default:
+        return 'Notificación del sistema';
+    }
+  }
+  
+  /**
+   * Construir mensaje fallback ultra-corto para grupo
+   */
+  private static buildFallbackMessage(type: string, data: any): string {
+    const template = NotificationConfig.fallback.template[type];
+    if (!template) return '';
+    
+    return template
+      .replace('{challenger}', data.challenger?.firstName || 'Alguien')
+      .replace('{challenged}', data.challenged?.firstName || 'Usuario')
+      .replace('{user}', data.user?.firstName || 'Usuario');
+  }
+  
+  /**
+   * Enviar mensaje privado
+   */
+  private static async sendPrivateMessage(telegramUserId: string, message: string): Promise<boolean> {
+    try {
+      const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
+      
+      const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: telegramUserId,
+          text: message,
+          parse_mode: 'HTML'
+        })
+      });
+      
+      const result = await response.json() as any;
+      return result.ok;
+      
+    } catch (error) {
+      console.error('Error enviando mensaje privado:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Enviar mensaje a grupo con límites anti-spam
+   */
+  private static async sendGroupMessage(chatId: string, message: string): Promise<boolean> {
+    try {
+      // TODO: Implementar límites anti-spam aquí
+      
+      const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
+      
+      const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: message,
+          parse_mode: 'HTML'
+        })
+      });
+      
+      const result = await response.json() as any;
+      return result.ok;
+      
+    } catch (error) {
+      console.error('Error enviando mensaje a grupo:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Verificar si el usuario puede recibir notificaciones privadas
+   */
+  static async canReceivePrivateMessages(telegramUserId: string): Promise<boolean> {
+    try {
+      const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
+      
+      // Intentar obtener info del chat privado
+      const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getChat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: telegramUserId
+        })
+      });
+      
+      const result = await response.json() as any;
+      return result.ok;
+      
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Enviar respuesta inteligente de comando (privada si es necesario)
+   */
+  static async sendIntelligentCommandResponse(
+    originalCommand: string,
+    response: string,
+    user: { telegramUserId: string; firstName?: string },
+    groupChatId: string,
+    isGroupChat: boolean
+  ): Promise<{ success: boolean; method: string; message: string }> {
+    
+    const commandBase = originalCommand.toLowerCase().split(' ')[0];
+    
+    // Verificar si debe ser privado forzoso
+    const shouldForcePrivate = NotificationConfig.commands.forcePrivate.includes(commandBase);
+    
+    // Si no es grupo o no es comando privado forzoso, enviar normalmente
+    if (!isGroupChat || !shouldForcePrivate) {
+      const success = await this.sendGroupMessage(groupChatId, response);
+      return {
+        success,
+        method: isGroupChat ? 'group' : 'private',
+        message: success ? 'Respuesta enviada normalmente' : 'Error enviando respuesta normal'
+      };
+    }
+    
+    // Intentar envío privado para comandos privados forzosos
+    try {
+      const privateSuccess = await this.sendPrivateMessage(user.telegramUserId, response);
+      
+      if (privateSuccess) {
+        // Enviar confirmación discreta al grupo
+        const confirmationMessage = `💬 ${user.firstName || 'Usuario'}, te he enviado la información por privado`;
+        await this.sendGroupMessage(groupChatId, confirmationMessage);
+        
+        return {
+          success: true,
+          method: 'private',
+          message: 'Respuesta enviada privadamente + confirmación en grupo'
+        };
+      }
+    } catch (error) {
+      console.log('❌ Falló envío privado de comando:', error);
+    }
+    
+    // Fallback: Respuesta educativa en grupo
+    const educationMessage = `❌ <b>No pude enviarte "${commandBase}" por privado</b>
+
+💡 <b>SOLUCIÓN RÁPIDA:</b>
+1. Busca @OpoMelillaBot en Telegram
+2. Envía <code>/start</code> al bot
+3. Vuelve aquí y usa <code>${commandBase}</code>
+
+📬 Así recibirás información detallada sin molestar al grupo`;
+
+    const fallbackSuccess = await this.sendGroupMessage(groupChatId, educationMessage);
+    
+    return {
+      success: fallbackSuccess,
+      method: 'education',
+      message: fallbackSuccess ? 'Mensaje educativo enviado' : 'Error total'
+    };
+  }
+
+  /**
+   * Enviar respuesta inteligente de quiz (privada + contador en grupo)
+   */
+  static async sendIntelligentQuizResponse(
+    userStats: any,
+    isCorrect: boolean,
+    questionData: any,
+    user: { telegramUserId: string; firstName?: string; username?: string },
+    groupChatId: string
+  ): Promise<{ success: boolean; method: string; message: string }> {
+    
+    const config = NotificationConfig.quizResponses;
+    const userName = user.firstName || user.username || 'Usuario';
+    
+    // Preparar datos para los templates
+    const templateData = {
+      question_result: this.formatQuestionResult(isCorrect, questionData),
+      stats: this.formatUserStatsForTemplate(userStats),
+      motivation: this.getMotivationalMessage(userStats, isCorrect),
+      progress: this.formatProgressForTemplate(userStats),
+      name: userName,
+      points: this.calculatePointsEarned(userStats, isCorrect)
+    };
+    
+    let privateSuccess = false;
+    let groupMessageSent = false;
+    
+    // Intentar envío privado si está habilitado
+    if (config.privateMode.enabled) {
+      try {
+        const template = isCorrect ? config.templates.correct.private : config.templates.incorrect.private;
+        const privateMessage = this.replaceTemplate(template, templateData);
+        
+        privateSuccess = await this.sendPrivateMessage(user.telegramUserId, privateMessage);
+        console.log(`📱 Quiz respuesta privada ${userName}:`, privateSuccess ? '✅ Éxito' : '❌ Falló');
+        
+      } catch (error) {
+        console.log(`❌ Error enviando quiz privado a ${userName}:`, error);
+      }
+    }
+    
+    // Manejar mensaje en grupo
+    if (config.groupMode.enabled) {
+      // Si está habilitado mostrar respuestas individuales en grupo (no recomendado)
+      const template = isCorrect ? config.templates.correct.private : config.templates.incorrect.private;
+      const groupMessage = this.replaceTemplate(template, templateData);
+      groupMessageSent = await this.sendGroupMessage(groupChatId, groupMessage);
+      
+    } else if (!privateSuccess && config.groupMode.fallbackMessage) {
+      // Fallback: mensaje muy breve en grupo si falló privado
+      const template = isCorrect ? config.templates.correct.fallback : config.templates.incorrect.fallback;
+      const fallbackMessage = this.replaceTemplate(template, templateData);
+      
+      // Asegurar que no exceda el límite de caracteres
+      const limitedMessage = fallbackMessage.length > config.groupMode.maxFallbackLength 
+        ? fallbackMessage.substring(0, config.groupMode.maxFallbackLength - 3) + '...'
+        : fallbackMessage;
+        
+      groupMessageSent = await this.sendGroupMessage(groupChatId, limitedMessage);
+      console.log(`📢 Quiz fallback grupo ${userName}:`, groupMessageSent ? '✅ Enviado' : '❌ Falló');
+      
+    } else if (config.groupMode.showAggregate) {
+      // Mostrar contador agregado (esto requeriría lógica adicional para contar respuestas)
+      // Por ahora, no enviamos nada adicional al grupo para mantenerlo limpio
+      console.log(`📊 Quiz modo agregado: respuesta de ${userName} procesada silenciosamente`);
+    }
+    
+    // Determinar resultado
+    if (privateSuccess) {
+      return {
+        success: true,
+        method: 'private',
+        message: `Respuesta de quiz enviada privadamente a ${userName}`
+      };
+    } else if (groupMessageSent) {
+      return {
+        success: true,
+        method: 'group_fallback',
+        message: `Respuesta de quiz enviada al grupo como fallback para ${userName}`
+      };
+    } else {
+      return {
+        success: false,
+        method: 'failed',
+        message: `No se pudo enviar respuesta de quiz a ${userName}`
+      };
+    }
+  }
+
+  /**
+   * Reemplazar placeholders en templates
+   */
+  private static replaceTemplate(template: string, data: Record<string, any>): string {
+    let result = template;
+    
+    Object.entries(data).forEach(([key, value]) => {
+      const placeholder = `{${key}}`;
+      result = result.replace(new RegExp(placeholder, 'g'), String(value || ''));
+    });
+    
+    return result;
+  }
+
+  /**
+   * Formatear resultado de la pregunta
+   */
+  private static formatQuestionResult(isCorrect: boolean, questionData: any): string {
+    if (isCorrect) {
+      return `🎯 <b>¡Respondiste correctamente!</b>\n💡 Bien hecho, conoces la respuesta.`;
+    } else {
+      return `🤔 <b>Respuesta incorrecta</b>\n💡 La respuesta correcta era la opción ${questionData.correctAnswerIndex + 1}.`;
+    }
+  }
+
+  /**
+   * Formatear estadísticas del usuario para template
+   */
+  private static formatUserStatsForTemplate(stats: any): string {
+    const levelEmoji = this.getLevelEmoji(stats.level);
+    
+    return `📊 Puntos: ${stats.totalPoints}
+${levelEmoji} Nivel: ${stats.level}
+🔥 Racha: ${stats.streak} días
+🎯 Precisión: ${stats.accuracy}%
+📈 Ranking: #${stats.rank}`;
+  }
+
+  /**
+   * Formatear progreso hacia siguiente nivel
+   */
+  private static formatProgressForTemplate(stats: any): string {
+    // Esta función requeriría lógica del sistema de gamificación
+    // Por ahora devuelvo un mensaje genérico
+    return `🎯 <b>Progreso:</b> Sigue así para seguir subiendo de nivel`;
+  }
+
+  /**
+   * Calcular puntos ganados en esta respuesta
+   */
+  private static calculatePointsEarned(stats: any, isCorrect: boolean): number {
+    // Lógica simplificada - en realidad dependería del sistema de puntuación
+    return isCorrect ? 15 : 5;
+  }
+
+  /**
+   * Obtener emoji de nivel
+   */
+  private static getLevelEmoji(level: number): string {
+    if (level <= 2) return '🥉';
+    if (level <= 5) return '🥈';
+    if (level <= 10) return '🥇';
+    return '💎';
+  }
+
+  /**
+   * Obtener mensaje motivacional
+   */
+  private static getMotivationalMessage(stats: any, isCorrect: boolean): string {
+    if (isCorrect) {
+      const messages = [
+        '🎉 ¡Excelente trabajo!',
+        '💪 ¡Sigue así!',
+        '⚡ ¡Imparable!',
+        '🌟 ¡Genial!'
+      ];
+      return messages[Math.floor(Math.random() * messages.length)];
+    } else {
+      const messages = [
+        '💪 ¡No te rindas! La próxima será mejor',
+        '📚 ¡Cada error es una oportunidad de aprender!',
+        '🎯 ¡Sigue intentando!',
+        '⭐ ¡La práctica hace al maestro!'
+      ];
+      return messages[Math.floor(Math.random() * messages.length)];
+    }
+  }
+
+  // ============================================
+  // 🎓 DETECTORES DE EVENTOS
+  // ============================================
+
+  /**
+   * 🎓 Detectar primera graduación del día
+   */
+  async checkFirstGraduationToday(userId: string, subject: string): Promise<boolean> {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Verificar si es la primera graduación del día
+      const todayGraduations = await prisma.notificationEvent.count({
+        where: {
+          userId,
+          type: 'FIRST_GRADUATION_TODAY',
+          createdAt: {
+            gte: today,
+            lt: tomorrow
+          }
+        }
+      });
+
+      if (todayGraduations === 0) {
+        await this.createNotificationEvent({
+          userId,
+          type: 'FIRST_GRADUATION_TODAY',
+          eventData: { subject, timestamp: new Date() },
+          triggerContext: { graduationSubject: subject }
+        });
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('❌ Error verificando primera graduación del día:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 🏆 Detectar milestone de graduaciones (5, 10, 25, 50, 100)
+   */
+  async checkGraduationMilestones(userId: string): Promise<NotificationEventType | null> {
+    try {
+      // Contar graduaciones históricas del usuario
+      const totalGraduations = await this.getTotalGraduationsCount(userId);
+      
+      const milestones = [
+        { count: 5, type: 'MILESTONE_5_GRADUATIONS' as NotificationEventType },
+        { count: 10, type: 'MILESTONE_10_GRADUATIONS' as NotificationEventType },
+        { count: 25, type: 'MILESTONE_25_GRADUATIONS' as NotificationEventType },
+        { count: 50, type: 'MILESTONE_50_GRADUATIONS' as NotificationEventType },
+        { count: 100, type: 'MILESTONE_100_GRADUATIONS' as NotificationEventType }
+      ];
+
+      for (const milestone of milestones) {
+        if (totalGraduations === milestone.count) {
+          // Verificar que no se haya enviado ya este milestone
+          const existingNotification = await prisma.notificationEvent.findFirst({
+            where: {
+              userId,
+              type: milestone.type,
+              sent: true
+            }
+          });
+
+          if (!existingNotification) {
+            await this.createNotificationEvent({
+              userId,
+              type: milestone.type,
+              eventData: { totalGraduations, milestone: milestone.count },
+              triggerContext: { achievementLevel: milestone.count }
+            });
+            return milestone.type;
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ Error verificando milestones de graduación:', error);
+      return null;
+    }
+  }
+
+  /**
+   * ⏰ Verificar usuarios inactivos para recordatorios
+   */
+  async checkInactiveUsers(): Promise<string[]> {
+    try {
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+      // Buscar usuarios sin actividad en estudio de falladas en los últimos 3 días
+      const inactiveUsers = await prisma.telegramUser.findMany({
+        where: {
+          lastActivity: {
+            lt: threeDaysAgo
+          },
+          // Solo usuarios que tienen preguntas falladas para estudiar
+          studyStats: {
+            some: {
+              incorrectAnswers: {
+                gt: 0
+              }
+            }
+          }
+        },
+        include: {
+          notificationSettings: true
+        }
+      });
+
+      const usersToNotify: string[] = [];
+
+      for (const user of inactiveUsers) {
+        // Verificar configuraciones de notificaciones
+        if (user.notificationSettings?.reminderNotifications === false) {
+          continue;
+        }
+
+        // Verificar si ya se envió recordatorio reciente
+        const lastReminder = user.notificationSettings?.lastReminderNotification;
+        if (lastReminder) {
+          const daysSinceLastReminder = (Date.now() - lastReminder.getTime()) / (1000 * 60 * 60 * 24);
+          if (daysSinceLastReminder < (user.notificationSettings?.reminderDaysThreshold || 3)) {
+            continue;
+          }
+        }
+
+        await this.createNotificationEvent({
+          userId: user.id,
+          type: 'INACTIVITY_REMINDER',
+          eventData: { daysSinceLastActivity: Math.floor((Date.now() - user.lastActivity.getTime()) / (1000 * 60 * 60 * 24)) },
+          triggerContext: { lastActivity: user.lastActivity }
+        });
+
+        usersToNotify.push(user.id);
+      }
+
+      return usersToNotify;
+    } catch (error) {
+      console.error('❌ Error verificando usuarios inactivos:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 📊 Generar reportes semanales pendientes
+   */
+  async checkWeeklyReports(): Promise<string[]> {
+    try {
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+      const users = await prisma.telegramUser.findMany({
+        where: {
+          // Usuarios activos con estadísticas
+          studyStats: {
+            some: {
+              totalQuestions: {
+                gt: 0
+              }
+            }
+          }
+        },
+        include: {
+          notificationSettings: true
+        }
+      });
+
+      const usersToNotify: string[] = [];
+
+      for (const user of users) {
+        // Verificar configuraciones
+        if (user.notificationSettings?.weeklyReportNotifications === false) {
+          continue;
+        }
+
+        // Verificar si es tiempo de enviar reporte semanal
+        const lastReport = user.notificationSettings?.lastWeeklyReport;
+        if (lastReport) {
+          const daysSinceLastReport = (Date.now() - lastReport.getTime()) / (1000 * 60 * 60 * 24);
+          if (daysSinceLastReport < 7) {
+            continue;
+          }
+        }
+
+        await this.createNotificationEvent({
+          userId: user.id,
+          type: 'WEEKLY_PROGRESS_REPORT',
+          eventData: { weekStart: oneWeekAgo, weekEnd: new Date() },
+          triggerContext: { reportType: 'weekly' }
+        });
+
+        usersToNotify.push(user.id);
+      }
+
+      return usersToNotify;
+    } catch (error) {
+      console.error('❌ Error generando reportes semanales:', error);
+      return [];
+    }
+  }
+
+  // ============================================
+  // 📧 TEMPLATES DE MENSAJES
+  // ============================================
+
+  /**
+   * 📝 Generar mensaje de notificación según el tipo
+   */
+  private generateNotificationMessage(type: NotificationEventType, eventData: any, userName: string): string {
+    switch (type) {
+      case 'FIRST_GRADUATION_TODAY':
+        return `🎓 <b>¡Primera graduación del día!</b>
+
+¡Felicidades ${userName}! 🎉
+
+Has graduado tu primera pregunta de <b>${eventData.subject}</b> hoy. ¡Un excelente comienzo!
+
+🎯 <b>MANTÉN EL IMPULSO:</b>
+• <code>/falladas10</code> - 10 preguntas falladas más
+• <code>/${eventData.subject}10</code> - Estudiar más de ${eventData.subject}
+• <code>/miprogreso</code> - Ver tu evolución
+
+🏆 <b>COMPITE Y MEJORA:</b>
+• <code>/duelo</code> - Reto a otro usuario
+• <code>/ranking</code> - Ve tu posición actual
+
+🔥 <i>¡La primera graduación del día es el mejor arranque!</i>`;
+
+      case 'MILESTONE_5_GRADUATIONS':
+        return `🏆 <b>¡5 Graduaciones Alcanzadas!</b>
+
+¡Increíble ${userName}! 🚀
+
+Has graduado <b>5 preguntas</b> con éxito. Tu constancia está dando frutos.
+
+📈 <b>ACELERA HACIA LAS 10:</b>
+• <code>/falladas20</code> - Sesión intensiva de 20
+• <code>/estadisticas</code> - Ve tus materias más débiles
+• <code>/simulacro</code> - Pon a prueba tus conocimientos
+
+🎯 <b>COMPARTE TU PROGRESO:</b>
+• <code>/logros</code> - Ve todos tus achievements
+• <code>/ranking</code> - Compara tu posición
+
+💡 <i>¡Solo necesitas 5 graduaciones más para el siguiente milestone!</i>`;
+
+      case 'MILESTONE_10_GRADUATIONS':
+        return `🌟 <b>¡10 Graduaciones Completadas!</b>
+
+¡Excelente trabajo ${userName}! 💪
+
+Has alcanzado las <b>10 graduaciones</b>. Tu disciplina es admirable.
+
+🚀 <b>RUMBO A LAS 25:</b>
+• <code>/falladas30</code> - Sesión premium de 30
+• <code>/torneo</code> - Únete al torneo activo
+• <code>/simulacro_oficial</code> - Examen completo
+
+📊 <b>ANALIZA TU PROGRESO:</b>
+• <code>/estadisticas</code> - Precisión por materia
+• <code>/graduadas</code> - Lista de preguntas dominadas
+• <code>/duelo</code> - Demuestra tu nivel
+
+🔥 <i>¡Vas construyendo una base de conocimiento excepcional!</i>`;
+
+      case 'MILESTONE_25_GRADUATIONS':
+        return `💎 <b>¡25 Graduaciones Dominadas!</b>
+
+¡Impresionante ${userName}! 🏆
+
+Has graduado <b>25 preguntas</b>. Eres un verdadero dedicado al estudio.
+
+⭐ <b>Status alcanzado:</b>
+• Estudiante Comprometido 🎖️
+• Conocimiento sólido construido 📚
+
+🚀 <i>¡Siguiente parada: 50 graduaciones!</i>`;
+
+      case 'MILESTONE_50_GRADUATIONS':
+        return `👑 <b>¡50 Graduaciones Magistrales!</b>
+
+¡Excepcional ${userName}! 🌟
+
+Has graduado <b>50 preguntas</b>. Tu nivel de preparación es extraordinario.
+
+🏅 <b>Logro desbloqueado:</b>
+• <b>Maestro del Estudio</b> 🎓
+• Conocimiento avanzado adquirido 📖
+
+💫 <i>¡El centenar está al alcance!</i>`;
+
+      case 'MILESTONE_100_GRADUATIONS':
+        return `🏆 <b>¡100 GRADUACIONES ÉPICAS!</b>
+
+¡LEYENDA ${userName}! 👑⭐
+
+Has conquistado <b>100 graduaciones</b>. Eres un ejemplo de dedicación y excelencia.
+
+🌟 <b>Título Épico Otorgado:</b>
+• <b>🏆 LEYENDA DEL ESTUDIO 🏆</b>
+• Dominio absoluto demostrado 📚✨
+
+👑 <b>COMPARTE TU MAESTRÍA:</b>
+• <code>/ranking</code> - Ve tu posición de leyenda
+• <code>/duelo</code> - Demuestra tu dominio
+• <code>/torneo</code> - Lidera la competición
+• <code>/logros</code> - Celebra todos tus achievements
+
+🎉 <i>¡Has alcanzado el pináculo del estudio sistemático!</i>`;
+
+      case 'INACTIVITY_REMINDER':
+        const days = eventData.daysSinceLastActivity || 3;
+        return `⏰ <b>¡Te echamos de menos!</b>
+
+Hola ${userName} 👋
+
+Han pasado <b>${days} días</b> desde tu última sesión de estudio.
+
+🎯 <b>Tienes preguntas esperándote:</b>
+• Usa <code>/falladas</code> para practicar
+• Revisa tu progreso con <code>/miprogreso</code>
+
+💡 <i>Solo 10 minutos al día pueden marcar la diferencia.</i>
+
+🔥 <b>¡No pierdas el impulso que has construido!</b>`;
+
+      case 'WEEKLY_PROGRESS_REPORT':
+        return `📊 <b>Reporte Semanal de Progreso</b>
+
+¡Hola ${userName}! 📈
+
+Aquí tienes tu resumen de la semana:
+
+🎯 <b>Para ver tu reporte detallado:</b>
+• <code>/estadisticas</code> - Precisión por materia
+• <code>/miprogreso</code> - Graduaciones alcanzadas
+• <code>/graduadas</code> - Lista de preguntas dominadas
+
+💪 <i>Cada semana es una oportunidad para mejorar.</i>
+
+🚀 <b>¡Sigamos construyendo tu éxito!</b>`;
+
+      default:
+        return `🔔 <b>Notificación del Sistema</b>
+
+¡Hola ${userName}!
+
+Tienes una nueva notificación del sistema de estudio.
+
+📚 Revisa tu progreso con <code>/miprogreso</code>`;
+    }
+  }
+
+  // ============================================
+  // 🚀 GESTIÓN DE EVENTOS
+  // ============================================
+
+  /**
+   * 📝 Crear evento de notificación
+   */
+  private async createNotificationEvent(data: NotificationData): Promise<string> {
+    try {
+      const event = await prisma.notificationEvent.create({
+        data: {
+          userId: data.userId,
+          type: data.type,
+          eventData: data.eventData || {},
+          triggerContext: data.triggerContext || {},
+          scheduledFor: new Date() // Enviar inmediatamente
+        }
+      });
+
+      console.log(`📧 Evento de notificación creado: ${data.type} para usuario ${data.userId}`);
+      return event.id;
+    } catch (error) {
+      console.error('❌ Error creando evento de notificación:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 📤 Procesar y enviar notificaciones pendientes
+   */
+  async processScheduledNotifications(): Promise<number> {
+    try {
+      // Obtener notificaciones programadas que no se han enviado
+      const pendingNotifications = await prisma.notificationEvent.findMany({
+        where: {
+          sent: false,
+          scheduledFor: {
+            lte: new Date()
+          }
+        },
+        include: {
+          user: {
+            include: {
+              notificationSettings: true
+            }
+          }
+        },
+        orderBy: {
+          scheduledFor: 'asc'
+        },
+        take: 50 // Procesar en lotes
+      });
+
+      let sentCount = 0;
+
+      for (const notification of pendingNotifications) {
+        try {
+          const sent = await this.sendNotificationToUser(notification);
+          if (sent) {
+            sentCount++;
+          }
+        } catch (error) {
+          console.error(`❌ Error enviando notificación ${notification.id}:`, error);
+          
+          // Marcar como fallida y aumentar contador de reintentos
+          await prisma.notificationEvent.update({
+            where: { id: notification.id },
+            data: {
+              retryCount: notification.retryCount + 1,
+              errorMessage: error instanceof Error ? error.message : 'Error desconocido',
+              success: false
+            }
+          });
+        }
+      }
+
+      console.log(`📧 Procesadas ${pendingNotifications.length} notificaciones, enviadas ${sentCount}`);
+      return sentCount;
+    } catch (error) {
+      console.error('❌ Error procesando notificaciones:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * 📤 Enviar notificación individual a un usuario
+   */
+  private async sendNotificationToUser(notification: any): Promise<boolean> {
+    try {
+      // Verificar configuraciones del usuario
+      const settings = notification.user.notificationSettings;
+      if (!this.shouldSendNotification(notification.type, settings)) {
+        console.log(`🔇 Notificación ${notification.type} omitida por configuración del usuario`);
+        await this.markNotificationAsSent(notification.id, false, 'Omitida por configuración');
+        return false;
+      }
+
+      // Verificar horario permitido
+      const currentHour = new Date().getHours();
+      const startHour = settings?.notificationStartHour || 8;
+      const endHour = settings?.notificationEndHour || 22;
+      
+      if (currentHour < startHour || currentHour >= endHour) {
+        console.log(`⏰ Notificación ${notification.type} pospuesta (fuera de horario)`);
+        // Reprogramar para el próximo período válido
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(startHour, 0, 0, 0);
+        
+        await prisma.notificationEvent.update({
+          where: { id: notification.id },
+          data: { scheduledFor: tomorrow }
+        });
+        return false;
+      }
+
+      // Generar mensaje
+      const userName = notification.user.firstName || notification.user.username || 'Usuario';
+      const message = this.generateNotificationMessage(
+        notification.type,
+        notification.eventData,
+        userName
+      );
+
+      // Enviar mensaje por Telegram
+      let telegramMsgId: string | null = null;
+      if (this.telegramBot) {
+        const result = await this.telegramBot.sendMessage(
+          notification.user.telegramUserId,
+          message,
+          { parse_mode: 'HTML' }
+        );
+        telegramMsgId = result.message_id?.toString();
+      }
+
+      // Marcar como enviada
+      await this.markNotificationAsSent(notification.id, true, null, message, telegramMsgId);
+      
+      // Actualizar configuraciones de último envío
+      await this.updateLastNotificationTime(notification.user.id, notification.type);
+
+      console.log(`✅ Notificación ${notification.type} enviada a ${userName}`);
+      return true;
+
+    } catch (error) {
+      console.error(`❌ Error enviando notificación individual:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * ✅ Marcar notificación como enviada
+   */
+  private async markNotificationAsSent(
+    notificationId: string, 
+    success: boolean, 
+    errorMessage?: string | null,
+    messageContent?: string,
+    telegramMsgId?: string | null
+  ): Promise<void> {
+    await prisma.notificationEvent.update({
+      where: { id: notificationId },
+      data: {
+        sent: true,
+        sentAt: new Date(),
+        success,
+        errorMessage,
+        messageContent,
+        telegramMsgId
+      }
+    });
+  }
+
+  /**
+   * 🔍 Verificar si se debe enviar la notificación según configuraciones
+   */
+  private shouldSendNotification(type: NotificationEventType, settings: any): boolean {
+    if (!settings) return true; // Si no hay configuraciones, enviar por defecto
+
+    switch (type) {
+      case 'FIRST_GRADUATION_TODAY':
+        return settings.graduationNotifications !== false;
+      case 'MILESTONE_5_GRADUATIONS':
+      case 'MILESTONE_10_GRADUATIONS':
+      case 'MILESTONE_25_GRADUATIONS':
+      case 'MILESTONE_50_GRADUATIONS':
+      case 'MILESTONE_100_GRADUATIONS':
+        return settings.milestoneNotifications !== false;
+      case 'INACTIVITY_REMINDER':
+        return settings.reminderNotifications !== false;
+      case 'WEEKLY_PROGRESS_REPORT':
+        return settings.weeklyReportNotifications !== false;
+      default:
+        return true;
+    }
+  }
+
+  /**
+   * 📅 Actualizar tiempo de última notificación en configuraciones
+   */
+  private async updateLastNotificationTime(userId: string, type: NotificationEventType): Promise<void> {
+    const updateData: any = {};
+    const now = new Date();
+
+    switch (type) {
+      case 'FIRST_GRADUATION_TODAY':
+        updateData.lastGraduationNotification = now;
+        break;
+      case 'INACTIVITY_REMINDER':
+        updateData.lastReminderNotification = now;
+        break;
+      case 'WEEKLY_PROGRESS_REPORT':
+        updateData.lastWeeklyReport = now;
+        break;
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await prisma.userNotificationSettings.upsert({
+        where: { userId },
+        create: {
+          userId,
+          ...updateData
+        },
+        update: updateData
+      });
+    }
+  }
+
+  // ============================================
+  // 📊 UTILIDADES
+  // ============================================
+
+  /**
+   * 📊 Obtener total de graduaciones de un usuario
+   */
+  private async getTotalGraduationsCount(userId: string): Promise<number> {
+    try {
+      // Contar preguntas graduadas (1+ aciertos desde último fallo)
+      const result = await prisma.$queryRaw`
+        SELECT COUNT(DISTINCT fq."questionId") as count
+        FROM (
+          SELECT 
+            sr."questionId",
+            sr.subject,
+            COALESCE(
+              (SELECT COUNT(*) 
+               FROM "StudyResponse" sr2 
+               WHERE sr2."userId" = sr."userId" 
+                 AND sr2."questionId" = sr."questionId" 
+                 AND sr2.subject = sr.subject
+                 AND sr2."isCorrect" = true 
+                 AND sr2."answeredAt" > COALESCE(
+                   (SELECT MAX(sr3."answeredAt") 
+                    FROM "StudyResponse" sr3 
+                    WHERE sr3."userId" = sr."userId" 
+                      AND sr3."questionId" = sr."questionId" 
+                      AND sr3.subject = sr.subject
+                      AND sr3."isCorrect" = false), 
+                   '1970-01-01'::timestamp)
+              ), 0) as total_successes_since_last_fail
+          FROM "StudyResponse" sr
+          WHERE sr."userId" = ${userId}
+            AND sr."isCorrect" = false
+          GROUP BY sr."questionId", sr.subject, sr."userId"
+        ) fq
+        WHERE fq.total_successes_since_last_fail >= 1
+      `;
+
+      return Number((result as any[])[0]?.count || 0);
+    } catch (error) {
+      console.error('❌ Error contando graduaciones totales:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * 🔧 Obtener configuraciones de notificación de un usuario
+   */
+  async getUserNotificationSettings(userId: string) {
+    return await prisma.userNotificationSettings.findUnique({
+      where: { userId }
+    });
+  }
+
+  /**
+   * ⚙️ Actualizar configuraciones de notificación
+   */
+  async updateUserNotificationSettings(userId: string, settings: any) {
+    return await prisma.userNotificationSettings.upsert({
+      where: { userId },
+      create: {
+        userId,
+        ...settings
+      },
+      update: settings
+    });
+  }
+
+  // ============================================
+  // 🎯 MÉTODOS PÚBLICOS PARA INTEGRACIÓN
+  // ============================================
+
+  /**
+   * 🎓 Llamar cuando una pregunta se gradúa
+   */
+  async onQuestionGraduated(userId: string, subject: string): Promise<void> {
+    await this.checkFirstGraduationToday(userId, subject);
+    await this.checkGraduationMilestones(userId);
+  }
+
+  /**
+   * ⏰ Ejecutar verificaciones programadas (cron job)
+   */
+  async runScheduledChecks(): Promise<void> {
+    console.log('🔍 Ejecutando verificaciones programadas de notificaciones...');
+    
+    await this.checkInactiveUsers();
+    await this.checkWeeklyReports();
+    await this.processScheduledNotifications();
+    
+    console.log('✅ Verificaciones programadas completadas');
+  }
+}
+
+export const notificationService = new NotificationService();
+export default notificationService; 

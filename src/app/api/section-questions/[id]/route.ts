@@ -1,0 +1,98 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import type { SectionQuestion as PrismaSectionQuestion } from '@prisma/client'; // Importar el tipo
+
+// DELETE /api/section-questions/[id]
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const questionid = params.id;
+
+  if (!questionid) {
+    return NextResponse.json({ error: 'SectionQuestion ID is required' }, { status: 400 });
+  }
+
+  // ✅ NUEVO: Detectar IDs temporales y manejarlos correctamente
+  if (questionid.startsWith('temp-')) {
+    console.log(`[API] Intento de eliminar pregunta temporal: ${questionid}`);
+    return NextResponse.json({ 
+      error: 'No se puede eliminar una pregunta temporal. Esta pregunta está guardada en una tabla personalizada y solo se muestra temporalmente en la interfaz de secciones.',
+      code: 'TEMPORAL_QUESTION_NOT_DELETABLE',
+      questionid,
+      message: 'Las preguntas temporales se eliminan automáticamente al recargar la página o navegar a otra sección.'
+    }, { status: 400 });
+  }
+
+  try {
+    await prisma.sectionQuestion.delete({
+      where: { id: questionid },
+    });
+    console.log(`[API] SectionQuestion ${questionid} deleted successfully.`);
+    return NextResponse.json({ message: 'SectionQuestion deleted successfully' }, { status: 200 });
+  } catch (error: any) {
+    console.error(`[API] Error deleting SectionQuestion ${questionid}:`, error);
+    if (error.code === 'P2025') {
+      return NextResponse.json({ error: 'SectionQuestion not found' }, { status: 404 });
+    }
+    return NextResponse.json({ error: 'Failed to delete SectionQuestion' }, { status: 500 });
+  }
+}
+
+// PUT /api/section-questions/[id]
+// Actualiza una pregunta de sección existente
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const questionid = params.id;
+
+  if (!questionid) {
+    return NextResponse.json({ error: 'SectionQuestion ID is required' }, { status: 400 });
+  }
+
+  // ✅ NUEVO: Detectar IDs temporales y rechazarlos
+  if (questionid.startsWith('temp-')) {
+    console.log(`[API] Intento de actualizar pregunta temporal: ${questionid}`);
+    return NextResponse.json({ 
+      error: 'No se puede editar una pregunta temporal. Esta pregunta está guardada en una tabla personalizada y no se puede editar desde la interfaz de secciones.',
+      code: 'TEMPORAL_QUESTION_NOT_EDITABLE',
+      questionid 
+    }, { status: 400 });
+  }
+
+  try {
+    // Extraer solo los campos permitidos/esperados del body (ej: content)
+    const { content, ...otherData } = await request.json();
+    
+    // Validar que el contenido exista si es el único campo esperado
+    if (content === undefined) { 
+        return NextResponse.json({ error: 'Content is required for update' }, { status: 400 });
+    }
+
+    const dataToUpdate: Partial<PrismaSectionQuestion> = { content };
+
+    const updatedQuestion = await prisma.sectionQuestion.update({
+      where: { id: questionid },
+      data: dataToUpdate, 
+    });
+
+    console.log(`[API] SectionQuestion ${questionid} updated successfully.`);
+    return NextResponse.json(updatedQuestion, { status: 200 });
+
+  } catch (error: any) {
+    console.error(`[API] Error updating SectionQuestion ${questionid}:`, error);
+    if (error.code === 'P2025') { // Prisma error code for Record to update not found
+      return NextResponse.json({ 
+        error: 'SectionQuestion not found. La pregunta que intentas editar no existe en la base de datos.',
+        code: 'QUESTION_NOT_FOUND',
+        questionid 
+      }, { status: 404 });
+    }
+    // Loguear otros errores posibles
+    console.error("[API PUT SectionQuestion Error] Code:", error.code, "Message:", error.message);
+    return NextResponse.json({ error: 'Failed to update SectionQuestion' }, { status: 500 });
+  }
+}
+
+// Optional: Add GET handler if needed for this specific route later 

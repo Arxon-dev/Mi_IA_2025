@@ -1,0 +1,203 @@
+// Script para debuggear específicamente el problema de handleTournamentPollAnswer
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function debugTournamentResponseProcessing() {
+  try {
+    console.log('🔍 DEBUG: ¿Por qué handleTournamentPollAnswer intercepta todos los polls?');
+    console.log('==================================================================');
+    
+    // 1. Verificar polls recientes
+    console.log('📊 1. POLLS RECIENTES EN BD:');
+    console.log('============================');
+    
+    const recentPolls = await prisma.telegramPoll.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        pollId: true,
+        sourceModel: true,
+        createdAt: true,
+        questionId: true
+      }
+    });
+    
+    console.log('Últimos 5 polls en telegramPoll:');
+    recentPolls.forEach((poll, i) => {
+      console.log(`   ${i + 1}. Poll ID: ${poll.pollId}`);
+      console.log(`      Source: ${poll.sourceModel}`);
+      console.log(`      Fecha: ${poll.createdAt.toLocaleString('es-ES')}`);
+      console.log(`      Question ID: ${poll.questionId}`);
+      console.log('');
+    });
+    
+    // 2. Verificar respuestas de torneos
+    console.log('🏆 2. RESPUESTAS DE TORNEOS:');
+    console.log('============================');
+    
+    const tournamentResponses = await prisma.tournamentResponse.findMany({
+      orderBy: { answeredAt: 'desc' },
+      take: 10,
+      select: {
+        pollId: true,
+        selectedOption: true,
+        isCorrect: true,
+        answeredAt: true,
+        participant: {
+          select: {
+            user: {
+              select: {
+                firstName: true,
+                telegramUserId: true
+              }
+            },
+            tournament: {
+              select: {
+                name: true,
+                status: true
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    console.log(`Últimas ${tournamentResponses.length} respuestas de torneos:`);
+    tournamentResponses.forEach((resp, i) => {
+      console.log(`   ${i + 1}. Usuario: ${resp.participant.user.firstName}`);
+      console.log(`      Torneo: ${resp.participant.tournament.name}`);
+      console.log(`      Poll ID: ${resp.pollId || 'NULL'}`);
+      console.log(`      Respondido: ${resp.answeredAt ? resp.answeredAt.toLocaleString('es-ES') : 'No'}`);
+      console.log('');
+    });
+    
+    // 3. Verificar si hay solapamiento problemático
+    console.log('⚠️ 3. ANÁLISIS DE POSIBLE PROBLEMA:');
+    console.log('====================================');
+    
+    // Buscar si hay TournamentResponse sin pollId que puedan estar causando problemas
+    const responsesSinPollId = await prisma.tournamentResponse.findMany({
+      where: {
+        OR: [
+          { pollId: null },
+          { pollId: '' }
+        ]
+      },
+      include: {
+        participant: {
+          include: {
+            user: { select: { firstName: true } },
+            tournament: { select: { name: true, status: true } }
+          }
+        }
+      }
+    });
+    
+    console.log(`🚨 Respuestas de torneo SIN pollId: ${responsesSinPollId.length}`);
+    responsesSinPollId.forEach((resp, i) => {
+      console.log(`   ${i + 1}. Usuario: ${resp.participant.user.firstName}`);
+      console.log(`      Torneo: ${resp.participant.tournament.name}`);
+      console.log(`      Status torneo: ${resp.participant.tournament.status}`);
+      console.log(`      Pregunta #: ${resp.questionNumber}`);
+      console.log('');
+    });
+    
+    // 4. Simular la lógica de handleTournamentPollAnswer
+    console.log('🧪 4. SIMULACIÓN DE handleTournamentPollAnswer:');
+    console.log('================================================');
+    
+    // Tomar el poll más reciente que NO sea de torneo
+    const latestNonTournamentPoll = recentPolls.find(p => p.sourceModel === 'validQuestion');
+    
+    if (latestNonTournamentPoll) {
+      console.log(`🎯 Probando con poll regular: ${latestNonTournamentPoll.pollId}`);
+      
+      // Simular la consulta que hace handleTournamentPollAnswer
+      const simulatedUserId = '12345'; // Usuario ficticio
+      const testResponse = await prisma.tournamentResponse.findFirst({
+        where: {
+          pollId: latestNonTournamentPoll.pollId,
+          participant: {
+            user: {
+              telegramUserId: simulatedUserId
+            }
+          }
+        }
+      });
+      
+      console.log(`   Query result: ${testResponse ? '✅ ENCONTRÓ respuesta de torneo' : '❌ No encontró respuesta de torneo'}`);
+      
+      if (!testResponse) {
+        console.log('   ✅ CORRECTO: Este poll NO es de torneo, función debería devolver false');
+      } else {
+        console.log('   🚨 PROBLEMA: Este poll regular está siendo tratado como de torneo!');
+      }
+    }
+    
+    // 5. Buscar el problema real
+    console.log('🔍 5. BÚSQUEDA DEL PROBLEMA REAL:');
+    console.log('==================================');
+    
+    // Verificar si hay TournamentResponse con pollIds que coinciden con polls regulares
+    const problematicMatches = await prisma.$queryRaw`
+      SELECT 
+        tr.pollId,
+        tr.questionNumber,
+        tp.pollId as telegramPollId,
+        tp.sourceModel,
+        tu.firstName,
+        t.name as tournamentName
+      FROM TournamentResponse tr
+      JOIN TournamentParticipant tpart ON tr.participantId = tpart.id
+      JOIN TelegramUser tu ON tpart.userId = tu.id  
+      JOIN Tournament t ON tpart.tournamentId = t.id
+      LEFT JOIN TelegramPoll tp ON tr.pollId = tp.pollId
+      WHERE tr.pollId IS NOT NULL 
+        AND tr.pollId != ''
+        AND tp.sourceModel = 'validQuestion'
+      LIMIT 5
+    `;
+    
+    console.log('🔥 POLLS PROBLEMÁTICOS (TournamentResponse usando pollIds de preguntas regulares):');
+    console.log(problematicMatches);
+    
+    return {
+      totalPolls: recentPolls.length,
+      tournamentResponses: tournamentResponses.length,
+      problematicResponses: responsesSinPollId.length,
+      problematicMatches: (problematicMatches as any[]).length
+    };
+    
+  } catch (error) {
+    console.error('❌ Error en debug:', error);
+    return null;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+async function main() {
+  const results = await debugTournamentResponseProcessing();
+  
+  if (results) {
+    console.log('\n📋 RESUMEN DEL DIAGNÓSTICO:');
+    console.log('============================');
+    console.log(`📊 Polls totales: ${results.totalPolls}`);
+    console.log(`🏆 Respuestas de torneo: ${results.tournamentResponses}`);
+    console.log(`⚠️ Respuestas sin pollId: ${results.problematicResponses}`);
+    console.log(`🔥 Coincidencias problemáticas: ${results.problematicMatches}`);
+    
+    if (results.problematicMatches > 0) {
+      console.log('\n🚨 PROBLEMA ENCONTRADO: Hay TournamentResponse usando pollIds de preguntas regulares!');
+      console.log('📝 ESTO EXPLICARÍA por qué handleTournamentPollAnswer intercepta polls normales.');
+    } else if (results.problematicResponses > 0) {
+      console.log('\n⚠️ POSIBLE PROBLEMA: Hay respuestas de torneo sin pollId que pueden interferir.');
+    } else {
+      console.log('\n✅ No se encontraron problemas obvios en los datos.');
+      console.log('🔍 El problema puede estar en la lógica de la función.');
+    }
+  }
+}
+
+main(); 

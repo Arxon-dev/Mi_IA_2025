@@ -1,0 +1,263 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+
+export async function GET() {
+  try {
+    console.log('📊 Advanced Analytics API: Calculating detailed metrics...');
+
+    // ===== MÉTRICAS TEMPORALES =====
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    // Respuestas por período
+    const responsesToday = await prisma.telegramResponse.count({
+      where: { answeredAt: { gte: oneDayAgo } }
+    });
+
+    const responsesWeek = await prisma.telegramResponse.count({
+      where: { answeredAt: { gte: oneWeekAgo } }
+    });
+
+    const responsesMonth = await prisma.telegramResponse.count({
+      where: { answeredAt: { gte: oneMonthAgo } }
+    });
+
+    // ===== ANÁLISIS DE RENDIMIENTO =====
+    
+    // Tiempo de respuesta promedio
+    const avgResponseTime = await prisma.telegramResponse.aggregate({
+      _avg: { responseTime: true },
+      where: { responseTime: { not: null } }
+    });
+
+    // Distribución de tiempos de respuesta
+    const fastResponses = await prisma.telegramResponse.count({
+      where: { responseTime: { lte: 10 } }
+    });
+
+    const mediumResponses = await prisma.telegramResponse.count({
+      where: { 
+        responseTime: { 
+          gt: 10,
+          lte: 30 
+        } 
+      }
+    });
+
+    const slowResponses = await prisma.telegramResponse.count({
+      where: { responseTime: { gt: 30 } }
+    });
+
+    // ===== ANÁLISIS DE USUARIOS =====
+    
+    // Usuarios más activos (por respuestas)
+    const topActiveUsers = await prisma.telegramUser.findMany({
+      orderBy: { totalPoints: 'desc' },
+      take: 5,
+      select: {
+        firstName: true,
+        username: true,
+        totalPoints: true,
+        level: true,
+        streak: true,
+        _count: { select: { responses: true } }
+      }
+    });
+
+    // Distribución de niveles
+    const levelDistribution = await prisma.telegramUser.groupBy({
+      by: ['level'],
+      _count: { level: true },
+      orderBy: { level: 'asc' }
+    });
+
+    // ===== ANÁLISIS DE ENGAGEMENT =====
+    
+    // Usuarios con rachas activas por duración
+    const streakDistribution = await prisma.telegramUser.groupBy({
+      by: ['streak'],
+      _count: { streak: true },
+      where: { streak: { gt: 0 } },
+      orderBy: { streak: 'desc' }
+    });
+
+    // Precisión por usuario
+    const userAccuracy = await prisma.$queryRaw`
+      SELECT 
+        tu.firstName,
+        tu.username,
+        COUNT(tr.id) as totalResponses,
+        COUNT(CASE WHEN tr.isCorrect = true THEN 1 END) as correctResponses,
+        ROUND(
+          (COUNT(CASE WHEN tr.isCorrect = true THEN 1 END) * 100.0 / COUNT(tr.id))
+        ) as accuracy
+      FROM "TelegramUser" tu
+      LEFT JOIN "TelegramResponse" tr ON tu.id = tr.userId
+      WHERE tr.id IS NOT NULL
+      GROUP BY tu.id, tu.firstName, tu.username
+      ORDER BY accuracy DESC
+      LIMIT 10
+    `;
+
+    // ===== ANÁLISIS DE CRECIMIENTO =====
+    
+    // Crecimiento de usuarios por día (últimos 30 días)
+    const userGrowth = await prisma.$queryRaw`
+      SELECT 
+        DATE(joinedAt) as date,
+        COUNT(*) as newUsers
+      FROM "TelegramUser"
+      WHERE joinedAt >= ${oneMonthAgo}
+      GROUP BY DATE(joinedAt)
+      ORDER BY date DESC
+    `;
+
+    // Actividad diaria (últimos 30 días)
+    const dailyActivity = await prisma.$queryRaw`
+      SELECT 
+        DATE(answeredAt) as date,
+        COUNT(*) as responses,
+        COUNT(DISTINCT userId) as activeUsers
+      FROM "TelegramResponse"
+      WHERE answeredAt >= ${oneMonthAgo}
+      GROUP BY DATE(answeredAt)
+      ORDER BY date DESC
+    `;
+
+    // ===== MÉTRICAS DE LOGROS =====
+    
+    // Logros más populares
+    const popularAchievements = await prisma.achievement.findMany({
+      select: {
+        name: true,
+        description: true,
+        icon: true,
+        rarity: true,
+        points: true,
+        _count: { select: { users: true } }
+      },
+      orderBy: { users: { _count: 'desc' } },
+      take: 10
+    });
+
+    // Distribución de logros por rareza
+    const achievementRarityStats = await prisma.achievement.groupBy({
+      by: ['rarity'],
+      _count: { rarity: true }
+    });
+
+    // ===== MÉTRICAS DE RETENCIÓN =====
+    
+    // Usuarios que respondieron ayer y también hoy
+    const retentionRate = await prisma.$queryRaw`
+      WITH yesterday_users AS (
+        SELECT DISTINCT userId
+        FROM "TelegramResponse"
+        WHERE DATE(answeredAt) = DATE(${oneDayAgo})
+      ),
+      today_users AS (
+        SELECT DISTINCT userId
+        FROM "TelegramResponse"
+        WHERE DATE(answeredAt) = DATE(${now})
+      )
+      SELECT 
+        (SELECT COUNT(*) FROM yesterday_users) as yesterdayActive,
+        (SELECT COUNT(*) FROM today_users) as todayActive,
+        COUNT(*) as retainedUsers
+      FROM yesterday_users y
+      INNER JOIN today_users t ON y.userId = t.userId
+    `;
+
+    // ===== COMPILAR RESPUESTA =====
+    const analytics = {
+      // Métricas temporales
+      responseMetrics: {
+        today: responsesToday,
+        thisWeek: responsesWeek,
+        thisMonth: responsesMonth,
+        averageResponseTime: Math.round(avgResponseTime._avg.responseTime || 0)
+      },
+
+      // Distribución de rendimiento
+      performanceDistribution: {
+        fast: fastResponses,        // ≤ 10s
+        medium: mediumResponses,    // 10-30s
+        slow: slowResponses,        // > 30s
+        total: fastResponses + mediumResponses + slowResponses
+      },
+
+      // Top usuarios
+      topUsers: topActiveUsers.map(user => ({
+        name: user.firstName || user.username || 'Usuario',
+        points: user.totalPoints,
+        level: user.level,
+        streak: user.streak,
+        totalResponses: user._count.responses
+      })),
+
+      // Distribución de niveles
+      levelDistribution: levelDistribution.map(level => ({
+        level: level.level,
+        userCount: level._count.level
+      })),
+
+      // Distribución de rachas
+      streakDistribution: streakDistribution.map(streak => ({
+        streakDays: streak.streak,
+        userCount: streak._count.streak
+      })),
+
+      // Precisión de usuarios
+      userAccuracy: userAccuracy as any[],
+
+      // Crecimiento y actividad
+      growth: {
+        userGrowth: userGrowth as any[],
+        dailyActivity: dailyActivity as any[]
+      },
+
+      // Métricas de logros
+      achievements: {
+        popular: popularAchievements.map(achievement => ({
+          name: achievement.name,
+          description: achievement.description,
+          icon: achievement.icon,
+          rarity: achievement.rarity,
+          points: achievement.points,
+          unlockedCount: achievement._count.users
+        })),
+        rarityStats: achievementRarityStats.map(stat => ({
+          rarity: stat.rarity,
+          count: stat._count.rarity
+        }))
+      },
+
+      // Métricas de retención
+      retention: retentionRate as any[],
+
+      // Metadatos
+      calculatedAt: new Date().toISOString(),
+      dataRange: {
+        from: oneMonthAgo.toISOString(),
+        to: now.toISOString()
+      }
+    };
+
+    console.log('✅ Advanced Analytics: Calculations completed');
+
+    return NextResponse.json(analytics);
+
+  } catch (error) {
+    console.error('❌ Advanced Analytics API error:', error);
+    
+    return NextResponse.json({
+      error: 'Error calculating advanced analytics',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
+
+  } finally {
+    await prisma.$disconnect();
+  }
+} 

@@ -1,0 +1,132 @@
+#!/usr/bin/env tsx
+
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+const TELEGRAM_POLL_MAX_LENGTH = 300;
+
+async function checkLongQuestions() {
+  try {
+    console.log('🔍 VERIFICANDO PREGUNTAS LARGAS PARA TORNEOS');
+    console.log('============================================\n');
+    
+    // Verificar la pregunta específica que falló
+    const failedQuestion = await prisma.examenOficial2024.findUnique({
+      where: { id: '20705de4-6239-4bd8-b4bf-20992e2fdb21' },
+      select: {
+        id: true,
+        questionnumber: true,
+        question: true,
+        options: true
+      }
+    });
+    
+    if (failedQuestion) {
+      console.log('🎯 PREGUNTA QUE FALLÓ EN EL TORNEO:');
+      console.log(`📋 Pregunta ${failedQuestion.questionnumber}: ${failedQuestion.question}`);
+      console.log(`📏 Longitud: ${failedQuestion.question.length} caracteres`);
+      console.log(`⚠️ Supera límite de ${TELEGRAM_POLL_MAX_LENGTH} caracteres por ${failedQuestion.question.length - TELEGRAM_POLL_MAX_LENGTH} caracteres\n`);
+    }
+    
+    // Verificar todas las preguntas largas en ExamenOficial2018
+    console.log('🔍 VERIFICANDO ExamenOficial2018:');
+    const longQuestions2018 = await prisma.examenOficial2018.findMany({
+      where: {
+        isactive: true
+      },
+      select: {
+        id: true,
+        questionnumber: true,
+        question: true,
+        category: true
+      }
+    });
+    
+    const problematic2018 = longQuestions2018.filter(q => q.question.length > TELEGRAM_POLL_MAX_LENGTH);
+    
+    console.log(`📊 Total preguntas 2018: ${longQuestions2018.length}`);
+    console.log(`⚠️ Preguntas largas (>${TELEGRAM_POLL_MAX_LENGTH} chars): ${problematic2018.length}`);
+    
+    if (problematic2018.length > 0) {
+      console.log('\n📋 PREGUNTAS PROBLEMÁTICAS 2018:');
+      problematic2018.forEach(q => {
+        console.log(`   ${q.questionnumber}. ${q.question.substring(0, 100)}... (${q.question.length} chars) - ${q.category}`);
+      });
+    }
+    
+    // Verificar todas las preguntas largas en ExamenOficial2024
+    console.log('\n🔍 VERIFICANDO ExamenOficial2024:');
+    const longQuestions2024 = await prisma.examenOficial2024.findMany({
+      where: {
+        isactive: true
+      },
+      select: {
+        id: true,
+        questionnumber: true,
+        question: true,
+        category: true
+      }
+    });
+    
+    const problematic2024 = longQuestions2024.filter(q => q.question.length > TELEGRAM_POLL_MAX_LENGTH);
+    
+    console.log(`📊 Total preguntas 2024: ${longQuestions2024.length}`);
+    console.log(`⚠️ Preguntas largas (>${TELEGRAM_POLL_MAX_LENGTH} chars): ${problematic2024.length}`);
+    
+    if (problematic2024.length > 0) {
+      console.log('\n📋 PREGUNTAS PROBLEMÁTICAS 2024:');
+      problematic2024.forEach(q => {
+        console.log(`   ${q.questionnumber}. ${q.question.substring(0, 100)}... (${q.question.length} chars) - ${q.category}`);
+      });
+    }
+    
+    // Estadísticas generales
+    const totalProblematic = problematic2018.length + problematic2024.length;
+    const totalQuestions = longQuestions2018.length + longQuestions2024.length;
+    
+    console.log('\n📈 RESUMEN ESTADÍSTICO:');
+    console.log(`📊 Total preguntas: ${totalQuestions}`);
+    console.log(`⚠️ Preguntas problemáticas: ${totalProblematic} (${((totalProblematic/totalQuestions) * 100).toFixed(1)}%)`);
+    console.log(`✅ Preguntas válidas para torneos: ${totalQuestions - totalProblematic} (${(((totalQuestions - totalProblematic)/totalQuestions) * 100).toFixed(1)}%)`);
+    
+    // Distribución por longitud
+    console.log('\n📏 DISTRIBUCIÓN POR LONGITUD:');
+    const allQuestions = [...longQuestions2018, ...longQuestions2024];
+    const lengthDistribution = {
+      'Muy cortas (< 100)': allQuestions.filter(q => q.question.length < 100).length,
+      'Cortas (100-200)': allQuestions.filter(q => q.question.length >= 100 && q.question.length < 200).length,
+      'Medianas (200-300)': allQuestions.filter(q => q.question.length >= 200 && q.question.length <= 300).length,
+      'Largas (300-400)': allQuestions.filter(q => q.question.length > 300 && q.question.length <= 400).length,
+      'Muy largas (> 400)': allQuestions.filter(q => q.question.length > 400).length
+    };
+    
+    Object.entries(lengthDistribution).forEach(([range, count]) => {
+      const percentage = ((count / totalQuestions) * 100).toFixed(1);
+      console.log(`   ${range}: ${count} preguntas (${percentage}%)`);
+    });
+    
+    // Recomendaciones
+    console.log('\n💡 RECOMENDACIONES:');
+    if (totalProblematic > 0) {
+      console.log('1. 🔧 Crear filtro en sistema de torneos para excluir preguntas largas');
+      console.log('2. ✂️ Considerar acortar preguntas problemáticas');
+      console.log('3. 📊 Usar solo preguntas válidas en selección de torneos');
+      console.log('4. 🎯 Priorizar preguntas de longitud media (200-300 chars)');
+    } else {
+      console.log('✅ No hay preguntas problemáticas, todas son válidas para torneos');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error durante la verificación:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Ejecutar verificación
+if (require.main === module) {
+  checkLongQuestions();
+}
+
+export { checkLongQuestions }; 

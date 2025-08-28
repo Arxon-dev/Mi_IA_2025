@@ -1,0 +1,5 @@
+{
+  "beforePoll": "🎯 <b>¡NUEVA PREGUNTA!</b> 🎯\n    \n📋 <b>INSTRUCCIONES:</b>\n• Lee la pregunta cuidadosamente\n• HAZ CLIC en la opción que creas correcta\n• Solo puedes elegir UNA respuesta\n• Recibirás feedback inmediato\n\n🏆 <b>RECOMPENSAS:</b>\n✅ Respuesta correcta: +10 puntos\n⚡ Respuesta rápida: +5 puntos extra\n💪 Participación: +5 puntos mínimo\n\n🎮 Usa /ranking para ver tu posición\n📊 Usa /stats para ver tu progreso\n\n¡Que comience la pregunta! 👇",
+  "afterPoll": "⏰ <b>Tiempo límite:</b> Responde en los próximos minutos para obtener puntos extra por velocidad.\n    \n💡 <b>Tip:</b> Las respuestas rápidas (&lt;30 segundos) dan puntos extra!",
+  "reminderMessage": "🔔 <b>¡Hay una pregunta sin responder!</b>\n    \n👆 Mira el mensaje anterior y participa para ganar puntos.\n    \n🏃‍♂️ ¡Aún puedes obtener puntos extra por velocidad!"
+}

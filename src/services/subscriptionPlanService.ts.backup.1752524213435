@@ -1,0 +1,155 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+export class SubscriptionPlanService {
+  
+  /**
+   * Obtener o crear plan de suscripción
+   */
+  static async getOrCreatePlan(planName: 'basic' | 'premium') {
+    try {
+      // Intentar encontrar el plan existente por el campo "name"
+      let plan = await prisma.$queryRaw`
+        SELECT * FROM "SubscriptionPlan" 
+        WHERE "name" = ${planName}
+        LIMIT 1
+      ` as any[];
+
+      if (plan && plan.length > 0) {
+        console.log(`✅ Plan ${planName} encontrado en BD`);
+        return plan[0];
+      }
+
+      // Si no existe, crearlo
+      console.log(`🆕 Creando plan ${planName}...`);
+      
+      const planData = this.getPlanData(planName);
+      
+      await prisma.$executeRaw`
+        INSERT INTO "SubscriptionPlan" (
+          "id",
+          "name", 
+          "displayName",
+          "description",
+          "price",
+          "currency",
+          "billingPeriod",
+          "dailyQuestionsLimit",
+          "monthlyQuestionsLimit",
+          "canUseFailedQuestions",
+          "canUseAdvancedStats",
+          "canUseSimulations",
+          "canUseAIAnalysis",
+          "canUseCustomExams",
+          "canUseMoodleIntegration",
+          "maxSimulationsPerDay",
+          "maxReportsPerMonth",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ) VALUES (
+          gen_random_uuid(),
+          ${planData.name},
+          ${planData.displayName},
+          ${planData.description},
+          ${planData.price},
+          ${planData.currency},
+          ${planData.billingPeriod},
+          ${planData.dailyQuestionsLimit},
+          ${planData.monthlyQuestionsLimit},
+          ${planData.canUseFailedQuestions},
+          ${planData.canUseAdvancedStats},
+          ${planData.canUseSimulations},
+          ${planData.canUseAIAnalysis},
+          ${planData.canUseCustomExams},
+          ${planData.canUseMoodleIntegration},
+          ${planData.maxSimulationsPerDay},
+          ${planData.maxReportsPerMonth},
+          ${planData.isActive},
+          NOW(),
+          NOW()
+        )
+      `;
+
+      // Buscar el plan recién creado
+      const newPlan = await prisma.$queryRaw`
+        SELECT * FROM "SubscriptionPlan" 
+        WHERE "name" = ${planName}
+        LIMIT 1
+      ` as any[];
+
+      console.log(`✅ Plan ${planName} creado exitosamente`);
+      return newPlan[0];
+
+    } catch (error) {
+      console.error('❌ Error obteniendo/creando plan:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener datos del plan según el tipo
+   */
+  private static getPlanData(planName: 'basic' | 'premium') {
+    if (planName === 'basic') {
+      return {
+        name: 'basic',
+        displayName: 'Básico',
+        description: '100 preguntas/día, sistema de preguntas falladas, estadísticas básicas',
+        price: 4.99,
+        currency: 'EUR',
+        billingPeriod: 'monthly',
+        dailyQuestionsLimit: 100,
+        monthlyQuestionsLimit: 3000,
+        canUseFailedQuestions: true,
+        canUseAdvancedStats: false,
+        canUseSimulations: true,
+        canUseAIAnalysis: false,
+        canUseCustomExams: false,
+        canUseMoodleIntegration: false,
+        maxSimulationsPerDay: 1,
+        maxReportsPerMonth: 4,
+        isActive: true
+      };
+    } else {
+      return {
+        name: 'premium',
+        displayName: 'Premium',
+        description: 'Preguntas ilimitadas, integración Moodle, estadísticas avanzadas, simulacros personalizados, análisis IA',
+        price: 9.99,
+        currency: 'EUR',
+        billingPeriod: 'monthly',
+        dailyQuestionsLimit: null, // ilimitado
+        monthlyQuestionsLimit: null, // ilimitado
+        canUseFailedQuestions: true,
+        canUseAdvancedStats: true,
+        canUseSimulations: true,
+        canUseAIAnalysis: true,
+        canUseCustomExams: true,
+        canUseMoodleIntegration: true,
+        maxSimulationsPerDay: null, // ilimitado
+        maxReportsPerMonth: null, // ilimitado
+        isActive: true
+      };
+    }
+  }
+
+  /**
+   * Inicializar planes básicos si no existen
+   */
+  static async initializePlans() {
+    try {
+      console.log('🎯 Inicializando planes de suscripción...');
+      
+      await this.getOrCreatePlan('basic');
+      await this.getOrCreatePlan('premium');
+      
+      console.log('✅ Planes de suscripción inicializados');
+      
+    } catch (error) {
+      console.error('❌ Error inicializando planes:', error);
+      throw error;
+    }
+  }
+} 

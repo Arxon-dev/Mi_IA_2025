@@ -1,0 +1,279 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { X, Settings, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { QuestionValidationService } from '@/services/questionValidationService';
+import { availableModels } from '@/services/aiService';
+import { toast } from 'sonner';
+
+interface ValidationResult {
+  isValid: boolean;
+  feedback: string;
+  questionid: string;
+}
+
+interface QuestionValidationModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  question: {
+    id: string;
+    content: string;
+  };
+  sourceText?: string;
+}
+
+export default function QuestionValidationModal({
+  isOpen,
+  onClose,
+  question,
+  sourceText = ''
+}: QuestionValidationModalProps) {
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai' | 'alibaba'>('anthropic');
+  const [selectedModel, setSelectedModel] = useState<string>('claude-3-5-sonnet-v2');
+  const [models, setModels] = useState<any[]>([]);
+  const [localSourceText, setLocalSourceText] = useState(sourceText);
+  const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      // Cargar configuraciones guardadas
+      const settings = QuestionValidationService.getValidationSettings();
+      setSelectedProvider(settings.provider);
+      setSelectedModel(settings.model);
+      setLocalSourceText(settings.sourceText || sourceText);
+      setValidationResult(null);
+    }
+  }, [isOpen, sourceText]);
+
+  useEffect(() => {
+    // Cargar modelos disponibles según el proveedor seleccionado
+    const filtered = availableModels.filter(m => m.provider === selectedProvider);
+    setModels(filtered);
+    if (filtered.length > 0 && !filtered.find(m => m.id === selectedModel)) {
+      setSelectedModel(filtered[0].id);
+    }
+  }, [selectedProvider]);
+
+  const handleValidate = async () => {
+    if (!question?.content?.trim()) {
+      toast.error('No hay contenido de pregunta para validar');
+      return;
+    }
+
+    setIsValidating(true);
+    setValidationResult(null);
+
+    try {
+      // Guardar configuraciones
+      QuestionValidationService.saveValidationSettings({
+        provider: selectedProvider,
+        model: selectedModel,
+        sourceText: localSourceText
+      });
+
+      // Realizar validación
+      const result = await QuestionValidationService.validateQuestion(
+        question.content,
+        {
+          provider: selectedProvider,
+          model: selectedModel,
+          sourceText: localSourceText
+        }
+      );
+
+      result.questionid = question.id;
+      setValidationResult(result);
+
+      if (result.isValid) {
+        toast.success('Pregunta validada correctamente');
+      } else {
+        toast.warning('Se encontraron problemas en la pregunta');
+      }
+    } catch (error: any) {
+      console.error('Error en validación:', error);
+      toast.error(`Error en la validación: ${error.message || 'Error desconocido'}`);
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const highlightInvalidOptions = (content: string): string => {
+    let highlighted = content;
+    const incorrectSection = content.match(/opciones incorrectas[^:]*:([\s\S]*?)(?:\n\d+\.|\n\*\*|\n\-|$)/i);
+    if (incorrectSection && incorrectSection[1]) {
+      const options = incorrectSection[1]
+        .split(/\n|,|\-|•/)
+        .map(opt => opt.trim())
+        .filter(opt => opt.length > 0 && !/^\d+\./.test(opt));
+      options.forEach(opt => {
+        const escaped = opt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        highlighted = highlighted.replace(new RegExp(escaped, 'g'), '<b>' + opt + '</b>');
+      });
+    }
+    return highlighted;
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-lg shadow-lg max-w-4xl w-full">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+            <CheckCircle className="w-6 h-6 text-primary" />
+            Validación Avanzada de Pregunta
+          </h2>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-2 rounded-md hover:bg-muted transition-colors"
+              title="Configuración"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-md hover:bg-muted transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Settings Panel */}
+        {showSettings && (
+          <div className="p-6 border-b border-border bg-muted/50">
+            <h3 className="text-lg font-semibold mb-4 text-foreground">Configuración de Validación</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Proveedor:</label>
+                <select 
+                  value={selectedProvider} 
+                  onChange={e => setSelectedProvider(e.target.value as any)} 
+                  className="w-full border border-border rounded bg-background text-foreground px-3 py-2 text-sm focus:ring-primary focus:border-primary"
+                  disabled={isValidating}
+                >
+                  {Array.from(new Set(availableModels.map(m => m.provider))).map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Modelo:</label>
+                <select 
+                  value={selectedModel} 
+                  onChange={e => setSelectedModel(e.target.value)} 
+                  className="w-full border border-border rounded bg-background text-foreground px-3 py-2 text-sm focus:ring-primary focus:border-primary"
+                  disabled={isValidating}
+                >
+                  {models.map(m => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Texto fuente (opcional):
+              </label>
+              <textarea
+                className="w-full p-3 border border-border rounded min-h-[100px] text-sm bg-background text-foreground focus:ring-primary focus:border-primary"
+                placeholder="Pega aquí el texto fuente o documento base para validar contra el contenido original..."
+                value={localSourceText}
+                onChange={e => setLocalSourceText(e.target.value)}
+                disabled={isValidating}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Content */}
+        <div className="p-6">
+          {/* Question Preview */}
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold mb-3 text-foreground">Pregunta a validar:</h3>
+            <div className="bg-muted/50 p-4 rounded-lg border border-border">
+              <pre className="whitespace-pre-wrap text-sm text-foreground font-mono">{question.content}</pre>
+            </div>
+          </div>
+
+          {/* Validation Button */}
+          <div className="flex justify-center mb-6">
+            <button
+              className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold flex items-center gap-2 hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleValidate}
+              disabled={isValidating || !question.content?.trim()}
+            >
+              {isValidating ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Validando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-5 h-5" />
+                  Validar Pregunta
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Validation Results */}
+          {validationResult && (
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold mb-3 text-foreground">Resultado de la validación:</h3>
+              
+              {/* Status Indicator */}
+              <div className={`flex items-center gap-2 mb-4 p-3 rounded-lg border ${
+                validationResult.isValid 
+                  ? 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-200'
+                  : 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200'
+              }`}>
+                {validationResult.isValid ? (
+                  <>
+                    <CheckCircle className="w-6 h-6" />
+                    <span className="font-bold text-lg">¡PREGUNTA VÁLIDA!</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="w-6 h-6" />
+                    <span className="font-bold text-lg">¡PREGUNTA NO VÁLIDA! REVISA LOS ERRORES DETECTADOS ABAJO.</span>
+                  </>
+                )}
+              </div>
+
+              {/* Feedback */}
+              <div className="bg-background border border-border rounded-lg p-4">
+                <h4 className="font-semibold mb-2 text-foreground">Retroalimentación detallada:</h4>
+                {validationResult.isValid ? (
+                  <pre className="whitespace-pre-wrap text-sm text-foreground">{validationResult.feedback}</pre>
+                ) : (
+                  <div 
+                    className="whitespace-pre-wrap text-sm text-foreground"
+                    dangerouslySetInnerHTML={{ __html: highlightInvalidOptions(validationResult.feedback) }}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-3 p-6 border-t border-border">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

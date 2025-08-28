@@ -1,0 +1,96 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function checkPregunta34Detalle() {
+  try {
+    console.log('🔍 ANÁLISIS DETALLADO DE LA PREGUNTA 34');
+    console.log('=====================================');
+
+    // 1. Buscar la pregunta 34 específica de ExamenOficial2018
+    const pregunta34 = await prisma.examenOficial2018.findFirst({
+      where: { questionNumber: 34 }
+    });
+
+    if (!pregunta34) {
+      console.error('❌ Pregunta 34 no encontrada en ExamenOficial2018');
+      return;
+    }
+
+    console.log('✅ Pregunta 34 encontrada:');
+    console.log(`   ID: ${pregunta34.id}`);
+    console.log(`   Número: ${pregunta34.questionNumber}`);
+    console.log(`   Categoría: ${pregunta34.category}`);
+    console.log(`   Dificultad: ${pregunta34.difficulty}`);
+    console.log(`   Activa: ${pregunta34.isActive}`);
+    
+    console.log(`\n📝 CONTENIDO COMPLETO:`);
+    console.log(`"${pregunta34.question}"`);
+    
+    console.log(`\n🎯 OPCIONES:`);
+    console.log(`   Total opciones: ${pregunta34.options.length}`);
+    console.log(`   Índice respuesta correcta: ${pregunta34.correctAnswerIndex}`);
+    
+    pregunta34.options.forEach((option, index) => {
+      const isCorrect = index === pregunta34.correctAnswerIndex;
+      const marker = isCorrect ? '✅' : '❌';
+      console.log(`   ${index + 1}. ${marker} "${option}" (${option.length} chars)`);
+    });
+
+    // 2. Verificar si alguna opción excede el límite de Telegram (100 chars)
+    console.log(`\n🚨 VERIFICACIÓN DE LÍMITES DE TELEGRAM:`);
+    const longOptions = pregunta34.options.filter(opt => opt.length > 100);
+    if (longOptions.length > 0) {
+      console.log(`   ❌ ${longOptions.length} opciones exceden 100 caracteres:`);
+      longOptions.forEach((opt, idx) => {
+        console.log(`      "${opt}" (${opt.length} chars)`);
+      });
+    } else {
+      console.log(`   ✅ Todas las opciones son válidas (<= 100 chars)`);
+    }
+
+    // 3. Verificar el total del poll
+    const header = `🎯 <b>SIMULACRO</b> ⏰ 34/100\n⏱️ 2h 30m\n\n`;
+    const totalLength = header.length + pregunta34.question.length;
+    console.log(`\n📏 VERIFICACIÓN DE LONGITUD TOTAL:`);
+    console.log(`   Header: ${header.length} chars`);
+    console.log(`   Pregunta: ${pregunta34.question.length} chars`);
+    console.log(`   Total: ${totalLength} chars`);
+    console.log(`   ¿Excede 300 chars?: ${totalLength > 300 ? '❌ SÍ' : '✅ NO'}`);
+
+    // 4. Simular la llamada a sendTelegramPoll
+    console.log(`\n🧪 SIMULACIÓN DE ENVÍO:`);
+    const pollData = {
+      question: `${header}${pregunta34.question}`,
+      options: pregunta34.options,
+      correctAnswerIndex: pregunta34.correctAnswerIndex
+    };
+    
+    console.log(`   Question length: ${pollData.question.length}`);
+    console.log(`   Options count: ${pollData.options.length}`);
+    console.log(`   Valid options: ${pollData.options.filter(opt => opt.length <= 100).length}`);
+    console.log(`   Correct index: ${pollData.correctAnswerIndex}`);
+    
+    // Validaciones que podría hacer Telegram
+    if (pollData.question.length > 300) {
+      console.log(`   ❌ FALLO: Pregunta excede 300 caracteres`);
+    } else if (pollData.options.length < 2) {
+      console.log(`   ❌ FALLO: Menos de 2 opciones`);
+    } else if (pollData.options.length > 10) {
+      console.log(`   ❌ FALLO: Más de 10 opciones`);
+    } else if (pollData.options.some(opt => opt.length > 100)) {
+      console.log(`   ❌ FALLO: Alguna opción excede 100 caracteres`);
+    } else if (pollData.correctAnswerIndex >= pollData.options.length) {
+      console.log(`   ❌ FALLO: Índice de respuesta correcta inválido`);
+    } else {
+      console.log(`   ✅ TODAS LAS VALIDACIONES PASARON`);
+    }
+
+  } catch (error) {
+    console.error('❌ Error en análisis:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+checkPregunta34Detalle().catch(console.error); 

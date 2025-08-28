@@ -1,0 +1,26 @@
+{
+  "timestamp": "2025-06-10T14:27:56.381Z",
+  "configurationExists": true,
+  "configurationData": {
+    "types": {
+      "textual": 75,
+      "blank_spaces": 5,
+      "none_correct": 10,
+      "identify_incorrect": 10
+    },
+    "difficulties": {
+      "difficult": 5,
+      "very_difficult": 25,
+      "extremely_difficult": 70
+    },
+    "optionLength": "telegram",
+    "lastUpdated": "2025-06-10T13:58:26.162Z"
+  },
+  "codeAnalysis": {
+    "generateQuestionsFound": true,
+    "passesUndefinedInsteadOfConfig": true,
+    "callSignature": "AIService.generateQuestions(\n          targetSection.content, // Contenido de la sección\n          numberOfQuestions, \n          questionTypeCounts, // 🎯 APLICAR configuraciones guardadas \n          optionLength, \n          undefined, // modelOverride\n          customTitleParam || customTitle // título personalizado\n        )"
+  },
+  "problem": true,
+  "recommendation": "Modificar handleGenerateQuestions para pasar questionTypeCounts en lugar de undefined"
+}

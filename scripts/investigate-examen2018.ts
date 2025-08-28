@@ -1,0 +1,138 @@
+#!/usr/bin/env tsx
+
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function investigateExamenOficial2018() {
+  try {
+    console.log('🔍 INVESTIGANDO TABLA ExamenOficial2018\n');
+    
+    // Contar total
+    const count = await prisma.examenOficial2018.count();
+    console.log(`📊 Total de preguntas en ExamenOficial2018: ${count}\n`);
+    
+    // Mostrar primeras 5 preguntas
+    console.log('📋 PRIMERAS 5 PREGUNTAS:');
+    const samples = await prisma.examenOficial2018.findMany({ 
+      take: 5,
+      select: {
+        id: true,
+        questionnumber: true,
+        question: true,
+        options: true,
+        correctanswerindex: true,
+        category: true
+      },
+      orderBy: { questionnumber: 'asc' }
+    });
+    
+    samples.forEach((q, i) => {
+      console.log(`${i+1}. ID: ${q.id} | Número: ${q.questionnumber}`);
+      console.log(`   Pregunta: ${q.question.substring(0, 100)}...`);
+      console.log(`   Opciones: ${q.options.length} opciones`);
+      console.log(`   Respuesta correcta: ${q.correctanswerindex} (${q.options[q.correctanswerindex]})`);
+      console.log(`   Categoría: ${q.category || 'N/A'}\n`);
+    });
+    
+    // Buscar específicamente la pregunta de la captura
+    console.log('🔍 BUSCANDO PREGUNTA "CAPITAL DE ESPAÑA":');
+    const madridQuestion = await prisma.examenOficial2018.findFirst({
+      where: {
+        OR: [
+          { question: { contains: 'capital de España', mode: 'insensitive' } },
+          { question: { contains: 'Madrid', mode: 'insensitive' } },
+          { question: { contains: 'Barcelona', mode: 'insensitive' } }
+        ]
+      }
+    });
+    
+    if (madridQuestion) {
+      console.log('❌ PROBLEMA ENCONTRADO: Pregunta sospechosa en ExamenOficial2018');
+      console.log(`ID: ${madridQuestion.id}`);
+      console.log(`Número: ${madridQuestion.questionnumber}`);
+      console.log(`Pregunta: ${madridQuestion.question}`);
+      console.log(`Opciones: ${madridQuestion.options}`);
+      console.log(`Respuesta correcta: ${madridQuestion.correctanswerindex}`);
+    } else {
+      console.log('✅ La pregunta "capital de España" NO está en ExamenOficial2018');
+    }
+    
+    // Mostrar últimas 5 preguntas también
+    console.log('\n📋 ÚLTIMAS 5 PREGUNTAS:');
+    const lastSamples = await prisma.examenOficial2018.findMany({ 
+      take: 5,
+      orderBy: { questionnumber: 'desc' },
+      select: {
+        id: true,
+        questionnumber: true,
+        question: true,
+        options: true,
+        correctanswerindex: true,
+        category: true
+      }
+    });
+    
+    lastSamples.forEach((q, i) => {
+      console.log(`${i+1}. ID: ${q.id} | Número: ${q.questionnumber}`);
+      console.log(`   Pregunta: ${q.question.substring(0, 100)}...`);
+      console.log(`   Opciones: ${q.options.length} opciones`);
+      console.log(`   Respuesta correcta: ${q.correctanswerindex} (${q.options[q.correctanswerindex]})`);
+      console.log(`   Categoría: ${q.category || 'N/A'}\n`);
+    });
+    
+    // Buscar todas las preguntas que contengan palabras sospechosas
+    console.log('🔍 BUSCANDO PREGUNTAS SOSPECHOSAS (geografía básica):');
+    const suspiciousQuestions = await prisma.examenOficial2018.findMany({
+      where: {
+        OR: [
+          { question: { contains: 'capital', mode: 'insensitive' } },
+          { question: { contains: 'España', mode: 'insensitive' } },
+          { question: { contains: 'Madrid', mode: 'insensitive' } },
+          { question: { contains: 'Barcelona', mode: 'insensitive' } },
+          { question: { contains: 'Sevilla', mode: 'insensitive' } },
+          { question: { contains: 'Valencia', mode: 'insensitive' } }
+        ]
+      }
+    });
+    
+    if (suspiciousQuestions.length > 0) {
+      console.log(`❌ ${suspiciousQuestions.length} preguntas sospechosas encontradas:`);
+      suspiciousQuestions.forEach((q, i) => {
+        console.log(`${i+1}. [${q.questionnumber}] ${q.question.substring(0, 150)}...`);
+      });
+    } else {
+      console.log('✅ No se encontraron preguntas de geografía básica');
+    }
+    
+    // Buscar qué pregunta es la número 1
+    console.log('\n🔍 VERIFICANDO PREGUNTA NÚMERO 1:');
+    const firstQuestion = await prisma.examenOficial2018.findFirst({
+      where: { questionnumber: 1 },
+      select: {
+        id: true,
+        questionnumber: true,
+        question: true,
+        options: true,
+        correctanswerindex: true,
+        category: true
+      }
+    });
+    
+    if (firstQuestion) {
+      console.log(`Pregunta 1:`);
+      console.log(`   ID: ${firstQuestion.id}`);
+      console.log(`   Pregunta: ${firstQuestion.question}`);
+      console.log(`   Opciones: ${firstQuestion.options}`);
+      console.log(`   Respuesta correcta: ${firstQuestion.correctanswerindex} (${firstQuestion.options[firstQuestion.correctanswerindex]})`);
+      console.log(`   Categoría: ${firstQuestion.category || 'N/A'}`);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+investigateExamenOficial2018(); 

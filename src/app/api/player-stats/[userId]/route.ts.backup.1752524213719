@@ -1,0 +1,86 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createRankingSystem } from '../../../../../scripts/advanced-ranking-system';
+
+/**
+ * 📊 PLAYER STATS API - STEP 5
+ * 
+ * Endpoint para estadísticas detalladas de jugadores individuales:
+ * - /api/player-stats/[userId]?timeframe=ALL_TIME
+ * - /api/player-stats/[userId]?timeframe=MONTHLY
+ */
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { userId: string } }
+) {
+  try {
+    const { userId } = params;
+    const searchParams = request.nextUrl.searchParams;
+    const timeframe = searchParams.get('timeframe') || 'ALL_TIME';
+    
+    // Validar parámetros
+    if (!userId) {
+      return NextResponse.json({ 
+        error: 'ID de usuario requerido' 
+      }, { status: 400 });
+    }
+
+    const validTimeframes = ['ALL_TIME', 'WEEKLY', 'MONTHLY', 'YEARLY'];
+    if (!validTimeframes.includes(timeframe)) {
+      return NextResponse.json({ 
+        error: 'Timeframe inválido',
+        validTimeframes 
+      }, { status: 400 });
+    }
+
+    // Crear sistema de rankings
+    const rankingSystem = createRankingSystem();
+    
+    // Obtener estadísticas históricas del jugador
+    const playerStats = await rankingSystem.getPlayerHistoricalStats(userId);
+    
+    // Obtener posición en leaderboards
+    const overallLeaderboard = await rankingSystem.getOverallLeaderboard(timeframe, 1000);
+    const speedLeaderboard = await rankingSystem.getSpeedLeaderboard(timeframe, 1000);
+    const accuracyLeaderboard = await rankingSystem.getAccuracyLeaderboard(timeframe, 1000);
+    
+    // Encontrar posiciones del jugador
+    const overallRank = overallLeaderboard.findIndex(entry => entry.userId === userId) + 1;
+    const speedRank = speedLeaderboard.findIndex(entry => entry.userId === userId) + 1;
+    const accuracyRank = accuracyLeaderboard.findIndex(entry => entry.userId === userId) + 1;
+
+    // Respuesta exitosa con estadísticas completas
+    return NextResponse.json({
+      success: true,
+      data: {
+        userId,
+        timeframe,
+        playerStats,
+        rankings: {
+          overall: overallRank || null,
+          speed: speedRank || null,
+          accuracy: accuracyRank || null,
+          outOf: {
+            overall: overallLeaderboard.length,
+            speed: speedLeaderboard.length,
+            accuracy: accuracyLeaderboard.length
+          }
+        },
+        metadata: {
+          generated_at: new Date().toISOString(),
+          api_version: '1.0',
+          step: 5
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error en API de estadísticas de jugador:', error);
+    
+    return NextResponse.json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    }, { status: 500 });
+  }
+} 

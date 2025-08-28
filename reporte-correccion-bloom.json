@@ -1,0 +1,44 @@
+{
+  "fecha": "2025-06-10T14:18:57.593Z",
+  "sumaAnterior": 100,
+  "sumaFinal": 100,
+  "corregido": true,
+  "cambios": [
+    {
+      "nombre": "Analizar",
+      "porcentajeAnterior": 15,
+      "porcentajeNuevo": 25,
+      "cambiado": true
+    },
+    {
+      "nombre": "Aplicar",
+      "porcentajeAnterior": 25,
+      "porcentajeNuevo": 25,
+      "cambiado": false
+    },
+    {
+      "nombre": "Comprender",
+      "porcentajeAnterior": 25,
+      "porcentajeNuevo": 15,
+      "cambiado": true
+    },
+    {
+      "nombre": "Crear",
+      "porcentajeAnterior": 5,
+      "porcentajeNuevo": 10,
+      "cambiado": true
+    },
+    {
+      "nombre": "Evaluar",
+      "porcentajeAnterior": 10,
+      "porcentajeNuevo": 15,
+      "cambiado": true
+    },
+    {
+      "nombre": "Recordar",
+      "porcentajeAnterior": 20,
+      "porcentajeNuevo": 10,
+      "cambiado": true
+    }
+  ]
+}

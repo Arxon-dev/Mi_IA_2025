@@ -1,0 +1,438 @@
+/* eslint-disable */
+/* stylelint-disable */
+/* Tailwind CSS directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Paleta minimalista moderna - Modo claro */
+    --background: 0 0% 100%;        /* #ffffff */
+    --foreground: 222 84% 4.9%;     /* #0f172a */
+    --card: 0 0% 100%;              /* #ffffff */
+    --card-foreground: 222 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 84% 4.9%;
+    --primary: 231 48% 58%;         /* #6366f1 - indigo-500 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 98%;       /* #f8fafc */
+    --secondary-foreground: 222 84% 4.9%;
+    --muted: 210 40% 96%;           /* #f1f5f9 */
+    --muted-foreground: 215 25% 27%; /* #475569 */
+    --accent: 262 83% 58%;          /* #8b5cf6 - violet-500 */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;       /* #ef4444 */
+    --destructive-foreground: 0 0% 100%;
+    --warning: 25 95% 53%;          /* #f59e0b */
+    --warning-foreground: 0 0% 100%;
+    --success: 142 76% 36%;         /* #10b981 */
+    --success-foreground: 0 0% 100%;
+    --border: 214 32% 91%;          /* #e2e8f0 */
+    --input: 214 32% 91%;
+    --ring: 231 48% 58%;            /* #6366f1 */
+    --radius: 0.75rem;
+    
+    /* Grises minimalistas */
+    --gray-50: 210 40% 98%;         /* #f8fafc */
+    --gray-100: 210 40% 96%;        /* #f1f5f9 */
+    --gray-200: 214 32% 91%;        /* #e2e8f0 */
+    --gray-300: 213 27% 84%;        /* #cbd5e1 */
+    --gray-400: 215 20% 65%;        /* #94a3b8 */
+    --gray-500: 215 16% 47%;        /* #64748b */
+    --gray-600: 215 19% 35%;        /* #475569 */
+    --gray-700: 215 25% 27%;        /* #334155 */
+    --gray-800: 217 33% 17%;        /* #1e293b */
+    --gray-900: 222 84% 4.9%;       /* #0f172a */
+  }
+
+  .dark {
+    /* Paleta minimalista moderna - Modo oscuro */
+    --background: 222 84% 4.9%;     /* #0f172a */
+    --foreground: 210 40% 98%;      /* #f8fafc */
+    --card: 217 33% 17%;            /* #1e293b */
+    --card-foreground: 210 40% 98%;
+    --popover: 217 33% 17%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 231 48% 58%;         /* #6366f1 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 215 25% 27%;       /* #334155 */
+    --secondary-foreground: 210 40% 98%;
+    --muted: 215 19% 35%;           /* #475569 */
+    --muted-foreground: 215 20% 65%; /* #94a3b8 */
+    --accent: 262 83% 58%;          /* #8b5cf6 */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --warning: 25 95% 53%;
+    --warning-foreground: 0 0% 100%;
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --border: 215 19% 35%;          /* #475569 */
+    --input: 215 19% 35%;
+    --ring: 231 48% 58%;
+  }
+
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Suavizado de fuentes mejorado */
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  /* ===== SISTEMA DE BOTONES MODERNO ===== */
+  .btn {
+    @apply inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm;
+    @apply px-4 py-2.5;
+  }
+
+  .btn-secondary {
+    @apply btn bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border;
+    @apply px-4 py-2.5;
+  }
+
+  .btn-outline {
+    @apply btn border border-border bg-background hover:bg-accent hover:text-accent-foreground;
+    @apply px-4 py-2.5;
+  }
+
+  .btn-ghost {
+    @apply btn hover:bg-accent hover:text-accent-foreground;
+    @apply px-4 py-2.5;
+  }
+
+  .btn-link {
+    @apply btn text-primary underline-offset-4 hover:underline p-0 h-auto;
+  }
+
+  .btn-destructive {
+    @apply btn bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm;
+    @apply px-4 py-2.5;
+  }
+
+  /* Tamaños de botones */
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 text-base;
+  }
+
+  .btn-icon {
+    @apply w-10 h-10 p-0;
+  }
+
+  /* ===== SISTEMA DE INPUTS MODERNO ===== */
+  .input {
+    @apply flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .textarea {
+    @apply flex min-h-[80px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .select {
+    @apply flex h-10 w-full items-center justify-between rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* ===== SISTEMA DE CARDS MODERNO ===== */
+  .card {
+    @apply rounded-xl border border-border bg-card text-card-foreground shadow-sm;
+  }
+
+  .card-minimal {
+    @apply rounded-lg border border-border/50 bg-card/50 backdrop-blur-sm text-card-foreground;
+  }
+
+  .card-elevated {
+    @apply rounded-xl border border-border bg-card text-card-foreground shadow-lg shadow-black/5;
+  }
+
+  .card-interactive {
+    @apply card transition-all duration-200 hover:shadow-md hover:shadow-black/10 hover:border-border/70 cursor-pointer;
+  }
+
+  .card-header {
+    @apply flex flex-col space-y-1.5 p-6;
+  }
+
+  .card-content {
+    @apply p-6 pt-0;
+  }
+
+  .card-footer {
+    @apply flex items-center p-6 pt-0;
+  }
+
+  /* ===== ALERTAS Y NOTIFICACIONES ===== */
+  .alert {
+    @apply relative w-full rounded-lg border p-4;
+  }
+
+  .alert-info {
+    @apply alert border-primary/20 bg-primary/5 text-primary [&>svg]:text-primary;
+  }
+
+  .alert-warning {
+    @apply alert border-warning/20 bg-warning/5 text-warning [&>svg]:text-warning;
+  }
+
+  .alert-error {
+    @apply alert border-destructive/20 bg-destructive/5 text-destructive [&>svg]:text-destructive;
+  }
+
+  .alert-success {
+    @apply alert border-success/20 bg-success/5 text-success [&>svg]:text-success;
+  }
+
+  /* ===== BADGES ===== */
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+  }
+
+  .badge-default {
+    @apply badge bg-primary text-primary-foreground hover:bg-primary/80;
+  }
+
+  .badge-secondary {
+    @apply badge bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  }
+
+  .badge-outline {
+    @apply badge border border-border text-foreground;
+  }
+
+  .badge-destructive {
+    @apply badge bg-destructive text-destructive-foreground hover:bg-destructive/80;
+  }
+
+  /* ===== SEPARADORES ===== */
+  .separator {
+    @apply shrink-0 bg-border h-[1px] w-full;
+  }
+
+  .separator-vertical {
+    @apply shrink-0 bg-border w-[1px] h-full;
+  }
+
+  /* ===== SCROLLBARS MINIMALISTAS ===== */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 10px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.5);
+  }
+
+  /* ===== LAYOUT HELPERS ===== */
+  .container-fluid {
+    @apply w-full px-4 sm:px-6 lg:px-8;
+  }
+
+  .container-section {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .page-header {
+    @apply mb-8 space-y-2;
+  }
+
+  .page-title {
+    @apply text-3xl font-bold tracking-tight text-foreground;
+  }
+
+  .page-subtitle {
+    @apply text-muted-foreground;
+  }
+
+  /* ===== ANIMACIONES SUAVES ===== */
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slide-up 0.3s ease-out;
+  }
+
+  .animate-slide-down {
+    animation: slide-down 0.3s ease-out;
+  }
+
+  /* ===== ESTADOS DE FOCUS MEJORADOS ===== */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  /* ===== GLASSMORPHISM SUTIL ===== */
+  .glass {
+    @apply bg-background/80 backdrop-blur-sm border border-border/50;
+  }
+
+  .glass-card {
+    @apply glass rounded-xl p-6 shadow-sm;
+  }
+}
+
+/* Fondo degradado para modo oscuro */
+.dark body {
+  background: none;
+  min-height: 100vh;
+}
+
+/* Mejoras de legibilidad para textos en modo oscuro */
+.dark .text-muted-foreground {
+  opacity: 0.9;
+  color: hsl(215 20.2% 80%);
+}
+
+/* Estilos para el contenido Markdown */
+.prose {
+  @apply max-w-none;
+}
+
+/* Estilos para el modo código fuente */
+.source-code {
+  @apply bg-muted text-muted-foreground;
+  @apply dark:bg-gray-800 dark:text-gray-200;
+  @apply rounded-lg p-4 font-mono text-sm whitespace-pre-wrap overflow-x-auto;
+  @apply border border-border;
+}
+
+/* Si quieres forzar un fondo oscuro SOLO en modo oscuro, descomenta la siguiente línea: */
+/* .dark html, .dark body, .dark .min-h-screen { background: hsl(222.2 84% 4.9%) !important; } */
+
+/* Ocultar barra de scroll horizontal pero mantener la vertical */
+.hide-scrollbar-x {
+  overflow-x: hidden !important;
+  overflow-y: visible;
+}
+
+/* Panel scrollbar estilizada */
+.panel-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted)) transparent;
+}
+
+.panel-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.panel-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.panel-scrollbar::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 10px;
+}
+
+/* Variables para modo oscuro */
+.dark {
+  --background: 220 20% 10%;
+  --foreground: 220 18% 90%;
+  --card: 220 20% 14%;
+  --card-foreground: 220 18% 80%;
+  --popover: 220 20% 12%;
+  --popover-foreground: 220 18% 80%;
+  --primary: 36 100% 50%; /* Naranja #ff9900 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 20% 20%;
+  --secondary-foreground: 220 18% 90%;
+  --muted: 220 20% 18%;
+  --muted-foreground: 220 18% 60%;
+  --accent: 38 100% 50%;
+  --accent-foreground: 220 18% 90%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 20% 30%;
+  --input: 220 20% 20%;
+  --ring: 221 83% 53%;
+}
+
+/* ===== CONTROL DE SCROLLBARS ===== */
+
+/* Ocultar scrollbar del navegador (body/html) - Descomenta para usar */
+/*
+html, body {
+  overflow: hidden;
+}
+*/
+
+/* Scrollbar personalizada para contenedores internos */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border));
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground));
+}
+
+/* Compact grid for config panel */
+.config-grid-compact {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+@media (min-width: 768px) {
+  .config-grid-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1280px) {
+  .config-grid-compact {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Reduce vertical spacing for compact cards */
+.card-compact {
+  padding: 0.5rem !important;
+  margin-bottom: 0.25rem !important;
+} 

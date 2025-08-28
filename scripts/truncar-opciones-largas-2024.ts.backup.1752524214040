@@ -1,0 +1,67 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function truncarOpcionesLargas() {
+  console.log('✂️ TRUNCANDO OPCIONES LARGAS EN EXAMEN 2024...\n');
+  
+  try {
+    // Soluciones específicas para las preguntas problemáticas
+    const solucionesPregunta8 = [
+      "La resolución corresponderá a órganos administrativos independientes.",
+      "No cabrá recurso ni podrá impugnarse en el recurso contra la resolución del procedimiento.",
+      "No cabrá recurso, aunque podrá impugnarse en el recurso contra la resolución del procedimiento.",
+      "Cabrá recurso, aunque no podrá impugnarse en el recurso contra la resolución del procedimiento."
+    ];
+    
+    const solucionesPregunta9 = [
+      "No alterará la competencia del órgano delegante, pero para su validez será necesaria su publicación.",
+      "No alterará la competencia del órgano delegante y para su validez no será necesaria su publicación.",
+      "Alterará la competencia del órgano delegante y para su validez no será necesaria su publicación.",
+      "Alterará la competencia del órgano delegante, pero para su validez será necesaria su publicación."
+    ];
+    
+    // Actualizar pregunta 8
+    console.log('🔧 Actualizando pregunta 8...');
+    await (prisma as any).examenOficial2024.update({
+      where: { questionNumber: 8 },
+      data: {
+        options: solucionesPregunta8
+      }
+    });
+    console.log('✅ Pregunta 8 actualizada');
+    
+    // Verificar longitudes para pregunta 8
+    solucionesPregunta8.forEach((option, index) => {
+      console.log(`   ${['A', 'B', 'C', 'D'][index]}) [${option.length} chars] "${option}"`);
+    });
+    
+    console.log('');
+    
+    // Actualizar pregunta 9
+    console.log('🔧 Actualizando pregunta 9...');
+    await (prisma as any).examenOficial2024.update({
+      where: { questionNumber: 9 },
+      data: {
+        options: solucionesPregunta9
+      }
+    });
+    console.log('✅ Pregunta 9 actualizada');
+    
+    // Verificar longitudes para pregunta 9
+    solucionesPregunta9.forEach((option, index) => {
+      console.log(`   ${['A', 'B', 'C', 'D'][index]}) [${option.length} chars] "${option}"`);
+    });
+    
+    console.log('\n🎉 OPCIONES TRUNCADAS EXITOSAMENTE');
+    console.log('\n🧪 EJECUTAR VERIFICACIÓN:');
+    console.log('npx tsx scripts/verificar-opciones-largas-2024.ts');
+    
+  } catch (error) {
+    console.error('❌ Error truncando opciones:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+truncarOpcionesLargas(); 

@@ -1,0 +1,36 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function testPrismaTelegram() {
+  try {
+    console.log('🧪 PROBANDO MODELOS DE TELEGRAM');
+    console.log('================================');
+    
+    // Probar que podemos acceder a los modelos
+    console.log('📊 Accediendo a TelegramPoll...');
+    const polls = await prisma.telegrampoll.count();
+    console.log(`✅ TelegramPoll: ${polls} registros encontrados`);
+    
+    console.log('👥 Accediendo a TelegramUser...');
+    const users = await prisma.telegramuser.count();
+    console.log(`✅ TelegramUser: ${users} registros encontrados`);
+    
+    console.log('💬 Accediendo a TelegramResponse...');
+    const responses = await prisma.telegramResponse.count();
+    console.log(`✅ TelegramResponse: ${responses} registros encontrados`);
+    
+    console.log('');
+    console.log('🎉 ¡TODOS LOS MODELOS DE TELEGRAM FUNCIONAN!');
+    console.log('✅ Prisma se regeneró correctamente');
+    console.log('✅ Los errores de TypeScript deberían desaparecer');
+    console.log('✅ El webhook debería poder procesar respuestas');
+    
+  } catch (error) {
+    console.error('❌ Error probando modelos de Telegram:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+testPrismaTelegram(); 

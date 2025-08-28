@@ -1,0 +1,80 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function cleanTestData() {
+  try {
+    console.log('🧹 LIMPIANDO DATOS DE PRUEBA...\n');
+    
+    // Mostrar datos actuales
+    const currentUsers = await prisma.telegramUser.findMany({
+      select: {
+        id: true,
+        username: true,
+        firstName: true,
+        totalPoints: true,
+        totalResponses: true
+      }
+    });
+    
+    console.log('📊 USUARIOS ACTUALES EN LA BASE DE DATOS:');
+    currentUsers.forEach((user, index) => {
+      const name = user.username || user.firstName || 'Sin nombre';
+      console.log(`   ${index + 1}. ${name} - ${user.totalPoints} pts - ${user.totalResponses} respuestas`);
+    });
+    
+    console.log(`\n📈 Total de usuarios: ${currentUsers.length}`);
+    
+    // Confirmar limpieza
+    console.log('\n⚠️  ¿Estás seguro de que quieres eliminar TODOS los datos de gamificación?');
+    console.log('   - Se eliminarán todos los usuarios');
+    console.log('   - Se eliminarán todas las respuestas');
+    console.log('   - Se eliminarán todas las estadísticas');
+    console.log('   - Se eliminarán todos los logros');
+    
+    // En un entorno real, aquí pedirías confirmación al usuario
+    // Por ahora, comentamos la limpieza real y solo mostramos qué se haría
+    
+    console.log('\n🔧 PARA LIMPIAR LOS DATOS, ejecuta este script con --confirm');
+    console.log('   Ejemplo: npx tsx scripts/clean-test-data.ts --confirm');
+    
+    // Verificar si se pasó el flag --confirm
+    const args = process.argv.slice(2);
+    const shouldClean = args.includes('--confirm');
+    
+    if (shouldClean) {
+      console.log('\n🧹 INICIANDO LIMPIEZA...');
+      
+      // Limpiar en orden para evitar errores de foreign key
+      console.log('   🗑️  Eliminando logros de usuarios...');
+      await prisma.userAchievement.deleteMany({});
+      
+      console.log('   🗑️  Eliminando estadísticas semanales...');
+      await prisma.weeklyStats.deleteMany({});
+      
+      console.log('   🗑️  Eliminando respuestas...');
+      await prisma.telegramResponse.deleteMany({});
+      
+      console.log('   🗑️  Eliminando usuarios...');
+      await prisma.telegramUser.deleteMany({});
+      
+      console.log('   🗑️  Eliminando definiciones de logros...');
+      await prisma.achievement.deleteMany({});
+      
+      console.log('\n✅ ¡LIMPIEZA COMPLETADA!');
+      console.log('📊 La base de datos está ahora vacía y lista para usuarios reales.');
+      console.log('🎮 Cuando usuarios reales respondan preguntas, aparecerán en el ranking.');
+      
+    } else {
+      console.log('\n💡 Si quieres proceder con la limpieza, ejecuta:');
+      console.log('   npx tsx scripts/clean-test-data.ts --confirm');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error limpiando datos:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+cleanTestData(); 

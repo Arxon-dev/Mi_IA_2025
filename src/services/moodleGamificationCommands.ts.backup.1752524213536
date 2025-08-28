@@ -1,0 +1,392 @@
+import { MoodleGamificationService } from './moodleGamificationService';
+import { checkMilitarySimulationPermission } from './militarySimulationPermissions';
+
+// ==========================================
+// 🎓 COMANDOS DE INTEGRACIÓN MOODLE
+// ==========================================
+
+/**
+ * Comando /codigo_moodle - Generar código de verificación
+ */
+export async function handleVincularMoodleCommand(userId: string, fromUser: any): Promise<string | null> {
+  try {
+    console.log('🔗 VINCULAR_MOODLE COMMAND - Generar código de verificación');
+
+    // Verificar que el usuario no ya tenga cuenta vinculada
+    const isLinked = await MoodleGamificationService.isUserLinked(userId);
+    
+    if (isLinked) {
+      return `🔗 **YA TIENES CUENTA VINCULADA**
+
+🎓 Tu cuenta de Moodle ya está conectada con tu progreso de Telegram.
+
+📊 Usa /estadisticas_unificadas para ver tu progreso conjunto.
+
+💡 Si necesitas cambiar la vinculación, contacta @Carlos_esp`;
+    }
+
+    // Generar código de verificación
+    const { code, expiresAt } = await MoodleGamificationService.generateVerificationCode(userId);
+    
+    const expiresIn = Math.floor((expiresAt.getTime() - Date.now()) / (1000 * 60)); // minutos
+
+    return `🎓 <b>VINCULAR CUENTA MOODLE</b>
+
+🔗 Para conectar tu cuenta de Moodle con Telegram y <b>unificar tu gamificación</b>, sigue estos pasos:
+
+<b>📋 PASO 1: Copia tu código de verificación</b>
+\`\`\`
+${code}
+\`\`\`
+
+<b>🌐 PASO 2: Ve a tu plataforma Moodle</b>
+• Entra a tu academia Moodle
+• Ve a tu perfil de usuario
+• Busca la sección "Integración Telegram"
+• Ingresa el código: <b>${code}</b>
+
+<b>⏰ IMPORTANTE:</b>
+• El código expira en <b>${expiresIn} minutos</b>
+• Solo puedes usarlo una vez
+• Asegúrate de estar en tu cuenta correcta de Moodle
+
+<b>🎮 UNA VEZ VINCULADO:</b>
+✅ Tus puntos de Moodle se sumarán automáticamente
+✅ Mismo nivel y ranking unificado  
+✅ Estadísticas combinadas de ambas plataformas
+✅ Progreso sincronizado en tiempo real
+
+💡 ¿Dudas? Contacta @Carlos_esp`;
+
+  } catch (error) {
+    console.error('❌ Error en comando vincular_moodle:', error);
+    return `❌ <b>Error generando código de verificación</b>
+
+Inténtalo de nuevo en unos momentos.
+
+Si el problema persiste, contacta @Carlos_esp`;
+  }
+}
+
+/**
+ * Comando /estado_moodle - Ver estado de vinculación
+ */
+export async function handleEstadoMoodleCommand(userId: string, fromUser: any): Promise<string | null> {
+  try {
+    console.log('📊 ESTADO_MOODLE COMMAND - Ver estado de vinculación');
+
+    const isLinked = await MoodleGamificationService.isUserLinked(userId);
+    
+    if (!isLinked) {
+      return `🔗 <b>CUENTA NO VINCULADA</b>
+
+❌ Tu cuenta de Moodle no está conectada con Telegram.
+
+🚀 <b>Para vincular:</b>
+• Ve a la url https://campus.opomelilla.com/local/telegram_integration/verify.php para generar tu código
+• Usa el comando /codigo_moodle
+• Sigue las instrucciones del código
+
+🎮 <b>Beneficios de vincular:</b>
+✅ Gamificación unificada Telegram + Moodle
+✅ Estadísticas combinadas automáticas
+✅ Mismo nivel y ranking en ambas plataformas
+✅ Progreso sincronizado en tiempo real
+
+💡 ¿Dudas? Contacta @Carlos_esp`;
+    }
+
+    // Obtener estadísticas unificadas
+    const unifiedStats = await MoodleGamificationService.getUnifiedStats(userId);
+
+    return `🎓 <b>CUENTA MOODLE VINCULADA</b> ✅
+
+🔗 <b>Estado:</b> Conectada y sincronizada
+⚡ <b>Sincronización:</b> Automática en tiempo real
+
+📊 <b>ESTADÍSTICAS UNIFICADAS:</b>
+
+🎮 <b>Telegram:</b>
+• Preguntas: ${unifiedStats.unified.platforms.telegram.questions}
+• Correctas: ${unifiedStats.unified.platforms.telegram.correct}
+• Incorrectas: ${unifiedStats.unified.platforms.telegram.questions - unifiedStats.unified.platforms.telegram.correct}
+• Precisión: ${unifiedStats.unified.platforms.telegram.accuracy.toFixed(1)}%
+
+🎓 <b>Moodle:</b>
+• Preguntas: ${unifiedStats.unified.platforms.moodle.questions}
+• Correctas: ${unifiedStats.unified.platforms.moodle.correct}
+• Incorrectas: ${unifiedStats.unified.platforms.moodle.questions - unifiedStats.unified.platforms.moodle.correct}
+• Precisión: ${unifiedStats.unified.platforms.moodle.accuracy.toFixed(1)}%
+
+🏆 <b>TOTALES COMBINADOS:</b>
+• Preguntas: ${unifiedStats.unified.totalQuestions}
+• Correctas: ${unifiedStats.unified.totalCorrect}
+• Incorrectas: ${unifiedStats.unified.totalQuestions - unifiedStats.unified.totalCorrect}
+• Puntos: ${unifiedStats.unified.telegramPoints}
+• Nivel: ${unifiedStats.unified.level}
+• Ranking: #${unifiedStats.unified.rank}
+
+💡 /estadisticas_unificadas - Ver reporte completo`;
+
+  } catch (error) {
+    console.error('❌ Error en comando estado_moodle:', error);
+    return `❌ <b>Error obteniendo estado</b>
+
+Inténtalo de nuevo en unos momentos.
+
+Si el problema persiste, contacta @Carlos_esp`;
+  }
+}
+
+/**
+ * Comando /estadisticas_unificadas - Ver estadísticas detalladas combinadas
+ */
+export async function handleEstadisticasUnificadasCommand(userId: string, fromUser: any): Promise<string | null> {
+  try {
+    console.log('📈 ESTADISTICAS_UNIFICADAS COMMAND - Ver estadísticas completas');
+
+    // Verificar permisos Premium (esta función es Premium)
+    const permission = await checkMilitarySimulationPermission(userId);
+    
+    if (!permission.allowed) {
+      return `🥈 <b>Las estadísticas unificadas requieren plan Premium</b>
+
+📋 <b>Plan actual:</b> Gratuito
+🚀 <b>Solución:</b> Upgrade a plan Premium
+
+💰 <b>OPCIONES DISPONIBLES:</b>
+🥉 /basico - Plan Básico (€4.99/mes)
+🥈 /premium - Plan Premium (€9.99/mes)
+📋 /planes - Ver comparativa completa
+
+💡 **¿Dudas?** Contacta @Carlos_esp`;
+    }
+
+    const isLinked = await MoodleGamificationService.isUserLinked(userId);
+    
+    if (!isLinked) {
+      return `🔗 **Cuenta Moodle no vinculada**
+
+Para ver estadísticas unificadas necesitas:
+1. Vincular tu cuenta de Moodle: /codigo_moodle
+2. Volver a ejecutar este comando
+
+💡 **¿Dudas?** Contacta @Carlos_esp`;
+    }
+
+    const unifiedStats = await MoodleGamificationService.getUnifiedStats(userId);
+
+    // Calcular precisión global
+    const globalAccuracy = unifiedStats.unified.totalQuestions > 0 ? 
+      (unifiedStats.unified.totalCorrect / unifiedStats.unified.totalQuestions) * 100 : 0;
+
+    // Determinar mejor plataforma
+    const telegramAcc = unifiedStats.unified.platforms.telegram.accuracy;
+    const moodleAcc = unifiedStats.unified.platforms.moodle.accuracy;
+    let betterPlatform = 'Equilibrado';
+    
+    if (telegramAcc > moodleAcc + 5) {
+      betterPlatform = '📱 Telegram';
+    } else if (moodleAcc > telegramAcc + 5) {
+      betterPlatform = '🎓 Moodle';
+    }
+
+    return `📊 <b>ESTADÍSTICAS UNIFICADAS PREMIUM</b> 🥈
+
+👤 <b>${fromUser.first_name || 'Usuario'}</b>
+🏆 <b>Nivel ${unifiedStats.unified.level}</b> | <b>Ranking #${unifiedStats.unified.rank}</b>
+
+📱 <b>TELEGRAM:</b>
+• Preguntas respondidas: <b>${unifiedStats.unified.platforms.telegram.questions}</b>
+• Respuestas correctas: <b>${unifiedStats.unified.platforms.telegram.correct}</b>
+• Respuestas incorrectas: <b>${unifiedStats.unified.platforms.telegram.questions - unifiedStats.unified.platforms.telegram.correct}</b>
+• Precisión: <b>${telegramAcc.toFixed(1)}%</b>
+
+🎓 <b>MOODLE:</b>
+• Preguntas respondidas: <b>${unifiedStats.unified.platforms.moodle.questions}</b>
+• Respuestas correctas: <b>${unifiedStats.unified.platforms.moodle.correct}</b>
+• Respuestas incorrectas: <b>${unifiedStats.unified.platforms.moodle.questions - unifiedStats.unified.platforms.moodle.correct}</b>
+• Precisión: <b>${moodleAcc.toFixed(1)}%</b>
+
+🌟 <b>TOTALES GLOBALES:</b>
+• <b>${unifiedStats.unified.totalQuestions}</b> preguntas totales
+• <b>${unifiedStats.unified.totalCorrect}</b> respuestas correctas
+• <b>${unifiedStats.unified.totalQuestions - unifiedStats.unified.totalCorrect}</b> respuestas incorrectas
+• <b>${globalAccuracy.toFixed(1)}%</b> precisión global
+• <b>${unifiedStats.unified.telegramPoints}</b> puntos acumulados
+
+🎯 <b>ANÁLISIS:</b>
+• Mejor rendimiento en: <b>${betterPlatform}</b>
+• Distribución: ${Math.round((unifiedStats.unified.platforms.telegram.questions / unifiedStats.unified.totalQuestions) * 100)}% Telegram, ${Math.round((unifiedStats.unified.platforms.moodle.questions / unifiedStats.unified.totalQuestions) * 100)}% Moodle
+
+💡 <b>RECOMENDACIONES:</b>
+${telegramAcc > moodleAcc ? '• Continúa practicando en Moodle para mejorar' : '• Usa más Telegram para afianzar conocimientos'}
+${globalAccuracy < 70 ? '• Enfócate en mejorar la precisión global' : '• ¡Excelente rendimiento mantenido!'}
+
+🔄 <b>Sincronización:</b> Automática en tiempo real
+📱 /estado_moodle - Ver estado de conexión`;
+
+  } catch (error) {
+    console.error('❌ Error en comando estadisticas_unificadas:', error);
+    return `❌ <b>Error obteniendo estadísticas</b>
+
+Inténtalo de nuevo en unos momentos.
+
+Si el problema persiste, contacta @Carlos_esp`;
+  }
+}
+
+/**
+ * Comando /sincronizar_moodle - Sincronización manual de actividades
+ */
+export async function handleSincronizarMoodleCommand(userId: string, fromUser: any): Promise<string | null> {
+  try {
+    console.log('🔄 SINCRONIZAR_MOODLE COMMAND - Sincronización manual de actividades');
+
+    const isLinked = await MoodleGamificationService.isUserLinked(userId);
+    
+    if (!isLinked) {
+      return `🔗 **Cuenta no vinculada**
+
+❌ Necesitas vincular tu cuenta de Moodle primero.
+
+🚀 **Para vincular:**
+• Usa el comando /codigo_moodle
+• Sigue las instrucciones en https://campus.opomelilla.com/local/telegram_integration/verify.php
+
+💡 ¿Dudas? Contacta @Carlos_esp`;
+    }
+
+    // Llamar al endpoint de sincronización manual
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const syncResponse = await fetch(`${baseUrl}/api/moodle/manual-sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        telegramUserId: userId,
+        forceSync: false
+      })
+    });
+
+    const syncResult = await syncResponse.json();
+
+    if (!syncResult.success) {
+      return `❌ **Error en sincronización**
+
+${syncResult.message}
+
+🔄 **Inténtalo de nuevo en unos momentos.**
+
+💡 Si persiste el problema, contacta @Carlos_esp`;
+    }
+
+    if (syncResult.syncedActivities === 0) {
+      return `✅ **Sincronización completada**
+
+📊 **No hay actividades nuevas para sincronizar**
+
+🕒 **Última sincronización:** Hace unos minutos
+
+💡 Tus actividades ya están actualizadas. Usa /estado_moodle para ver tus estadísticas.`;
+    }
+
+    return `🎉 **¡Sincronización exitosa!**
+
+📊 **Actividades sincronizadas:**
+• ${syncResult.totalQuestions} preguntas nuevas
+• ${syncResult.syncedActivities} quizzes procesados
+
+✅ **Estado:** Todas las actividades actualizadas
+
+🎮 **Próximos pasos:**
+• /estado_moodle - Ver estadísticas actualizadas
+• /estadisticas_unificadas - Ver reporte completo
+
+💡 Tus puntos y estadísticas se han actualizado automáticamente.`;
+
+  } catch (error) {
+    console.error('❌ Error en comando sincronizar_moodle:', error);
+    return `❌ **Error en sincronización**
+
+Inténtalo de nuevo en unos momentos.
+
+Si el problema persiste, contacta @Carlos_esp`;
+  }
+}
+
+/**
+ * Comando /codigo_moodle - Introducir código generado en Moodle
+ */
+export async function handleCodigoMoodleCommand(userId: string, code: string, fromUser: any): Promise<string | null> {
+  try {
+    console.log('🔑 CODIGO_MOODLE COMMAND - Introducir código de Moodle');
+
+    // Verificar que el usuario no ya tenga cuenta vinculada
+    const isLinked = await MoodleGamificationService.isUserLinked(userId);
+    
+    if (isLinked) {
+      return `🔗 **YA TIENES CUENTA VINCULADA**
+
+🎓 Tu cuenta de Moodle ya está conectada con tu progreso de Telegram.
+
+📊 Usa /estadisticas_unificadas para ver tu progreso conjunto.
+
+💡 Si necesitas cambiar la vinculación, contacta @Carlos_esp`;
+    }
+
+    if (!code || code.length !== 6) {
+      return `❌ <b>Código inválido</b>
+
+El código debe tener exactamente 6 caracteres.
+
+<b>📋 Formato correcto:</b>
+\`/codigo_moodle ABC123\`
+
+💡 Genera un nuevo código en tu plataforma Moodle si es necesario.`;
+    }
+
+    // Verificar el código con la API de Moodle
+    const verification = await MoodleGamificationService.verifyMoodleCode(code, userId, fromUser);
+    
+    if (!verification.success) {
+      return `❌ <b>Código no válido o expirado</b>
+
+${verification.message}
+
+<b>🔄 Soluciones:</b>
+• Genera un nuevo código en Moodle
+• Verifica que el código sea correcto
+• Asegúrate de que no haya expirado
+
+💡 Los códigos expiran en 15 minutos.`;
+    }
+
+    return `🎉 <b>¡VINCULACIÓN EXITOSA!</b> ✅
+
+🔗 <b>Tu cuenta de Moodle ya está conectada con Telegram</b>
+
+🎮 <b>BENEFICIOS ACTIVADOS:</b>
+✅ Gamificación unificada automática
+✅ Puntos sincronizados en tiempo real
+✅ Mismo nivel y ranking en ambas plataformas
+✅ Estadísticas combinadas Premium
+
+📊 <b>COMANDOS DISPONIBLES:</b>
+• /estado_moodle - Ver estado de conexión
+• /estadisticas_unificadas - Reporte completo (Premium)
+
+🚀 <b>¡Ahora cuando respondas quizzes en Moodle, tus puntos se actualizarán automáticamente en Telegram!</b>
+
+💡 ¿Dudas? Contacta @Carlos_esp`;
+
+  } catch (error) {
+    console.error('❌ Error en comando codigo_moodle:', error);
+    return `❌ <b>Error procesando código</b>
+
+Inténtalo de nuevo en unos momentos.
+
+Si el problema persiste, contacta @Carlos_esp`;
+  }
+} 

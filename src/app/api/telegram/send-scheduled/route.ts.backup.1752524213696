@@ -1,0 +1,307 @@
+import { NextResponse } from 'next/server';
+import { PrismaService } from '@/services/prismaService';
+import type { SchedulableQuestion } from '@/services/prismaService'; // Importar el tipo
+import { prepareQuizData } from '@/lib/telegramUtils'; // Importar la nueva utilidad
+import { shuffleOptionsForTelegram } from '@/utils/questionUtils'; // <--- AÑADIR IMPORTACIÓN
+// import { TelegramService } from '@/services/telegramService'; // Descomentar si tienes este servicio
+
+// Placeholder para la función de envío real a Telegram
+async function sendQuestionToTelegram(botToken: string, chatId: string, question: SchedulableQuestion): Promise<{success: boolean, messageId?: string, error?: string}> {
+  // --- NUEVOS LOGS: Dentro de sendQuestionToTelegram ---
+  console.log(`[sendQuestionToTelegram] Procesando pregunta ID: ${question.id}, Source: ${question.sourceModel}`);
+  // --- FIN NUEVOS LOGS ---
+
+  let quizData: { question: string; options: string[]; correctAnswerIndex: number; explanation: string } | null = null;
+
+  if (question.sourceModel === 'validQuestion') {
+    // ✅ NUEVO: Usar datos pre-parseados de ValidQuestion
+    try {
+      quizData = JSON.parse(question.content);
+      
+      if (!quizData) {
+        console.error(`[sendQuestionToTelegram] quizData parseado es null para ValidQuestion ID: ${question.id}`);
+        return {
+          success: false,
+          error: `Datos JSON inválidos en ValidQuestion ID: ${question.id}`
+        };
+      }
+      
+      console.log(`[sendQuestionToTelegram] ✅ Usando datos PRE-PARSEADOS de ValidQuestion:`);
+      console.log(`   📝 Pregunta: "${quizData.question.substring(0, 100)}..."`);
+      console.log(`   🔘 Opciones: ${quizData.options.length}`);
+      console.log(`   ✅ Respuesta correcta: ${quizData.correctAnswerIndex + 1}`);
+    } catch (error) {
+      console.error(`[sendQuestionToTelegram] Error parseando contenido JSON de ValidQuestion:`, error);
+      return {
+        success: false,
+        error: `Error parseando datos de ValidQuestion ID: ${question.id}`
+      };
+    }
+  } else {
+    // ⚠️ LEGACY: Para compatibilidad con question/sectionQuestion
+    const initialQuizData = prepareQuizData(question.content);
+    console.log(`[sendQuestionToTelegram] Explicación extraída por prepareQuizData (truncada a 200 chars):`, initialQuizData?.explanationText?.substring(0, 200) + '...');
+    console.log(`[sendQuestionToTelegram] Explicación completa extraída (si existe):`, initialQuizData?.explanationText);
+
+    if (!initialQuizData) {
+      console.error(`[sendQuestionToTelegram] prepareQuizData falló para ID: ${question.id}.`);
+      console.error(`[Scheduler] Error: No se pudieron preparar los datos del quiz para la pregunta ID: ${question.id}, Source: ${question.sourceModel}`);
+      return {
+        success: false,
+        error: `No se pudieron preparar los datos del quiz para la pregunta ID: ${question.id}`
+      };
+    }
+
+    // Convertir a formato uniforme
+    quizData = {
+      question: initialQuizData.questionText,
+      options: initialQuizData.options,
+      correctAnswerIndex: initialQuizData.correctOptionIndex,
+      explanation: initialQuizData.explanationText || 'Respuesta correcta'
+    };
+  }
+
+  // Validación final de quizData
+  if (!quizData) {
+    console.error(`[sendQuestionToTelegram] quizData es null para pregunta ID: ${question.id}`);
+    return {
+      success: false,
+      error: `Datos de quiz no válidos para pregunta ID: ${question.id}`
+    };
+  }
+
+  // Validar que hay suficientes opciones
+  if (!quizData.options || quizData.options.length < 2) {
+    console.error(`[sendQuestionToTelegram] La pregunta ID ${question.id} no tiene suficientes opciones válidas (${quizData.options?.length || 0}).`);
+    return {
+      success: false,
+      error: `Pregunta ID ${question.id} sin suficientes opciones para Telegram.`
+    };
+  }
+
+  // Aleatorizar las opciones ANTES de construir el payload final
+  const randomizedQuizData = shuffleOptionsForTelegram({
+    question: quizData.question,
+    options: quizData.options,
+    correct_option_id: quizData.correctAnswerIndex,
+    explanation: quizData.explanation
+  });
+
+  console.log(`[Scheduler] Enviando Quiz a Telegram (Chat ID: ${chatId}): Pregunta: ${randomizedQuizData.question.substring(0,100)}...`);
+
+  const TELEGRAM_API_URL = `https://api.telegram.org/bot${botToken}/sendPoll`;
+  
+  // Límite de caracteres para la pregunta en Telegram (documentado: 300)
+  const TELEGRAM_QUESTION_MAX_LENGTH = 300;
+
+  let questionForTelegram = randomizedQuizData.question;
+
+  if (questionForTelegram.length > TELEGRAM_QUESTION_MAX_LENGTH) {
+    console.warn(`[sendQuestionToTelegram] La pregunta para la pregunta ID ${question.id} excede el límite de Telegram (${TELEGRAM_QUESTION_MAX_LENGTH} caracteres). Truncando...`);
+    questionForTelegram = questionForTelegram.substring(0, TELEGRAM_QUESTION_MAX_LENGTH - 3) + '...'; // Truncate and add ellipsis
+    console.log(`[sendQuestionToTelegram] Pregunta truncada a ${TELEGRAM_QUESTION_MAX_LENGTH} chars:`, questionForTelegram.substring(0, 200) + '...'); // Log truncated version for debugging
+  }
+
+  const pollPayload: any = {
+    chat_id: chatId,
+    question: questionForTelegram, // Usar texto de pregunta (potencialmente truncado)
+    options: randomizedQuizData.options,    // Usar opciones de randomizedQuizData
+    type: 'quiz',
+    correct_option_id: randomizedQuizData.correct_option_id, // Usar índice correcto de randomizedQuizData
+    is_anonymous: false,
+  };
+
+  // Límite de caracteres para la explicación en Telegram (documentado: 200 para quizzes)
+  const TELEGRAM_EXPLANATION_MAX_LENGTH = 200;
+
+  if (randomizedQuizData.explanation) { // Usar explicación de randomizedQuizData
+    // Use the explanation text directly from randomizedQuizData, applying the length check here.
+    let explanationForTelegram = randomizedQuizData.explanation;
+
+    console.log(`[sendQuestionToTelegram] Explicación extraída por prepareQuizData (completa):`, explanationForTelegram);
+    
+    if (explanationForTelegram.length > TELEGRAM_EXPLANATION_MAX_LENGTH) {
+      console.warn(`[sendQuestionToTelegram] La explicación para la pregunta ID ${question.id} excede el límite de Telegram (${TELEGRAM_EXPLANATION_MAX_LENGTH} caracteres). Truncando...`);
+      explanationForTelegram = explanationForTelegram.substring(0, TELEGRAM_EXPLANATION_MAX_LENGTH - 1) + '…'; // Truncate and add ellipsis
+      console.log(`[sendQuestionToTelegram] Explicación truncada a ${TELEGRAM_EXPLANATION_MAX_LENGTH} chars:`, explanationForTelegram.substring(0, 200) + '...'); // Log truncated version for debugging
+    }
+
+    // Assign the potentially truncated explanation to the payload
+    pollPayload.explanation = explanationForTelegram; // Corrected: Use the variable that holds the explanation (truncated to 200 if needed)
+    
+    // Corrected log to show the actual payload value without modifying it
+    console.log(`[sendQuestionToTelegram] Explicación FINAL en payload:`, pollPayload.explanation ? pollPayload.explanation.substring(0, 200) + '... (log muestra 200/maxLength)' : 'undefined');
+    
+    pollPayload.explanation_parse_mode = 'HTML'; // Asumiendo que la explicación puede tener HTML simple
+  }
+
+  try {
+    const response = await fetch(TELEGRAM_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(pollPayload),
+    });
+    const result = await response.json();
+    // --- NUEVOS LOGS: Resultado de la llamada a la API de Telegram ---
+    console.log(`[sendQuestionToTelegram] Resultado de la API de Telegram para ID ${question.id}:`, result);
+    // --- FIN NUEVOS LOGS ---
+    if (!result.ok) {
+      console.error('[Scheduler] Error de la API de Telegram al enviar poll/quiz:', result);
+      return {
+        success: false,
+        error: `Error de la API de Telegram: ${result.description}`
+      };
+    }
+    console.log('[Scheduler] Quiz enviado exitosamente a Telegram.');
+    
+    // Extraer el message_id de la respuesta para guardar como referencia
+    const telegramMsgId = result.result?.message_id?.toString();
+    
+    return {
+      success: true,
+      messageId: telegramMsgId
+    };
+  } catch (error) {
+    console.error('[Scheduler] Fallo al enviar quiz a Telegram:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+export async function POST(request: Request) {
+  // TODO: Añadir un mecanismo de seguridad (ej. token secreto) para asegurar que solo el cron job llama a este endpoint.
+  console.log('[Scheduler] Endpoint /api/telegram/send-scheduled llamado.');
+
+  try {
+    const aiConfig = await PrismaService.getAIConfig();
+
+    if (!aiConfig) {
+      console.warn('[Scheduler] No se encontró AIConfig. Abortando envío programado.');
+      return NextResponse.json({ message: 'AIConfig no encontrada.' }, { status: 404 });
+    }
+
+    if (!aiConfig.telegramSchedulerEnabled) {
+      console.log('[Scheduler] Los envíos programados de Telegram están deshabilitados. Abortando.');
+      return NextResponse.json({ message: 'Envío programado de Telegram deshabilitado.' });
+    }
+
+    // Lógica de franja horaria mejorada (hora:minuto y cruce de medianoche)
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const startMinutes = (aiConfig.telegramSchedulerStartHour ?? 8) * 60 + (aiConfig.telegramSchedulerStartMinute ?? 0);
+    const endMinutes = (aiConfig.telegramSchedulerEndHour ?? 22) * 60 + (aiConfig.telegramSchedulerEndMinute ?? 0);
+
+    let isWithinSchedule = false;
+    if (startMinutes < endMinutes) {
+      isWithinSchedule = currentMinutes >= startMinutes && currentMinutes < endMinutes;
+    } else if (startMinutes > endMinutes) {
+      isWithinSchedule = currentMinutes >= startMinutes || currentMinutes < endMinutes;
+    } else {
+      isWithinSchedule = true; // 24h
+    }
+
+    if (!isWithinSchedule) {
+      console.log(`[Scheduler] Fuera de la franja horaria permitida (${aiConfig.telegramSchedulerStartHour ?? 8}:${(aiConfig.telegramSchedulerStartMinute ?? 0).toString().padStart(2, '0')}-${aiConfig.telegramSchedulerEndHour ?? 22}:${(aiConfig.telegramSchedulerEndMinute ?? 0).toString().padStart(2, '0')}). No se envía nada.`);
+      return NextResponse.json({ message: `Fuera de la franja horaria permitida (${aiConfig.telegramSchedulerStartHour ?? 8}:${(aiConfig.telegramSchedulerStartMinute ?? 0).toString().padStart(2, '0')}-${aiConfig.telegramSchedulerEndHour ?? 22}:${(aiConfig.telegramSchedulerEndMinute ?? 0).toString().padStart(2, '0')}).` });
+    }
+
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+
+    if (!botToken || !chatId) {
+      console.error('[Scheduler] Error: TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no están configurados.');
+      return NextResponse.json({ error: 'Configuración de Telegram incompleta en el servidor.' }, { status: 500 });
+    }
+
+    const quantity = aiConfig.telegramSchedulerQuantity || 1;
+    const minimumIntervalDays = 30; // Período mínimo antes de que una pregunta pueda repetirse (en días)
+    console.log(`[Scheduler] Intentando enviar ${quantity} quizzes con intervalo mínimo de repetición de ${minimumIntervalDays} días.`);
+
+    let successfulSends = 0;
+    let skip = 0;
+    const MAX_QUESTIONS_TO_PROCESS = quantity * 200; // Límite para evitar bucles infinitos (ej: procesar hasta 200 veces la cantidad)
+    let totalQuestionsProcessed = 0;
+
+    console.log(`[Scheduler] Buscando hasta encontrar ${quantity} quizzes válidos (límite de procesamiento: ${MAX_QUESTIONS_TO_PROCESS} preguntas totales).`);
+
+    while (successfulSends < quantity && totalQuestionsProcessed < MAX_QUESTIONS_TO_PROCESS) {
+      console.log(`[Scheduler] Intento de búsqueda: Lote con skip=${skip}.`);
+      
+      // Usar la función mejorada que incluye el período mínimo de reenvío
+      const questionsBatch = await PrismaService.getQuestionsForTelegramScheduler(quantity, skip, minimumIntervalDays);
+
+      if (!questionsBatch || questionsBatch.length === 0) {
+        console.log(`[Scheduler] No se encontraron más preguntas en la base de datos a partir de skip=${skip}.`);
+        break; // Salir si no hay más preguntas
+      }
+
+      console.log(`[Scheduler] Lote obtenido (cantidad: ${questionsBatch.length}). Procesando...`);
+      totalQuestionsProcessed += questionsBatch.length; // Contar las preguntas procesadas en este lote
+
+      for (const question of questionsBatch) {
+        if (successfulSends >= quantity) {
+          break; // Ya enviamos la cantidad requerida, salir del bucle interno
+        }
+        
+        try {
+          console.log(`[Scheduler] -> Procesando pregunta ID: ${question.id}, Source: ${question.sourceModel}, LastSentAt: ${question.lastScheduledSendAt?.toISOString() || 'Nunca'}, SendCount: ${question.sendCount}`);
+          
+          // 1. Enviar la pregunta y obtener el resultado
+          const sendResult = await sendQuestionToTelegram(botToken, chatId, question);
+          
+          // 2. Actualizar la información en la base de datos con el resultado (éxito o error)
+          await PrismaService.updateLastScheduledSendAt(
+            question.id, 
+            question.sourceModel, 
+            sendResult.success, 
+            sendResult.messageId, 
+            sendResult.error
+          );
+          
+          if (sendResult.success) {
+            successfulSends++;
+            console.log(`[Scheduler] -> Éxito en el envío de quiz ID: ${question.id}. Total enviados: ${successfulSends}/${quantity}.`);
+          } else {
+            console.error(`[Scheduler] -> Error al enviar quiz ID: ${question.id}: ${sendResult.error}`);
+          }
+        } catch (sendError) {
+          console.error(`[Scheduler] -> Fallo al procesar/enviar quiz ID ${question.id}:`, sendError);
+          // Intentamos registrar el error en la base de datos
+          try {
+            await PrismaService.updateLastScheduledSendAt(
+              question.id, 
+              question.sourceModel, 
+              false, 
+              undefined, 
+              sendError instanceof Error ? sendError.message : String(sendError)
+            );
+          } catch (logError) {
+            console.error(`[Scheduler] -> Error adicional al intentar registrar el fallo para ID ${question.id}:`, logError);
+          }
+        }
+      }
+
+      skip += questionsBatch.length; // Aumentar el skip por la cantidad de preguntas procesadas en este lote
+      console.log(`[Scheduler] Lote procesado. Total procesadas hasta ahora: ${totalQuestionsProcessed}. Total enviados hasta ahora: ${successfulSends}. Siguiente skip: ${skip}.`);
+    }
+
+    await PrismaService.updateAIConfig(aiConfig.id, { telegramSchedulerLastRun: new Date() });
+
+    console.log(`[Scheduler] Proceso de envío programado finalizado. ${successfulSends}/${quantity} quizzes enviados exitosamente.`);
+
+    if (successfulSends === 0 && totalQuestionsProcessed >= MAX_QUESTIONS_TO_PROCESS) {
+      console.warn('[Scheduler] No se pudieron enviar quizzes. Se alcanzó el límite máximo de preguntas procesadas sin encontrar suficientes válidas.');
+      return NextResponse.json({ message: 'No se pudieron enviar quizzes. Límite de procesamiento alcanzado.' }, { status: 500 });
+    }
+
+    return NextResponse.json({ message: `Envío programado completado. ${successfulSends} quizzes enviados.` });
+
+  } catch (error) {
+    console.error('[Scheduler] Error catastrófico en el endpoint send-scheduled:', error);
+    return NextResponse.json({ error: 'Error interno del servidor durante el envío programado.' }, { status: 500 });
+  }
+} 

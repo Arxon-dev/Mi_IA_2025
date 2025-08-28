@@ -1,0 +1,397 @@
+import { prisma } from '@/lib/prisma';
+
+// ==========================================
+// 🎖️ SERVICIO DE SIMULACROS MILITARES 
+// ==========================================
+
+export interface MilitarySimulationConfig {
+  branch: 'et' | 'aire' | 'armada';
+  totalQuestions: 100;
+  timeLimit: 105; // minutos (1h 45min como examen oficial)
+  distributions: Record<string, number>;
+}
+
+export interface SimulationQuestion {
+  id: string;
+  questionNumber: number;
+  question: string;
+  options: string[];
+  correctAnswerIndex: number;
+  subject: string;
+  category?: string;
+  difficulty?: string;
+}
+
+export class MilitarySimulationService {
+
+  // ==========================================
+  // 📋 DISTRIBUCIONES EXACTAS POR ARMA MILITAR
+  // ==========================================
+  
+  public static MILITARY_DISTRIBUTIONS: Record<string, Record<string, number>> = {
+    // 🎖️ EJÉRCITO DE TIERRA (100 preguntas)
+    'et': {
+      'constitucion': 7,
+      'defensanacional': 1,
+      'rjsp': 3,
+      'minsdef': 2,
+      'organizacionfas': 4,
+      'emad': 4,
+      'et': 9,
+      'aire': 1,
+      'armada': 1,
+      'carrera': 8,
+      'tropa': 2,
+      'rroo': 7,
+      'derechosydeberes': 3,
+      'rio': 6,
+      'iniciativasquejas': 1,
+      'igualdad': 3,
+      'omi': 2,
+      'pac': 9,
+      'seguridadnacional': 6,
+      'pdc': 12,
+      'onu': 2,
+      'otan': 2,
+      'osce': 2,
+      'ue': 2,
+      'misionesinternacionales': 1
+    },
+    
+    // ✈️ EJÉRCITO DEL AIRE (100 preguntas)
+    'aire': {
+      'constitucion': 4,
+      'defensanacional': 1,
+      'rjsp': 2,
+      'minsdef': 7,
+      'organizacionfas': 2,
+      'emad': 1,
+      'et': 4,
+      'aire': 9,
+      'armada': 3,
+      'carrera': 8,
+      'tropa': 3,
+      'rroo': 6,
+      'derechosydeberes': 2,
+      'rio': 2,
+      'iniciativasquejas': 2,
+      'igualdad': 2,
+      'omi': 1,
+      'pac': 8,
+      'seguridadnacional': 2,
+      'pdc': 6,
+      'onu': 4,
+      'otan': 7,
+      'osce': 4,
+      'ue': 4,
+      'misionesinternacionales': 6
+    },
+    
+    // ⚓ ARMADA (100 preguntas)
+    'armada': {
+      'constitucion': 7,
+      'defensanacional': 5,
+      'rjsp': 4,
+      'minsdef': 3,
+      'organizacionfas': 1,
+      'emad': 2,
+      'et': 2,
+      'aire': 3,
+      'armada': 6,
+      'carrera': 10,
+      'tropa': 3,
+      'rroo': 5,
+      'derechosydeberes': 3,
+      'rio': 3,
+      'iniciativasquejas': 2,
+      'igualdad': 2,
+      'omi': 3,
+      'pac': 3,
+      'seguridadnacional': 6,
+      'pdc': 14,
+      'onu': 2,
+      'otan': 2,
+      'osce': 1,
+      'ue': 3,
+      'misionesinternacionales': 6
+    }
+  };
+
+  // ==========================================
+  // 🗂️ MAPEO A TABLAS DE BASE DE DATOS
+  // ==========================================
+  
+  public static TABLE_MAPPING: Record<string, string> = {
+    'constitucion': 'Constitucion',
+    'defensanacional': 'DefensaNacional',
+    'rjsp': 'Rio', // RJSP usa tabla Rio
+    'rio': 'Rio',
+    'minsdef': 'Minsdef',
+    'organizacionfas': 'OrganizacionFas',
+    'emad': 'Emad',
+    'et': 'Et',
+    'aire': 'Aire',
+    'armada': 'Armada',
+    'carrera': 'Carrera',
+    'tropa': 'TropaMarineria',
+    'rroo': 'Rroo',
+    'derechosydeberes': 'DerechosYDeberes',
+    'iniciativasquejas': 'IniciativasQuejas',
+    'igualdad': 'Igualdad',
+    'omi': 'Omi',
+    'pac': 'Pac',
+    'seguridadnacional': 'SeguridadNacional',
+    'pdc': 'Pdc',
+    'onu': 'Onu',
+    'otan': 'Otan',
+    'osce': 'Osce',
+    'ue': 'Ue',
+    'misionesinternacionales': 'MisionesInternacionales'
+  };
+
+  // ==========================================
+  // 📊 NOMBRES DISPLAY PARA UI
+  // ==========================================
+  
+  private static BRANCH_NAMES = {
+    'et': '🎖️ Ejército de Tierra',
+    'aire': '✈️ Ejército del Aire',
+    'armada': '⚓ Armada'
+  };
+
+  /**
+   * Verificar si el usuario puede crear simulacros militares
+   * Permitido para planes Básico (1/día) y Premium (ilimitado)
+   * Usa el mismo patrón que /mi_plan (que SÍ funciona)
+   */
+  static async canUserCreatePremiumSimulation(userId: string): Promise<boolean> {
+    try {
+      console.log(`🔍 Verificando permisos de simulacros militares para usuario: ${userId}`);
+
+      // Buscar usuario en la base de datos usando telegramUserId
+      const user = await prisma.telegramUser.findUnique({
+        where: { telegramUserId: userId }
+      });
+
+      if (!user) {
+        console.log('❌ Usuario no encontrado en BD');
+        return false;
+      }
+
+      console.log(`✅ Usuario encontrado: ${user.firstName || 'Sin nombre'}`);
+
+      // Buscar suscripción activa usando SQL directo (como /mi_plan que funciona)
+      const activeSubscriptionResult = await prisma.$queryRaw`
+        SELECT 
+          s.*,
+          p."displayName" as "planDisplayName",
+          p."name" as "planName"
+        FROM "UserSubscription" s
+        JOIN "SubscriptionPlan" p ON s."planId" = p."id"
+        WHERE s."userId" = ${user.id} 
+          AND s."status" = 'active' 
+          AND s."endDate" >= NOW()
+        ORDER BY s."createdAt" DESC
+        LIMIT 1
+      ` as any[];
+
+      const activeSubscription = activeSubscriptionResult[0];
+
+      if (!activeSubscription) {
+        console.log('❌ No hay suscripción activa');
+        return false;
+      }
+
+      console.log(`🔍 Suscripción encontrada: ${activeSubscription.planDisplayName}`);
+
+      // Verificar que es plan Básico o Premium
+      const isAllowed = ['basic', 'premium'].includes(activeSubscription.planName);
+      console.log(`🎯 ¿Plan permite simulacros? ${isAllowed ? '✅ SÍ' : '❌ NO'} (${activeSubscription.planName})`);
+
+      return isAllowed;
+
+    } catch (error) {
+      console.error('❌ Error verificando acceso a simulacros militares:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Crear simulacro militar (disponible para planes Básico y Premium)
+   */
+  static async createMilitarySimulation(
+    userId: string, 
+    branch: 'et' | 'aire' | 'armada'
+  ): Promise<{ simulationId: string; questionsSelected: number }> {
+    try {
+      console.log(`🎖️ Creando simulacro militar: ${this.BRANCH_NAMES[branch]} para usuario ${userId}`);
+
+      // Verificar permisos de simulacros (Básico o Premium)
+      const canCreate = await this.canUserCreatePremiumSimulation(userId);
+      if (!canCreate) {
+        throw new Error('Simulacros militares requieren plan de suscripción activa (Básico o Premium)');
+      }
+
+      // Verificar que no tenga un simulacro activo
+      const activeSimulation = await prisma.simulacro.findFirst({
+        where: {
+          user: { telegramUserId: userId },
+          status: 'in_progress',
+          examType: `simulacro_premium_${branch}`
+        }
+      });
+
+      if (activeSimulation) {
+        throw new Error(`Ya tienes un simulacro ${this.BRANCH_NAMES[branch]} activo`);
+      }
+
+      // Obtener distribución para esta rama militar
+      const distribution = this.MILITARY_DISTRIBUTIONS[branch];
+      const questions = await this.selectQuestionsWithDistribution(distribution);
+
+      if (questions.length < 90) { // Mínimo 90% de las preguntas requeridas
+        throw new Error(`Insuficientes preguntas disponibles para ${this.BRANCH_NAMES[branch]} (${questions.length}/100)`);
+      }
+
+      // Asegurar exactamente 100 preguntas
+      const finalQuestions = questions.slice(0, 100);
+
+      // Crear simulacro en BD
+      const simulation = await prisma.simulacro.create({
+        data: {
+          user: { connect: { telegramUserId: userId } },
+          examType: `simulacro_premium_${branch}`,
+          totalQuestions: 100,
+          timeLimit: 105 * 60 // 105 minutos en segundos
+        }
+      });
+
+      console.log(`✅ Simulacro militar creado exitosamente: ${simulation.id}`);
+      
+      return {
+        simulationId: simulation.id,
+        questionsSelected: finalQuestions.length
+      };
+
+    } catch (error) {
+      console.error('Error creando simulacro militar premium:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Seleccionar preguntas según distribución militar EN ORDEN ESTRICTO
+   * Las preguntas se envían en el orden exacto de la distribución militar
+   */
+  private static async selectQuestionsWithDistribution(
+    distribution: Record<string, number>
+  ): Promise<SimulationQuestion[]> {
+    const allQuestions: SimulationQuestion[] = [];
+    
+    console.log('🎖️ SELECCIÓN EN ORDEN MILITAR ESTRICTO:');
+    
+    // Procesar en el orden exacto definido en la distribución
+    for (const [subject, count] of Object.entries(distribution)) {
+      if (count === 0) continue;
+      
+      const tableName = this.TABLE_MAPPING[subject];
+      if (!tableName) {
+        console.warn(`⚠️ Tabla no encontrada para materia: ${subject}`);
+        continue;
+      }
+
+      try {
+        // Query para obtener preguntas aleatorias de esta materia
+        const query = `
+          SELECT id, "questionNumber", question, options, "correctAnswerIndex", category, difficulty
+          FROM "${tableName}" 
+          WHERE "isActive" = true
+          ORDER BY RANDOM()
+          LIMIT $1
+        `;
+
+        const questions = await prisma.$queryRawUnsafe(query, count) as any[];
+        
+        console.log(`📚 ${subject}: ${questions.length}/${count} preguntas obtenidas (posiciones ${allQuestions.length + 1}-${allQuestions.length + questions.length})`);
+
+        // Agregar preguntas en el orden estricto de la materia
+        for (let i = 0; i < questions.length; i++) {
+          const q = questions[i];
+          const questionPosition = allQuestions.length + 1;
+          
+          allQuestions.push({
+            id: q.id,
+            questionNumber: questionPosition, // Posición en el simulacro
+            question: q.question,
+            options: q.options,
+            correctAnswerIndex: q.correctAnswerIndex,
+            subject,
+            category: q.category,
+            difficulty: q.difficulty
+          });
+        }
+
+      } catch (error) {
+        console.error(`Error obteniendo preguntas de ${subject}:`, error);
+      }
+    }
+
+    console.log(`🎯 ORDEN FINAL: Total ${allQuestions.length} preguntas en orden militar estricto`);
+    
+    // ✅ RETORNAR EN ORDEN ESTRICTO (SIN MEZCLAR)
+    return allQuestions;
+  }
+
+  /**
+   * Obtener distribución real de preguntas seleccionadas
+   */
+  private static getActualDistribution(questions: SimulationQuestion[]): Record<string, number> {
+    const distribution: Record<string, number> = {};
+    
+    for (const question of questions) {
+      distribution[question.subject] = (distribution[question.subject] || 0) + 1;
+    }
+    
+    return distribution;
+  }
+
+
+
+  /**
+   * Obtener información de un simulacro militar
+   */
+  static async getMilitarySimulationInfo(simulationId: string) {
+    return await prisma.simulacro.findUnique({
+      where: { id: simulationId },
+      include: {
+        user: true,
+        responses: true
+      }
+    });
+  }
+
+  /**
+   * Verificar si el usuario puede continuar un simulacro militar existente
+   */
+  static async getActiveSimulation(userId: string, branch?: string) {
+    const whereClause: any = {
+      user: { telegramUserId: userId },
+      status: 'in_progress'
+    };
+
+    if (branch) {
+      whereClause.examType = `simulacro_premium_${branch}`;
+    } else {
+      whereClause.examType = {
+        in: ['simulacro_premium_et', 'simulacro_premium_aire', 'simulacro_premium_armada']
+      };
+    }
+
+    return await prisma.simulacro.findFirst({
+      where: whereClause,
+      include: {
+        responses: true
+      }
+    });
+  }
+} 

@@ -1,0 +1,818 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// ✅ FUNCIÓN PARA CALCULAR PRIZEPOOL AUTOMÁTICAMENTE
+function calculateBasePrizePool(participantCount: number, questionsCount: number): number {
+  // Fórmula: Base por pregunta + bonus por participante + multiplicador de competitividad
+  const basePerQuestion = 5; // 5 puntos base por pregunta
+  const participantBonus = participantCount * 10; // 10 puntos adicionales por participante
+  const competitivenessMultiplier = participantCount > 10 ? 1.5 : 1.2; // Más atractivo con más gente
+  
+  const basePrize = (questionsCount * basePerQuestion) + participantBonus;
+  const finalPrize = Math.round(basePrize * competitivenessMultiplier);
+  
+  // Mínimo garantizado de 100 puntos para que sea atractivo
+  return Math.max(finalPrize, 100);
+}
+
+// Función para mezclar un array aleatoriamente (Fisher-Yates shuffle)
+function shuffleArray<T>(array: T[]): T[] {
+  const newArray = [...array];
+  for (let i = newArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+  }
+  return newArray;
+}
+
+// Función para crear notificaciones automáticas del torneo
+async function createTournamentNotifications(tournamentId: string, scheduledDate: Date) {
+  const notifications = [
+    {
+      type: 'REMINDER',
+      minutesBefore: 1440, // 1 día antes
+      message: '⏰ ¡TORNEO MAÑANA! Prepárate para la competición más emocionante'
+    },
+    {
+      type: 'COUNTDOWN_60',
+      minutesBefore: 60, // 1 hora antes
+      message: '🕒 ¡TORNEO EN 1 HORA! Prepárate para la competición'
+    },
+    {
+      type: 'COUNTDOWN_10',
+      minutesBefore: 10,
+      message: '🚨 ¡TORNEO EN 10 MINUTOS! Verifica que puedes recibir mensajes del bot'
+    },
+    {
+      type: 'COUNTDOWN_5',
+      minutesBefore: 5,
+      message: '🔥 ¡TORNEO EN 5 MINUTOS! ¡Prepárate para la acción!'
+    },
+    {
+      type: 'COUNTDOWN_3',
+      minutesBefore: 3,
+      message: '⚡ ¡ÚLTIMOS 3 MINUTOS! El torneo está a punto de comenzar'
+    },
+    {
+      type: 'COUNTDOWN_1',
+      minutesBefore: 1,
+      message: '🏆 ¡1 MINUTO! El torneo comenzará muy pronto'
+    }
+  ];
+
+  for (const notification of notifications) {
+    const scheduledFor = new Date(scheduledDate.getTime() - (notification.minutesBefore * 60 * 1000));
+    
+    // Solo crear notificaciones para fechas futuras
+    if (scheduledFor > new Date()) {
+      await prisma.tournamentNotification.create({
+        data: {
+          tournamentId,
+          type: notification.type as any,
+          scheduledFor,
+          message: notification.message,
+          status: 'pending'
+        }
+      });
+    }
+  }
+  
+  console.log(`✅ Notificaciones programadas creadas para torneo ${tournamentId}`);
+}
+
+// Función para enviar anuncio inmediato de nuevo torneo
+async function sendNewTournamentAnnouncement(tournament: any, questionsAssigned: number) {
+  try {
+    const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
+    const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002352049779';
+    
+    const timeUntilStart = new Date(tournament.scheduledDate).getTime() - Date.now();
+    const hoursUntilStart = Math.ceil(timeUntilStart / (1000 * 60 * 60));
+    const daysUntilStart = Math.ceil(timeUntilStart / (1000 * 60 * 60 * 24));
+    
+    let timeText = '';
+    if (daysUntilStart > 1) {
+      timeText = `en ${daysUntilStart} días`;
+    } else if (hoursUntilStart > 24) {
+      timeText = 'mañana';
+    } else if (hoursUntilStart > 1) {
+      timeText = `en ${hoursUntilStart} horas`;
+    } else {
+      timeText = 'muy pronto';
+    }
+
+    const message = `🏆 <b>¡NUEVO TORNEO ANUNCIADO!</b> 🏆
+
+🎯 <b>${tournament.name}</b>
+📅 ${new Date(tournament.scheduledDate).toLocaleString('es-ES')}
+⏰ Comienza ${timeText}
+
+📋 <b>DETALLES:</b>
+📝 ${questionsAssigned} preguntas oficiales
+⏱️ Máximo ${Math.floor(tournament.timeLimit / 60)} minutos
+💰 ${tournament.prizePool} puntos en juego
+👥 Hasta ${tournament.maxParticipants} participantes
+
+🚀 <b>¡Inscríbete ya!</b>
+• Usa <code>/torneo</code> para ver detalles
+• Usa <code>/torneo_unirse 1</code> para registrarte
+
+💡 <b>Recuerda:</b> El torneo se ejecuta completamente por mensajes privados
+🤖 Asegúrate de poder recibir mensajes de @OpoMelillaBot
+
+⚡ ¡Que comience la competición!`;
+
+    const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        text: message,
+        parse_mode: 'HTML'
+      })
+    });
+
+    const result = await response.json() as any;
+    
+    if (result.ok) {
+      console.log(`✅ Anuncio de nuevo torneo enviado: ${tournament.name}`);
+    } else {
+      console.log(`❌ Error enviando anuncio de torneo: ${result.description}`);
+    }
+  } catch (error) {
+    console.error('❌ Error enviando anuncio de nuevo torneo:', error);
+  }
+}
+
+// 🎯 SISTEMA ROBUSTO: Función para obtener preguntas ya usadas en torneos recientes
+// (Versión temporal usando TournamentQuestion hasta que los nuevos campos estén listos)
+async function getRecentlyUsedQuestions(daysPeriod: number = 30, tournamentId?: string) {
+  try {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysPeriod);
+    
+    // SISTEMA MEJORADO: Buscar preguntas de torneos creados o iniciados recientemente
+    const usedQuestions = await prisma.tournamentQuestion.findMany({
+      where: {
+        tournament: {
+          OR: [
+            {
+              // Torneos que ya iniciaron
+              actualStartTime: {
+                gte: cutoffDate
+              }
+            },
+            {
+              // Torneos creados recientemente (aunque no hayan iniciado)
+              createdAt: {
+                gte: cutoffDate
+              }
+            }
+          ],
+          // Excluir el torneo actual si se especifica
+          ...(tournamentId ? { id: { not: tournamentId } } : {})
+        }
+      },
+      select: {
+        questionId: true,
+        sourceTable: true
+      },
+      distinct: ['questionId', 'sourceTable']
+    });
+    
+    console.log(`🔍 SISTEMA MEJORADO: Encontradas ${usedQuestions.length} preguntas usadas en los últimos ${daysPeriod} días`);
+    console.log(`📊 Incluyendo torneos creados y/o iniciados desde: ${cutoffDate.toLocaleDateString()}`);
+    
+    if (usedQuestions.length === 0) {
+      console.log(`💡 PRIMERA VEZ: No hay preguntas usadas recientemente. Todas las preguntas están disponibles.`);
+    } else {
+      // Log de debug para ver qué preguntas están siendo excluidas
+      const questionIds2018 = usedQuestions.filter(q => q.sourceTable === 'ExamenOficial2018').length;
+      const questionIds2024 = usedQuestions.filter(q => q.sourceTable === 'ExamenOficial2024').length;
+      console.log(`📋 Preguntas a excluir: ${questionIds2018} del 2018, ${questionIds2024} del 2024`);
+    }
+    
+    return usedQuestions.map(q => ({
+      questionId: q.questionId,
+      sourceTable: q.sourceTable
+    }));
+  } catch (error) {
+    console.error('❌ Error obteniendo preguntas usadas recientemente:', error);
+    return [];
+  }
+}
+
+// Función para asignar preguntas automáticamente al torneo
+async function assignQuestionsToTournament(
+  tournamentId: string, 
+  config: {
+    totalQuestions: number;
+    examSource: 'both' | '2018' | '2024' | 'all' | 'valid';
+    difficulty: 'easy' | 'medium' | 'hard' | 'mixed';
+    questionCategory?: string;
+  }
+) {
+  try {
+    console.log(`🎯 Asignando ${config.totalQuestions} preguntas al torneo ${tournamentId}`);
+    console.log(`📊 Configuración: fuente=${config.examSource}, dificultad=${config.difficulty}`);
+    
+    // Obtener preguntas ya usadas recientemente para evitar repetición
+    const recentlyUsedQuestions = await getRecentlyUsedQuestions(30, tournamentId); // No repetir en 30 días
+    const usedQuestionIds2018 = recentlyUsedQuestions
+      .filter(q => q.sourceTable === 'ExamenOficial2018')
+      .map(q => q.questionId);
+    const usedQuestionIds2024 = recentlyUsedQuestions
+      .filter(q => q.sourceTable === 'ExamenOficial2024')
+      .map(q => q.questionId);
+    const usedQuestionIdsValid = recentlyUsedQuestions
+      .filter(q => q.sourceTable === 'ValidQuestion')
+      .map(q => q.questionId);
+    
+    console.log(`🚫 Excluyendo ${usedQuestionIds2018.length} preguntas del 2018, ${usedQuestionIds2024.length} del 2024 y ${usedQuestionIdsValid.length} de ValidQuestion usadas recientemente`);
+    
+    let selectedQuestions: Array<{
+      questionId: string;
+      sourceTable: string;
+      questionNumber: number;
+    }> = [];
+
+    // Calcular distribución de preguntas entre fuentes
+    let questions2018Count = 0;
+    let questions2024Count = 0;
+    let questionsValidCount = 0;
+    
+    if (config.examSource === 'both') {
+      questions2018Count = Math.floor(config.totalQuestions / 2);
+      questions2024Count = config.totalQuestions - questions2018Count;
+    } else if (config.examSource === '2018') {
+      questions2018Count = config.totalQuestions;
+    } else if (config.examSource === '2024') {
+      questions2024Count = config.totalQuestions;
+    } else if (config.examSource === 'valid') {
+      questionsValidCount = config.totalQuestions;
+    } else if (config.examSource === 'all') {
+      // Distribución personalizada: 40% 2018, 40% 2024, 20% ValidQuestion
+      questions2018Count = Math.round(config.totalQuestions * 0.4);
+      questions2024Count = Math.round(config.totalQuestions * 0.4);
+      questionsValidCount = config.totalQuestions - questions2018Count - questions2024Count;
+      
+      console.log(`📊 Distribución personalizada aplicada:`);
+      console.log(`   🏆 2018: ${questions2018Count} preguntas (${((questions2018Count/config.totalQuestions)*100).toFixed(1)}%)`);
+      console.log(`   🏆 2024: ${questions2024Count} preguntas (${((questions2024Count/config.totalQuestions)*100).toFixed(1)}%)`);
+      console.log(`   🏆 ValidQuestion: ${questionsValidCount} preguntas (${((questionsValidCount/config.totalQuestions)*100).toFixed(1)}%)`);
+    }
+
+    // Seleccionar preguntas de ExamenOficial2018
+    if (questions2018Count > 0) {
+      const whereClause: any = { isActive: true };
+      
+      // Excluir preguntas ya usadas recientemente
+      if (usedQuestionIds2018.length > 0) {
+        whereClause.id = { notIn: usedQuestionIds2018 };
+      }
+      
+      // Filtrar por categoría si se especifica
+      if (config.questionCategory && config.questionCategory !== 'mixed') {
+        whereClause.category = config.questionCategory;
+      }
+      
+      // Filtrar por dificultad si no es "mixed"
+      if (config.difficulty !== 'mixed') {
+        whereClause.difficulty = config.difficulty.toUpperCase();
+      }
+
+      const questions2018 = await prisma.examenOficial2018.findMany({
+        where: whereClause,
+        orderBy: [
+          { sendCount: 'asc' },  // Priorizar preguntas menos usadas
+          { questionNumber: 'asc' }
+        ],
+        take: questions2018Count * 3 // Tomar más para tener variedad y filtrar preguntas largas
+      });
+
+      // ✅ FILTRAR PREGUNTAS DEMASIADO LARGAS PARA POLLS DE TELEGRAM
+      const TELEGRAM_POLL_MAX_LENGTH = 300;
+      const tournamentHeaderLength = 60; // Estimación promedio del header de torneo
+      const maxQuestionLength = TELEGRAM_POLL_MAX_LENGTH - tournamentHeaderLength;
+      
+      const filteredQuestions2018 = questions2018.filter(q => {
+        const isValidLength = q.question.length <= maxQuestionLength;
+        if (!isValidLength) {
+          console.log(`⚠️ Pregunta ${q.questionNumber} del 2018 filtrada por longitud (${q.question.length} chars)`);
+        }
+        return isValidLength;
+      });
+
+      console.log(`📚 Encontradas ${questions2018.length} preguntas del 2018, ${filteredQuestions2018.length} válidas para torneos (excluyendo ${usedQuestionIds2018.length} usadas recientemente)`);
+
+      // Si no hay suficientes preguntas sin usar, usar las usadas recientemente como fallback
+      let availableQuestions2018 = filteredQuestions2018;
+              if (filteredQuestions2018.length < questions2018Count) {
+        console.log(`⚠️ Preguntas válidas disponibles insuficientes del 2018. Habilitando preguntas usadas recientemente como fallback...`);
+        
+        const fallbackWhereClause = { ...whereClause };
+        delete fallbackWhereClause.id; // Remover la exclusión
+        
+        const fallbackQuestions = await prisma.examenOficial2018.findMany({
+          where: fallbackWhereClause,
+          orderBy: [
+            { sendCount: 'asc' },
+            { questionNumber: 'asc' }
+          ]
+        });
+        
+        // También filtrar preguntas largas en el fallback
+        const filteredFallbackQuestions = fallbackQuestions.filter(q => {
+          const isValidLength = q.question.length <= maxQuestionLength;
+          if (!isValidLength) {
+            console.log(`⚠️ Pregunta fallback ${q.questionNumber} del 2018 filtrada por longitud (${q.question.length} chars)`);
+          }
+          return isValidLength;
+        });
+        
+        availableQuestions2018 = filteredFallbackQuestions;
+        console.log(`🔄 Usando ${filteredFallbackQuestions.length} preguntas válidas del 2018 incluyendo las usadas recientemente`);
+      }
+
+      // Seleccionar aleatoriamente la cantidad necesaria
+      const shuffled2018 = shuffleArray(availableQuestions2018).slice(0, questions2018Count);
+      
+      selectedQuestions.push(...shuffled2018.map((q, index) => ({
+        questionId: q.id,
+        sourceTable: 'ExamenOficial2018',
+        questionNumber: index + 1
+      })));
+
+      // Si no se obtuvieron suficientes preguntas del 2018, ajustar el conteo para 2024
+      const actualQuestions2018 = shuffled2018.length;
+      if (actualQuestions2018 < questions2018Count) {
+        const deficit = questions2018Count - actualQuestions2018;
+        questions2024Count += deficit;
+        console.log(`⚠️ Solo se encontraron ${actualQuestions2018} preguntas del 2018 de ${questions2018Count} requeridas. Compensando con ${deficit} adicionales del 2024`);
+      }
+    }
+
+    // Seleccionar preguntas de ExamenOficial2024
+    if (questions2024Count > 0) {
+      const whereClause: any = { isActive: true };
+      
+      // Excluir preguntas ya usadas recientemente
+      if (usedQuestionIds2024.length > 0) {
+        whereClause.id = { notIn: usedQuestionIds2024 };
+      }
+      
+      // Filtrar por categoría si se especifica
+      if (config.questionCategory && config.questionCategory !== 'mixed') {
+        whereClause.category = config.questionCategory;
+      }
+      
+      // Filtrar por dificultad si no es "mixed"
+      if (config.difficulty !== 'mixed') {
+        whereClause.difficulty = config.difficulty.toUpperCase();
+      }
+
+      const questions2024 = await prisma.examenOficial2024.findMany({
+        where: whereClause,
+        orderBy: [
+          { sendCount: 'asc' },  // Priorizar preguntas menos usadas
+          { questionNumber: 'asc' }
+        ],
+        take: questions2024Count * 3 // Tomar más para tener variedad y filtrar preguntas largas
+      });
+
+      // ✅ FILTRAR PREGUNTAS DEMASIADO LARGAS PARA POLLS DE TELEGRAM
+      const TELEGRAM_POLL_MAX_LENGTH = 300;
+      const tournamentHeaderLength = 60; // Estimación promedio del header de torneo
+      const maxQuestionLength = TELEGRAM_POLL_MAX_LENGTH - tournamentHeaderLength;
+      
+      const filteredQuestions2024 = questions2024.filter(q => {
+        const isValidLength = q.question.length <= maxQuestionLength;
+        if (!isValidLength) {
+          console.log(`⚠️ Pregunta ${q.questionNumber} del 2024 filtrada por longitud (${q.question.length} chars)`);
+        }
+        return isValidLength;
+      });
+
+      console.log(`📚 Encontradas ${questions2024.length} preguntas del 2024, ${filteredQuestions2024.length} válidas para torneos (excluyendo ${usedQuestionIds2024.length} usadas recientemente)`);
+
+      // Si no hay suficientes preguntas sin usar, usar las usadas recientemente como fallback
+      let availableQuestions2024 = filteredQuestions2024;
+              if (filteredQuestions2024.length < questions2024Count) {
+        console.log(`⚠️ Preguntas válidas disponibles insuficientes del 2024. Habilitando preguntas usadas recientemente como fallback...`);
+        
+        const fallbackWhereClause = { ...whereClause };
+        delete fallbackWhereClause.id; // Remover la exclusión
+        
+        const fallbackQuestions = await prisma.examenOficial2024.findMany({
+          where: fallbackWhereClause,
+          orderBy: [
+            { sendCount: 'asc' },
+            { questionNumber: 'asc' }
+          ]
+        });
+        
+        // También filtrar preguntas largas en el fallback
+        const filteredFallbackQuestions = fallbackQuestions.filter(q => {
+          const isValidLength = q.question.length <= maxQuestionLength;
+          if (!isValidLength) {
+            console.log(`⚠️ Pregunta fallback ${q.questionNumber} del 2024 filtrada por longitud (${q.question.length} chars)`);
+          }
+          return isValidLength;
+        });
+        
+        availableQuestions2024 = filteredFallbackQuestions;
+        console.log(`🔄 Usando ${filteredFallbackQuestions.length} preguntas válidas del 2024 incluyendo las usadas recientemente`);
+      }
+
+      // Seleccionar aleatoriamente la cantidad necesaria
+      const shuffled2024 = shuffleArray(availableQuestions2024).slice(0, questions2024Count);
+      
+      selectedQuestions.push(...shuffled2024.map((q, index) => ({
+        questionId: q.id,
+        sourceTable: 'ExamenOficial2024',
+        questionNumber: selectedQuestions.length + index + 1
+      })));
+
+      // Verificar si se obtuvieron suficientes preguntas en total
+      const actualQuestions2024 = shuffled2024.length;
+      if (actualQuestions2024 < questions2024Count) {
+        const deficit = questions2024Count - actualQuestions2024;
+        questionsValidCount += deficit;
+        console.log(`⚠️ Solo se encontraron ${actualQuestions2024} preguntas del 2024 de ${questions2024Count} requeridas. Compensando con ${deficit} adicionales de ValidQuestion`);
+      }
+    }
+
+    // Seleccionar preguntas de ValidQuestion
+    if (questionsValidCount > 0) {
+      const whereClause: any = { isActive: true };
+      
+      // Excluir preguntas ya usadas recientemente
+      if (usedQuestionIdsValid.length > 0) {
+        whereClause.id = { notIn: usedQuestionIdsValid };
+      }
+      
+      // Filtrar por categoría si se especifica
+      if (config.questionCategory && config.questionCategory !== 'mixed') {
+        whereClause.type = config.questionCategory;
+      }
+      
+      // Filtrar por dificultad si no es "mixed"
+      if (config.difficulty !== 'mixed') {
+        whereClause.difficulty = config.difficulty.toLowerCase();
+      }
+
+      const questionsValid = await prisma.validQuestion.findMany({
+        where: whereClause,
+        orderBy: [
+          { sendCount: 'asc' },  // Priorizar preguntas menos usadas
+          { createdAt: 'asc' }
+        ],
+        take: questionsValidCount * 3 // Tomar más para tener variedad y filtrar preguntas largas
+      });
+
+      // ✅ FILTRAR PREGUNTAS DEMASIADO LARGAS PARA POLLS DE TELEGRAM
+      const TELEGRAM_POLL_MAX_LENGTH = 300;
+      const tournamentHeaderLength = 60; // Estimación promedio del header de torneo
+      const maxQuestionLength = TELEGRAM_POLL_MAX_LENGTH - tournamentHeaderLength;
+      
+      const filteredQuestionsValid = questionsValid.filter(q => {
+        const isValidLength = q.parsedQuestion.length <= maxQuestionLength;
+        const options = q.parsedOptions as string[];
+        const hasValidOptions = Array.isArray(options) && options.length >= 2 && options.length <= 4;
+        const hasValidAnswer = q.correctAnswerIndex >= 0 && q.correctAnswerIndex < (options?.length || 0);
+        
+        if (!isValidLength) {
+          console.log(`⚠️ Pregunta ValidQuestion ${q.id.substring(0, 8)} filtrada por longitud (${q.parsedQuestion.length} chars)`);
+        }
+        if (!hasValidOptions) {
+          console.log(`⚠️ Pregunta ValidQuestion ${q.id.substring(0, 8)} filtrada por opciones inválidas`);
+        }
+        if (!hasValidAnswer) {
+          console.log(`⚠️ Pregunta ValidQuestion ${q.id.substring(0, 8)} filtrada por respuesta correcta inválida`);
+        }
+        
+        return isValidLength && hasValidOptions && hasValidAnswer;
+      });
+
+      console.log(`📚 Encontradas ${questionsValid.length} preguntas de ValidQuestion, ${filteredQuestionsValid.length} válidas para torneos (excluyendo ${usedQuestionIdsValid.length} usadas recientemente)`);
+
+      // Si no hay suficientes preguntas sin usar, usar las usadas recientemente como fallback
+      let availableQuestionsValid = filteredQuestionsValid;
+      if (filteredQuestionsValid.length < questionsValidCount) {
+        console.log(`⚠️ Preguntas válidas disponibles insuficientes de ValidQuestion. Habilitando preguntas usadas recientemente como fallback...`);
+        
+        const fallbackWhereClause = { ...whereClause };
+        delete fallbackWhereClause.id; // Remover la exclusión
+        
+        const fallbackQuestions = await prisma.validQuestion.findMany({
+          where: fallbackWhereClause,
+          orderBy: [
+            { sendCount: 'asc' },
+            { createdAt: 'asc' }
+          ]
+        });
+        
+        // También filtrar preguntas problemáticas en el fallback
+        const filteredFallbackQuestions = fallbackQuestions.filter(q => {
+          const isValidLength = q.parsedQuestion.length <= maxQuestionLength;
+          const options = q.parsedOptions as string[];
+          const hasValidOptions = Array.isArray(options) && options.length >= 2 && options.length <= 4;
+          const hasValidAnswer = q.correctAnswerIndex >= 0 && q.correctAnswerIndex < (options?.length || 0);
+          
+          return isValidLength && hasValidOptions && hasValidAnswer;
+        });
+        
+        availableQuestionsValid = filteredFallbackQuestions;
+        console.log(`🔄 Usando ${filteredFallbackQuestions.length} preguntas válidas de ValidQuestion incluyendo las usadas recientemente`);
+      }
+
+      // Seleccionar aleatoriamente la cantidad necesaria
+      const shuffledValid = shuffleArray(availableQuestionsValid).slice(0, questionsValidCount);
+      
+      selectedQuestions.push(...shuffledValid.map((q, index) => ({
+        questionId: q.id,
+        sourceTable: 'ValidQuestion',
+        questionNumber: selectedQuestions.length + index + 1
+      })));
+
+      // Verificar si se obtuvieron suficientes preguntas en total
+      const actualQuestionsValid = shuffledValid.length;
+      if (actualQuestionsValid < questionsValidCount) {
+        console.log(`⚠️ Solo se encontraron ${actualQuestionsValid} preguntas de ValidQuestion de ${questionsValidCount} requeridas`);
+      }
+    }
+
+    // Mezclar todas las preguntas seleccionadas y renumerar
+    const finalQuestions = shuffleArray(selectedQuestions).map((q, index) => ({
+      ...q,
+      questionNumber: index + 1
+    }));
+
+    console.log(`🔀 Mezcladas ${finalQuestions.length} preguntas para asignación final`);
+
+    // Crear registros en TournamentQuestion
+    const createdQuestions = await Promise.all(
+      finalQuestions.map(async (q) => {
+        return await prisma.tournamentQuestion.create({
+          data: {
+            tournamentId,
+            questionId: q.questionId,
+            questionNumber: q.questionNumber,
+            sourceTable: q.sourceTable
+          }
+        });
+      })
+    );
+
+    console.log(`✅ Asignadas ${createdQuestions.length} preguntas al torneo`);
+    
+    // 🎯 ACTUALIZAR CAMPOS DE TRACKING EN LAS PREGUNTAS USADAS
+    await updateQuestionTrackingFields(tournamentId, finalQuestions);
+    
+    console.log(`📊 Resumen de exclusión: ${recentlyUsedQuestions.length} preguntas excluidas de torneos recientes`);
+    console.log(`🔄 Sistema robusto de anti-repetición activado`);
+    
+    return {
+      success: true,
+      questionsAssigned: createdQuestions.length,
+      distribution: {
+        questions2018: questions2018Count,
+        questions2024: questions2024Count,
+        questionsValid: questionsValidCount
+      },
+      exclusionInfo: {
+        recentlyUsedQuestions: recentlyUsedQuestions.length,
+        usedQuestions2018: usedQuestionIds2018.length,
+        usedQuestions2024: usedQuestionIds2024.length,
+        usedQuestionsValid: usedQuestionIdsValid.length,
+        exclusionPeriodDays: 30
+      }
+    };
+
+  } catch (error) {
+    console.error('❌ Error asignando preguntas:', error);
+    throw error;
+  }
+}
+
+// 🎯 FUNCIÓN PARA ACTUALIZAR CAMPOS DE TRACKING EN PREGUNTAS USADAS
+// (Versión temporal - se activará cuando el cliente Prisma tenga los nuevos campos)
+async function updateQuestionTrackingFields(
+  tournamentId: string, 
+  selectedQuestions: Array<{ questionId: string; sourceTable: string; questionNumber: number }>
+) {
+  try {
+    console.log(`📝 [SISTEMA ROBUSTO] Preparado para actualizar tracking de ${selectedQuestions.length} preguntas...`);
+    console.log(`🚧 [TEMPORAL] Los nuevos campos de tracking están en proceso de despliegue`);
+    
+    // TODO: Activar cuando el cliente Prisma tenga los nuevos campos:
+    // - lastUsedInTournament: DateTime
+    // - tournamentUsageCount: Int  
+    // - lastTournamentId: String
+    
+    console.log(`🎯 Sistema de tracking robusto preparado para la próxima actualización`);
+    
+  } catch (error) {
+    console.error('❌ Error en sistema de tracking:', error);
+    // No fallar el torneo por un error de tracking
+  }
+}
+
+// GET /api/admin/tournaments - Obtener todos los torneos
+export async function GET() {
+  try {
+    // Consultar todos los torneos de la base de datos real
+    const tournaments = await prisma.tournament.findMany({
+      include: {
+        participants: true,
+        questions: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    console.log(`📊 Encontrados ${tournaments.length} torneos en la base de datos`);
+
+    // Transformar los datos para que coincidan con la interfaz
+    const formattedTournaments = tournaments.map(tournament => {
+      let status: 'draft' | 'active' | 'completed' | 'cancelled' = 'draft';
+      
+      switch (tournament.status) {
+        case 'SCHEDULED':
+        case 'REGISTRATION_OPEN':
+        case 'READY_TO_START':
+          status = 'draft';
+          break;
+        case 'IN_PROGRESS':
+          status = 'active';
+          break;
+        case 'COMPLETED':
+          status = 'completed';
+          break;
+        case 'CANCELLED':
+          status = 'cancelled';
+          break;
+        default:
+          status = 'draft';
+      }
+
+      return {
+        id: tournament.id.toString(),
+        name: tournament.name,
+        description: tournament.description || 'Sin descripción',
+        totalQuestions: tournament.questionsCount || 0,
+        duration: Math.round((tournament.timeLimit || 600) / 60), // convertir de segundos a minutos
+        startTime: tournament.scheduledDate?.toISOString() || tournament.createdAt.toISOString(),
+        endTime: tournament.endTime?.toISOString() || null,
+        status,
+        participants: tournament.participants?.length || 0,
+        questions: tournament.questions?.map(q => ({
+          id: q.id.toString(),
+          questionText: `Pregunta ${q.questionNumber}`,
+          options: ['Opción A', 'Opción B', 'Opción C', 'Opción D'],
+          correctOption: 0,
+          difficulty: 'medium' as const,
+          category: q.sourceTable || 'General',
+          points: 10,
+        })) || [],
+        createdAt: tournament.createdAt.toISOString(),
+      };
+    });
+
+    return NextResponse.json(formattedTournaments);
+  } catch (error) {
+    console.error('Error fetching tournaments:', error);
+    return NextResponse.json(
+      { error: 'Error al obtener los torneos' },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/admin/tournaments - Crear un nuevo torneo con preguntas asignadas automáticamente
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const {
+      name,
+      description,
+      totalQuestions,
+      duration,
+      startTime,
+      questionCategory = 'mixed',
+      difficulty = 'mixed',
+      examSource = 'all'
+    } = body;
+
+    console.log('🏆 Creando nuevo torneo:', { name, totalQuestions, difficulty, examSource });
+
+    // Validaciones básicas
+    if (!name || !startTime || !totalQuestions || !duration) {
+      return NextResponse.json(
+        { error: 'Faltan campos requeridos: name, startTime, totalQuestions, duration' },
+        { status: 400 }
+      );
+    }
+
+    if (totalQuestions < 1 || totalQuestions > 100) {
+      return NextResponse.json(
+        { error: 'El número de preguntas debe estar entre 1 y 100' },
+        { status: 400 }
+      );
+    }
+
+    // ✅ CALCULAR PRIZEPOOL AUTOMÁTICAMENTE
+    const initialParticipants = 0; // Al crear el torneo no hay participantes aún
+    const questionsCount = parseInt(totalQuestions.toString());
+    const basePrizePool = calculateBasePrizePool(initialParticipants, questionsCount);
+
+    // Crear el torneo en la base de datos
+    const tournament = await prisma.tournament.create({
+      data: {
+        name,
+        description: description || `Torneo de ${totalQuestions} preguntas`,
+        scheduledDate: new Date(startTime),
+        startTime: new Date(startTime),
+        status: 'SCHEDULED',
+        questionsCount: questionsCount,
+        timeLimit: parseInt(duration.toString()) * 60, // convertir minutos a segundos
+        maxParticipants: 100,
+        prizePool: basePrizePool // ✅ YA NO ES 0 - CALCULADO AUTOMÁTICAMENTE
+      }
+    });
+
+    console.log(`✅ Torneo creado con ID: ${tournament.id}`);
+
+    // Asignar preguntas automáticamente
+    const questionAssignmentResult = await assignQuestionsToTournament(tournament.id, {
+      totalQuestions: parseInt(totalQuestions.toString()),
+      examSource: examSource as 'both' | '2018' | '2024' | 'all' | 'valid',
+      difficulty: difficulty as 'easy' | 'medium' | 'hard' | 'mixed',
+      questionCategory
+    });
+
+    // Obtener el torneo completo con preguntas para la respuesta
+    const completeTournament = await prisma.tournament.findUnique({
+      where: { id: tournament.id },
+      include: {
+        participants: true,
+        questions: true
+      }
+    });
+
+    if (!completeTournament) {
+      throw new Error('Error al obtener el torneo creado');
+    }
+
+    // Formatear respuesta
+    const formattedTournament = {
+      id: completeTournament.id.toString(),
+      name: completeTournament.name,
+      description: completeTournament.description || 'Sin descripción',
+      totalQuestions: completeTournament.questionsCount || 0,
+      duration: Math.round((completeTournament.timeLimit || 600) / 60),
+      startTime: completeTournament.scheduledDate?.toISOString() || completeTournament.createdAt.toISOString(),
+      endTime: completeTournament.endTime?.toISOString() || null,
+      status: 'draft' as const,
+      participants: completeTournament.participants?.length || 0,
+      questions: completeTournament.questions?.map(q => ({
+        id: q.id.toString(),
+        questionText: `Pregunta ${q.questionNumber}`,
+        options: ['Opción A', 'Opción B', 'Opción C', 'Opción D'],
+        correctOption: 0,
+        difficulty: 'medium' as const,
+        category: q.sourceTable || 'General',
+        points: 10,
+      })) || [],
+      createdAt: completeTournament.createdAt.toISOString(),
+    };
+
+    console.log(`🎉 Torneo "${name}" creado exitosamente con ${questionAssignmentResult.questionsAssigned} preguntas`);
+
+          // Crear notificaciones automáticas del torneo
+      await createTournamentNotifications(tournament.id, new Date(startTime));
+      
+      // Enviar notificación inmediata de nuevo torneo al grupo
+      await sendNewTournamentAnnouncement(tournament, questionAssignmentResult.questionsAssigned);
+
+    return NextResponse.json({
+      ...formattedTournament,
+      questionAssignment: questionAssignmentResult
+    });
+
+  } catch (error) {
+    console.error('❌ Error creating tournament:', error);
+    return NextResponse.json(
+      { 
+        error: 'Error al crear el torneo',
+        details: error instanceof Error ? error.message : 'Error desconocido'
+      },
+      { status: 500 }
+    );
+  } finally {
+    await prisma.$disconnect();
+  }
+} 

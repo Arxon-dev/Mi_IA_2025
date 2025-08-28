@@ -1,0 +1,78 @@
+#!/usr/bin/env tsx
+
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function findCapitalQuestion() {
+  try {
+    console.log('🔍 BUSCANDO PREGUNTA DE LA CAPITAL EN ExamenOficial2018...\n');
+    
+    // Buscar pregunta que contenga "capital"
+    const madridQuestion = await prisma.examenOficial2018.findFirst({
+      where: {
+        question: { contains: 'capital', mode: 'insensitive' }
+      }
+    });
+    
+    if (madridQuestion) {
+      console.log('❌ PROBLEMA ENCONTRADO:');
+      console.log(`   Número: ${madridQuestion.questionNumber}`);
+      console.log(`   ID: ${madridQuestion.id}`);
+      console.log(`   Pregunta: ${madridQuestion.question}`);
+      console.log(`   Opciones: ${madridQuestion.options}`);
+      console.log(`   Respuesta correcta: ${madridQuestion.correctAnswerIndex} (${madridQuestion.options[madridQuestion.correctAnswerIndex]})`);
+      console.log(`   Categoría: ${madridQuestion.category || 'N/A'}`);
+      console.log(`   Activa: ${madridQuestion.isActive}`);
+      console.log(`   Enviada ${madridQuestion.sendCount} veces`);
+    } else {
+      console.log('✅ NO SE ENCONTRÓ pregunta de capital');
+    }
+    
+    // Mostrar estadísticas generales
+    const total = await prisma.examenOficial2018.count();
+    const active = await prisma.examenOficial2018.count({ where: { isActive: true } });
+    
+    console.log(`\n📊 ESTADÍSTICAS GENERALES:`);
+    console.log(`   Total preguntas: ${total}`);
+    console.log(`   Activas: ${active}`);
+    
+    // Mostrar primera pregunta para comparar
+    const firstQuestion = await prisma.examenOficial2018.findFirst({
+      where: { questionNumber: 1 }
+    });
+    
+    if (firstQuestion) {
+      console.log(`\n🔍 PRIMERA PREGUNTA (para comparar):`);
+      console.log(`   Pregunta: ${firstQuestion.question.substring(0, 100)}...`);
+      console.log(`   Opciones: ${firstQuestion.options.length}`);
+    }
+    
+    // Buscar preguntas con geografía básica
+    const basicGeoQuestions = await prisma.examenOficial2018.findMany({
+      where: {
+        OR: [
+          { question: { contains: 'Madrid', mode: 'insensitive' } },
+          { question: { contains: 'Barcelona', mode: 'insensitive' } },
+          { question: { contains: 'Valencia', mode: 'insensitive' } },
+          { question: { contains: 'Sevilla', mode: 'insensitive' } }
+        ]
+      },
+      take: 5
+    });
+    
+    if (basicGeoQuestions.length > 0) {
+      console.log(`\n⚠️ PREGUNTAS DE GEOGRAFÍA BÁSICA ENCONTRADAS (${basicGeoQuestions.length}):`);
+      basicGeoQuestions.forEach((q, i) => {
+        console.log(`   ${i+1}. [${q.questionNumber}] ${q.question.substring(0, 80)}...`);
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+findCapitalQuestion(); 

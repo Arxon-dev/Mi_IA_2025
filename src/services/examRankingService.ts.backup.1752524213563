@@ -1,0 +1,330 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+export interface ExamRankingEntry {
+  rank: number;
+  user: {
+    telegramUserId: string;
+    username?: string;
+    firstName?: string;
+  };
+  totalQuestions: number;
+  correctAnswers: number;
+  accuracy: number;
+  averageTime: number;
+  lastAttempt: Date;
+}
+
+export interface ExamComparison {
+  exam2018: {
+    attempted: boolean;
+    totalQuestions: number;
+    correctAnswers: number;
+    accuracy: number;
+    averageTime: number;
+    rank?: number;
+    lastAttempt?: Date;
+  };
+  exam2024: {
+    attempted: boolean;
+    totalQuestions: number;
+    correctAnswers: number;
+    accuracy: number;
+    averageTime: number;
+    rank?: number;
+    lastAttempt?: Date;
+  };
+  overall: {
+    improvement: number;
+    strongerExam: '2018' | '2024' | 'equal';
+    totalQuestions: number;
+    globalAccuracy: number;
+  };
+}
+
+export class ExamRankingService {
+  
+  /**
+   * Obtiene el ranking específico del examen oficial 2018
+   */
+  static async getExam2018Ranking(limit: number = 10): Promise<ExamRankingEntry[]> {
+    const examResponses = await prisma.simulacroResponse.findMany({
+      where: {
+        examType: 'EXAMEN_2018'
+      },
+      include: {
+        simulacro: {
+          include: {
+            user: true
+          }
+        }
+      }
+    });
+
+    // Agrupar por usuario
+    const userStats = new Map<string, {
+      user: any;
+      totalQuestions: number;
+      correctAnswers: number;
+      totalTime: number;
+      lastAttempt: Date;
+    }>();
+
+    examResponses.forEach(response => {
+      const userId = response.simulacro.user.telegramUserId;
+      
+      if (!userStats.has(userId)) {
+        userStats.set(userId, {
+          user: response.simulacro.user,
+          totalQuestions: 0,
+          correctAnswers: 0,
+          totalTime: 0,
+          lastAttempt: response.answeredAt || response.createdAt
+        });
+      }
+
+      const stats = userStats.get(userId)!;
+      stats.totalQuestions++;
+      if (response.isCorrect) stats.correctAnswers++;
+      if (response.responseTime) stats.totalTime += response.responseTime;
+      const responseDate = response.answeredAt || response.createdAt;
+      if (responseDate > stats.lastAttempt) stats.lastAttempt = responseDate;
+    });
+
+    // Convertir a ranking
+    const rankings: ExamRankingEntry[] = Array.from(userStats.values())
+      .map(stats => ({
+        rank: 0, // Se asignará después
+        user: {
+          telegramUserId: stats.user.telegramUserId,
+          username: stats.user.username,
+          firstName: stats.user.firstName
+        },
+        totalQuestions: stats.totalQuestions,
+        correctAnswers: stats.correctAnswers,
+        accuracy: stats.totalQuestions > 0 ? (stats.correctAnswers / stats.totalQuestions) * 100 : 0,
+        averageTime: stats.totalQuestions > 0 ? stats.totalTime / stats.totalQuestions : 0,
+        lastAttempt: stats.lastAttempt
+      }))
+      .sort((a, b) => {
+        // Ordenar por accuracy desc, luego por total questions desc, luego por tiempo promedio asc
+        if (Math.abs(a.accuracy - b.accuracy) > 0.1) return b.accuracy - a.accuracy;
+        if (a.totalQuestions !== b.totalQuestions) return b.totalQuestions - a.totalQuestions;
+        return a.averageTime - b.averageTime;
+      })
+      .slice(0, limit);
+
+    // Asignar rankings
+    rankings.forEach((entry, index) => {
+      entry.rank = index + 1;
+    });
+
+    return rankings;
+  }
+
+  /**
+   * Obtiene el ranking específico del examen oficial 2024
+   */
+  static async getExam2024Ranking(limit: number = 10): Promise<ExamRankingEntry[]> {
+    const examResponses = await prisma.simulacroResponse.findMany({
+      where: {
+        examType: 'EXAMEN_2024'
+      },
+      include: {
+        simulacro: {
+          include: {
+            user: true
+          }
+        }
+      }
+    });
+
+    // Agrupar por usuario (misma lógica que 2018)
+    const userStats = new Map<string, {
+      user: any;
+      totalQuestions: number;
+      correctAnswers: number;
+      totalTime: number;
+      lastAttempt: Date;
+    }>();
+
+    examResponses.forEach((response: any) => {
+      const userId = response.simulacro.user.telegramUserId;
+      
+      if (!userStats.has(userId)) {
+        userStats.set(userId, {
+          user: response.simulacro.user,
+          totalQuestions: 0,
+          correctAnswers: 0,
+          totalTime: 0,
+          lastAttempt: response.answeredAt || response.createdAt
+        });
+      }
+
+      const stats = userStats.get(userId)!;
+      stats.totalQuestions++;
+      if (response.isCorrect) stats.correctAnswers++;
+      if (response.responseTime) stats.totalTime += response.responseTime;
+      const responseDate = response.answeredAt || response.createdAt;
+      if (responseDate > stats.lastAttempt) stats.lastAttempt = responseDate;
+    });
+
+    // Convertir a ranking
+    const rankings: ExamRankingEntry[] = Array.from(userStats.values())
+      .map(stats => ({
+        rank: 0,
+        user: {
+          telegramUserId: stats.user.telegramUserId,
+          username: stats.user.username,
+          firstName: stats.user.firstName
+        },
+        totalQuestions: stats.totalQuestions,
+        correctAnswers: stats.correctAnswers,
+        accuracy: stats.totalQuestions > 0 ? (stats.correctAnswers / stats.totalQuestions) * 100 : 0,
+        averageTime: stats.totalQuestions > 0 ? stats.totalTime / stats.totalQuestions : 0,
+        lastAttempt: stats.lastAttempt
+      }))
+      .sort((a, b) => {
+        if (Math.abs(a.accuracy - b.accuracy) > 0.1) return b.accuracy - a.accuracy;
+        if (a.totalQuestions !== b.totalQuestions) return b.totalQuestions - a.totalQuestions;
+        return a.averageTime - b.averageTime;
+      })
+      .slice(0, limit);
+
+    // Asignar rankings
+    rankings.forEach((entry, index) => {
+      entry.rank = index + 1;
+    });
+
+    return rankings;
+  }
+
+  /**
+   * Obtiene la comparativa personal de un usuario entre ambos exámenes
+   */
+  static async getUserExamComparison(telegramUserId: string): Promise<ExamComparison> {
+    // Obtener respuestas del examen 2018
+    const exam2018Responses = await prisma.simulacroResponse.findMany({
+      where: {
+        examType: 'EXAMEN_2018',
+        simulacro: {
+          user: {
+            telegramUserId: telegramUserId
+          }
+        }
+      },
+      include: {
+        simulacro: {
+          include: {
+            user: true
+          }
+        }
+      }
+    });
+
+    // Obtener respuestas del examen 2024
+    const exam2024Responses = await prisma.simulacroResponse.findMany({
+      where: {
+        examType: 'EXAMEN_2024',
+        simulacro: {
+          user: {
+            telegramUserId: telegramUserId
+          }
+        }
+      },
+      include: {
+        simulacro: {
+          include: {
+            user: true
+          }
+        }
+      }
+    });
+
+    // Calcular stats para 2018
+    const exam2018Stats = this.calculateExamStats(exam2018Responses);
+    
+    // Calcular stats para 2024
+    const exam2024Stats = this.calculateExamStats(exam2024Responses);
+
+    // Obtener rankings
+    const ranking2018 = await this.getExam2018Ranking(100);
+    const ranking2024 = await this.getExam2024Ranking(100);
+    
+    const userRank2018 = ranking2018.find(r => r.user.telegramUserId === telegramUserId)?.rank;
+    const userRank2024 = ranking2024.find(r => r.user.telegramUserId === telegramUserId)?.rank;
+
+    // Calcular comparativa general
+    const improvement = exam2024Stats.accuracy - exam2018Stats.accuracy;
+    const strongerExam = Math.abs(improvement) < 1 ? 'equal' : 
+                       improvement > 0 ? '2024' : '2018';
+
+    return {
+      exam2018: {
+        attempted: exam2018Stats.attempted,
+        totalQuestions: exam2018Stats.totalQuestions,
+        correctAnswers: exam2018Stats.correctAnswers,
+        accuracy: exam2018Stats.accuracy,
+        averageTime: exam2018Stats.averageTime,
+        rank: userRank2018,
+        lastAttempt: exam2018Stats.lastAttempt
+      },
+      exam2024: {
+        attempted: exam2024Stats.attempted,
+        totalQuestions: exam2024Stats.totalQuestions,
+        correctAnswers: exam2024Stats.correctAnswers,
+        accuracy: exam2024Stats.accuracy,
+        averageTime: exam2024Stats.averageTime,
+        rank: userRank2024,
+        lastAttempt: exam2024Stats.lastAttempt
+      },
+      overall: {
+        improvement,
+        strongerExam,
+        totalQuestions: exam2018Stats.totalQuestions + exam2024Stats.totalQuestions,
+        globalAccuracy: (exam2018Stats.totalQuestions + exam2024Stats.totalQuestions) > 0 ? 
+          ((exam2018Stats.correctAnswers + exam2024Stats.correctAnswers) / 
+           (exam2018Stats.totalQuestions + exam2024Stats.totalQuestions)) * 100 : 0
+      }
+    };
+  }
+
+  /**
+   * Calcula estadísticas de un examen específico
+   */
+  private static calculateExamStats(responses: any[]): {
+    attempted: boolean;
+    totalQuestions: number;
+    correctAnswers: number;
+    accuracy: number;
+    averageTime: number;
+    lastAttempt?: Date;
+  } {
+    if (responses.length === 0) {
+      return {
+        attempted: false,
+        totalQuestions: 0,
+        correctAnswers: 0,
+        accuracy: 0,
+        averageTime: 0
+      };
+    }
+
+    const totalQuestions = responses.length;
+    const correctAnswers = responses.filter(r => r.isCorrect).length;
+    const accuracy = (correctAnswers / totalQuestions) * 100;
+    const totalTime = responses.reduce((sum, r) => sum + (r.responseTime || 0), 0);
+    const averageTime = totalTime / totalQuestions;
+    const lastAttempt = new Date(Math.max(...responses.map(r => new Date(r.answeredAt || r.createdAt).getTime())));
+
+    return {
+      attempted: true,
+      totalQuestions,
+      correctAnswers,
+      accuracy,
+      averageTime,
+      lastAttempt
+    };
+  }
+} 

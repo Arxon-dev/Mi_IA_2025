@@ -1,0 +1,125 @@
+import { PrismaClient } from '@prisma/client';
+import * as fs from 'fs';
+import * as readline from 'readline';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  const filePath = 'scripts/data/Aire.c';
+
+  console.log(`Iniciando el procesamiento del archivo: ${filePath}`);
+
+  // Truncate la tabla Aire para evitar duplicados
+  try {
+    console.log('Vaciando la tabla "Aire" para empezar de cero...');
+    await prisma.$executeRawUnsafe('TRUNCATE TABLE "Aire" RESTART IDENTITY CASCADE;');
+    console.log('Tabla "Aire" vaciada con éxito.');
+  } catch (e) {
+    console.error('Error al truncar la tabla "Aire":', e);
+    // No continuamos si no podemos limpiar la tabla
+    return;
+  }
+
+  const fileStream = fs.createReadStream(filePath);
+  const rl = readline.createInterface({
+    input: fileStream,
+    crlfDelay: Infinity,
+  });
+
+  let totalLines = 0;
+  let insertedCount = 0;
+  let errorCount = 0;
+
+  for await (const line of rl) {
+    totalLines++;
+    if (line.trim().startsWith('INSERT INTO "Aire"')) {
+      try {
+        const correctedLine = correctSqlLine(line);
+        await prisma.$executeRawUnsafe(correctedLine);
+        insertedCount++;
+        process.stdout.write(`\rLíneas procesadas: ${totalLines} | Insertadas: ${insertedCount} | Errores: ${errorCount}`);
+      } catch (e: any) {
+        errorCount++;
+        console.error(`\nError en la línea ${totalLines}: ${line.substring(0, 100)}...`);
+        // Mostramos solo el mensaje de error de Prisma para no saturar la consola
+        if (e.message) {
+            console.error(`Error de Prisma: ${e.message.split('\n').slice(0, 2).join(' ')}`);
+        } else {
+            console.error('Error desconocido:', e);
+        }
+      }
+    }
+  }
+
+  console.log(`\n\nProceso completado.`);
+  console.log(`- Total de líneas leídas: ${totalLines}`);
+  console.log(`- Inserciones correctas: ${insertedCount}`);
+  console.log(`- Errores encontrados: ${errorCount}`);
+}
+
+function correctSqlLine(line: string): string {
+    // Extraer los valores de la sentencia INSERT
+    const valuesRegex = /VALUES \((.+)\)/;
+    const match = line.match(valuesRegex);
+
+    if (!match || !match[1]) {
+        // Si no se encuentran valores, devolver la línea original
+        return line;
+    }
+
+    // Dividir los valores por comas, pero ignorando las comas dentro de las comillas
+    const individualValues = match[1].match(/('.*?'|[^,]+)/g);
+
+    if (!individualValues) {
+        return line;
+    }
+
+    const correctedValues = individualValues.map(val => {
+        let cleanVal = val.trim();
+
+        // 1. Manejo de NULL
+        if (cleanVal.toUpperCase() === 'NULL') {
+            return 'NULL';
+        }
+
+        // 2. Manejo de arrays (columna 'options')
+        if (cleanVal.startsWith("'[\"") && cleanVal.endsWith("\"]'")) {
+            try {
+                // Quita las comillas externas y parsea como JSON
+                const jsonString = cleanVal.substring(1, cleanVal.length - 1);
+                const arr = JSON.parse(jsonString);
+                // Escapa las comillas simples dentro de cada elemento del array y lo formatea para PG
+                return `ARRAY[${arr.map((item: string) => `'${item.replace(/'/g, "''")}'`).join(',')}]`;
+            } catch (e) {
+                // Si falla, lo dejamos para depurar
+                return cleanVal; 
+            }
+        }
+        
+        // 3. Manejo del resto de strings (escapar comillas simples)
+        if (cleanVal.startsWith("'") && cleanVal.endsWith("'")) {
+            // Quita las comillas de los extremos
+            let innerString = cleanVal.substring(1, cleanVal.length - 1);
+            // Duplica cualquier comilla simple interna
+            innerString = innerString.replace(/'/g, "''");
+            return `'${innerString}'`;
+        }
+
+        // 4. Devolver cualquier otro tipo de valor (números, booleanos) tal cual
+        return cleanVal;
+    });
+
+    // Reconstruir la sentencia SQL
+    const correctedSql = `INSERT INTO "Aire" ("id", "questionnumber", "question", "options", "correctanswerindex", "category", "difficulty", "isActive", "sendCount", "lastsuccessfulsendat", "lastUsedInTournament", "tournamentUsageCount", "lastTournamentId", "createdAt", "bloomLevel", "documentId", "sectionId", "sourceSection", "type", "updatedAt", "title", "titleQuestionNumber", "titleRawMetadata", "titleSourceDocument", "titleSourceReference", "feedback") VALUES (${correctedValues.join(', ')})`;
+
+    return correctedSql;
+}
+
+main()
+  .catch((e) => {
+    console.error('Error fatal en el script:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  }); 

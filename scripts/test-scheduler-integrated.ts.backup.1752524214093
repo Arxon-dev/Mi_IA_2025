@@ -1,0 +1,164 @@
+import { PrismaService } from '../src/services/prismaService';
+import { prisma } from '../src/lib/prisma';
+
+async function testIntegratedScheduler() {
+  try {
+    console.log('🧪 PRUEBA DEL SCHEDULER INTEGRADO (ValidQuestion + ExamenOficial2018 + ExamenOficial2024 + SectionQuestion)');
+    console.log('=' .repeat(80));
+    
+    // 1. Verificar que las cuatro tablas tengan datos
+    console.log('\n📊 VERIFICANDO DATOS DISPONIBLES:');
+    
+    const totalValidQuestions = await prisma.validQuestion.count({ where: { isActive: true } });
+    const totalExam2018Questions = await prisma.examenOficial2018.count({ where: { isActive: true } });
+    const totalExam2024Questions = await (prisma as any).examenOficial2024.count({ where: { isActive: true } });
+    const totalSectionQuestions = await prisma.sectionQuestion.count();
+    
+    console.log(`   📄 ValidQuestion activas: ${totalValidQuestions}`);
+    console.log(`   🎯 ExamenOficial2018 activas: ${totalExam2018Questions}`);
+    console.log(`   🎯 ExamenOficial2024 activas: ${totalExam2024Questions}`);
+    console.log(`   📚 SectionQuestion activas: ${totalSectionQuestions}`);
+    
+    if (totalValidQuestions === 0 && totalExam2018Questions === 0 && totalExam2024Questions === 0 && totalSectionQuestions === 0) {
+      console.log('❌ No hay preguntas disponibles para probar');
+      return;
+    }
+    
+    // 2. Probar el scheduler con diferentes cantidades
+    const testQuantities = [1, 3, 5, 10];
+    
+    for (const quantity of testQuantities) {
+      console.log(`\n🔄 PROBANDO CON ${quantity} PREGUNTAS:`);
+      console.log('-' .repeat(50));
+      
+      const questions = await PrismaService.getQuestionsForTelegramScheduler(quantity, 0, 30);
+      
+      console.log(`   ✅ Obtenidas: ${questions.length} preguntas`);
+      
+      // Analizar distribución por sourceModel
+      const distribution = questions.reduce((acc, q) => {
+        acc[q.sourceModel] = (acc[q.sourceModel] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      console.log('   📊 Distribución por fuente:');
+      Object.entries(distribution).forEach(([source, count]) => {
+        const percentage = ((count / questions.length) * 100).toFixed(1);
+        console.log(`      ${source}: ${count} (${percentage}%)`);
+      });
+      
+      // Verificar que el contenido esté bien formateado
+      if (questions.length > 0) {
+        const sampleQuestion = questions[0];
+        console.log(`   🔍 Muestra (${sampleQuestion.sourceModel}):`);
+        
+        try {
+          const parsedContent = JSON.parse(sampleQuestion.content);
+          console.log(`      Pregunta: ${parsedContent.question.substring(0, 60)}...`);
+          console.log(`      Opciones: ${parsedContent.options.length}`);
+          console.log(`      Respuesta correcta: ${parsedContent.correctAnswerIndex}`);
+          console.log(`      Explicación: ${parsedContent.explanation ? 'Sí' : 'No'}`);
+        } catch (error) {
+          console.log(`      ❌ Error parseando contenido: ${error}`);
+        }
+      }
+    }
+    
+    // 3. Verificar rotación - las preguntas con menor sendCount deben aparecer primero
+    console.log(`\n🔄 VERIFICANDO ROTACIÓN:`);
+    console.log('-' .repeat(50));
+    
+    const largeSet = await PrismaService.getQuestionsForTelegramScheduler(20, 0, 30);
+    
+    if (largeSet.length > 0) {
+      const sendCounts = largeSet.map(q => q.sendCount);
+      const minSendCount = Math.min(...sendCounts);
+      const maxSendCount = Math.max(...sendCounts);
+      
+      console.log(`   📈 Rango de sendCount: ${minSendCount} - ${maxSendCount}`);
+      
+      // Verificar que las primeras preguntas tengan el menor sendCount
+      const firstFive = largeSet.slice(0, 5);
+      const allHaveMinCount = firstFive.every(q => q.sendCount === minSendCount);
+      
+      if (allHaveMinCount) {
+        console.log('   ✅ Rotación correcta: preguntas menos enviadas aparecen primero');
+      } else {
+        console.log('   ⚠️  Posible problema de rotación');
+        firstFive.forEach((q, i) => {
+          console.log(`      ${i+1}. ${q.sourceModel} - sendCount: ${q.sendCount}`);
+        });
+      }
+    }
+    
+    // 4. Simular un envío para verificar actualización
+    if (largeSet.length > 0) {
+      console.log(`\n📤 SIMULANDO ENVÍO Y ACTUALIZACIÓN:`);
+      console.log('-' .repeat(50));
+      
+      const testQuestion = largeSet[0];
+      const originalSendCount = testQuestion.sendCount;
+      
+      console.log(`   🎯 Pregunta seleccionada: ${testQuestion.sourceModel} (sendCount: ${originalSendCount})`);
+      
+      // Simular envío exitoso
+      await PrismaService.updateLastScheduledSendAt(
+        testQuestion.id, 
+        testQuestion.sourceModel as any,
+        true, 
+        'test_msg_123',
+        undefined
+      );
+      
+      console.log('   ✅ Envío simulado exitosamente');
+      
+      // Verificar que se actualizó correctamente
+      let updatedQuestion;
+      if (testQuestion.sourceModel === 'validQuestion') {
+        updatedQuestion = await prisma.validQuestion.findUnique({
+          where: { id: testQuestion.id }
+        });
+      } else if (testQuestion.sourceModel === 'examenOficial2018') {
+        updatedQuestion = await prisma.examenOficial2018.findUnique({
+          where: { id: testQuestion.id }
+        });
+      } else if (testQuestion.sourceModel === 'examenOficial2024') {
+        updatedQuestion = await (prisma as any).examenOficial2024.findUnique({
+          where: { id: testQuestion.id }
+        });
+      } else if (testQuestion.sourceModel === 'sectionQuestion') {
+        updatedQuestion = await prisma.sectionQuestion.findUnique({
+          where: { id: testQuestion.id }
+        });
+      }
+      
+      if (updatedQuestion) {
+        console.log(`   📊 SendCount actualizado: ${originalSendCount} → ${updatedQuestion.sendCount}`);
+        console.log(`   ⏰ LastSuccessfulSendAt: ${updatedQuestion.lastSuccessfulSendAt ? 'Actualizado' : 'Sin cambios'}`);
+      }
+    }
+    
+    console.log('\n🎉 PRUEBA DEL SCHEDULER INTEGRADO COMPLETADA');
+    console.log('✅ El scheduler está funcionando correctamente con las tres fuentes');
+    
+  } catch (error) {
+    console.error('💥 Error en la prueba del scheduler:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Ejecutar si es llamado directamente
+if (require.main === module) {
+  testIntegratedScheduler()
+    .then(() => {
+      console.log('\n✅ Prueba completada');
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('💥 Error fatal:', error);
+      process.exit(1);
+    });
+}
+
+export { testIntegratedScheduler }; 

@@ -1,0 +1,531 @@
+// Pregunta 5. Instrucción 14/2021 ::Octavo.5 y Octavo.6::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+Según lo dispuesto en la Instrucción 14/2021 sobre la División de Logística (DILOG), ¿qué secciones específicas son responsables de formular las prioridades de cobertura de material y de personal, respectivamente? {
+=La Sección de Recursos Materiales (SECREMAT) formula las de material y la Sección de Recursos Humanos (SECREHUM) formula las de personal.
+~La Sección de Recursos Humanos (SECREHUM) formula las de material y la Sección de Recursos Materiales (SECREMAT) formula las de personal.
+~Ambas prioridades, tanto de material como de personal, son formuladas exclusivamente por la Secretaría Técnica de la DILOG.
+~La Sección de Acuartelamiento e Infraestructura (SACINFRA) formula las prioridades de material y la Sección de Recursos Humanos (SECREHUM) las de personal.
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "5. La Sección de Recursos Materiales es el órgano responsable del planeamiento y control de los aspectos relacionados con la adquisición, reposición, sostenimiento y transporte del armamento y material [...] <b>Además, formula las prioridades de cobertura de material de las unidades</b>." y "6. La Sección de Recursos Humanos es el órgano responsable del planeamiento y control de los aspectos relacionados con los recursos humanos [...] <b>Además, formula las prioridades de cobertura de personal de las unidades</b>." (Ambas funciones se realizan "de acuerdo con las directrices establecidas por el JEME", como indica el punto 8.1.7 bis).<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> La función general de formular prioridades (8.1.7 bis) se asigna a las secciones especializadas correspondientes dentro de la DILOG.<br>
+- <b>Relevancia Principal:</b> Existe una clara correspondencia entre el tipo de recurso (material o personal) y la sección responsable de formular sus prioridades de cobertura.<br>
+- <b>Relaciones Orgánicas:</b> SECREMAT, al gestionar el ciclo de vida del material, es la idónea para priorizar su cobertura. SECREHUM, al gestionar los recursos humanos, es la idónea para priorizar la cobertura de personal.<br>
+- <b>Composición:</b> Esta asignación refleja la lógica funcional de la articulación de la DILOG en secciones especializadas.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Ante una necesidad urgente de desplegar unidades, SECREMAT propondría qué unidades deben recibir prioritariamente cierto material crítico escaso, mientras que SECREHUM propondría cómo asignar el personal especialista necesario a esas mismas unidades, todo ello siguiendo las directrices del JEME.<br>
+- <b>Implicaciones:</b> Asegura que la formulación de prioridades se base en el conocimiento experto de cada tipo de recurso, optimizando la asignación según las necesidades operativas y las directrices superiores.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"Prioridad: MATerial con SECREMAT, Personal con SECREHUM."<br>
+<u>Componentes:</u><br>
+- <b>MATerial:</b> Prioridades de cobertura de material.<br>
+- <b>SECREMAT:</b> Sección de Recursos Materiales.<br>
+- <b>Personal:</b> Prioridades de cobertura de personal.<br>
+- <b>SECREHUM:</b> Sección de Recursos Humanos.<br><br>
+}
+
+// Pregunta 1. Instrucción 14/2021 ::Octavo.5::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+Según la Instrucción 14/2021, ¿qué órgano específico de la División de Logística es responsable de dirigir, coordinar y controlar la participación del ET en el proceso de obtención de recursos materiales, responsabilidad de la Secretaría de Estado de Defensa, específicamente en lo relativo al <b>armamento y material y a los sistemas de información y telecomunicaciones</b>? {
+=Sección de Recursos Materiales (SRM)
+~Sección de Acuartelamiento e Infraestructura (SAI)
+~Secretaría Técnica de la División de Logística
+~La División de Logística en su conjunto, sin especificar sección
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "5. La Sección de Recursos Materiales es el órgano responsable del planeamiento y control de los aspectos relacionados con la adquisición, reposición, sostenimiento y transporte del armamento y material y de los sistemas de información y telecomunicaciones, así como de su ciclo de vida. En lo relativo al proceso de obtención de recursos materiales responsabilidad de la Secretaría de Estado de Defensa, <b>dirige, coordina y controla la participación del ET en aquellos relacionados con el armamento y material y con los sistemas de información y telecomunicaciones</b>. Además, formula las prioridades de cobertura de material de las unidades."<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> La División de Logística (DILOG) se articula en Secciones especializadas para gestionar áreas logísticas específicas. La SRM se centra en el material, armamento y sistemas CIS.<br>
+- <b>Relevancia Principal:</b> La SRM actúa como punto focal del ET ante la SEDEF (a través de la DGAM) para la obtención de armamento, material y sistemas CIS, asegurando la alineación con las necesidades del Ejército.<br>
+- <b>Relaciones Orgánicas:</b> Depende de la Jefatura de la DILOG. Coordina con la DGAM (SEDEF) y otras secciones de la DILOG y órganos del ET.<br>
+- <b>Composición:</b> Articulada internamente para cubrir las distintas facetas de los recursos materiales (adquisición, sostenimiento, CIS, etc.).<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Cuando el ET necesita adquirir un nuevo sistema de comunicaciones tácticas, la SRM es la sección que interactúa con la DGAM, define los requisitos técnicos desde la perspectiva del usuario ET, participa en las comisiones de seguimiento del programa de obtención y coordina la recepción e integración del sistema en las unidades.<br>
+- <b>Implicaciones:</b> Una incorrecta coordinación por parte de la SRM podría llevar a la adquisición de material no adecuado a las necesidades operativas o a retrasos en la dotación de las unidades.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"SRM = Sistemas, Repuestos y Material (ante SEDEF)"<br>
+<u>Componentes:</u><br>
+- <b>SRM:</b> Sección de Recursos Materiales<br>
+- <b>Sistemas:</b> Sistemas de Información y Telecomunicaciones<br>
+- <b>Material:</b> Armamento y Material<br>
+- <b>SEDEF:</b> Coordinación con la Secretaría de Estado de Defensa<br><br>
+}
+
+// Pregunta 2. Instrucción 14/2021 ::Octavo.4 y Octavo.6::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+Conforme a la Instrucción 14/2021, ¿qué sección de la División de Logística tiene la responsabilidad específica del planeamiento y control de la <b>calidad de vida en el ámbito de las infraestructuras y servicios de acuartelamiento</b>, diferenciándola de la calidad de vida en el ámbito de los recursos humanos? {
+=Sección de Acuartelamiento e Infraestructura (SAI)
+~Sección de Recursos Humanos (SRH)
+~Secretaría Técnica de la División de Logística
+~Sección de Recursos Materiales (SRM)
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "4. La Sección de Acuartelamiento e Infraestructura es el órgano responsable del planeamiento y control de los aspectos relacionados con las infraestructuras y servicios de acuartelamiento; <b>la calidad de vida en este ámbito</b> y la prevención de riesgos laborales..." (Contrasta con el punto 6: "La Sección de Recursos Humanos es el órgano responsable del planeamiento y control de los aspectos relacionados con los recursos humanos, incluyendo lo relativo a la asistencia al personal militar y a sus familias, la asistencia sanitaria y <b>la calidad de vida en este ámbito</b>.")<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> La DILOG divide la responsabilidad sobre la "calidad de vida" en función del ámbito de aplicación. La SAI se enfoca en el entorno físico y los servicios asociados a las bases y acuartelamientos.<br>
+- <b>Relevancia Principal:</b> Asegurar que las condiciones de habitabilidad, servicios (comedores, alojamientos, etc.) y el entorno físico de las bases contribuyan positivamente al bienestar del personal.<br>
+- <b>Relaciones Orgánicas:</b> Depende de la Jefatura de la DILOG. Coordina con la SRH en aspectos concurrentes de calidad de vida y con la Dirección de Infraestructura (DIIN) del MALOG.<br>
+- <b>Composición:</b> Articulada para gestionar planeamiento de infraestructuras, servicios de acuartelamiento y prevención de riesgos laborales asociados.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Si se detectan deficiencias generalizadas en los sistemas de climatización de los alojamientos de una base, la SAI sería la responsable de planificar las actuaciones necesarias para mejorar esas infraestructuras, impactando directamente en la calidad de vida del personal en su lugar de trabajo y descanso.<br>
+- <b>Implicaciones:</b> La distinción es crucial para dirigir correctamente las iniciativas de mejora. Una propuesta de mejora de comedores iría a la SAI, mientras que una sobre conciliación familiar iría a la SRH.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"SAI = Servicios, Acuartelamiento, Infraestructura (y su Calidad de Vida)"<br>
+<u>Componentes:</u><br>
+- <b>SAI:</b> Sección de Acuartelamiento e Infraestructura<br>
+- <b>Servicios:</b> Servicios de acuartelamiento<br>
+- <b>Infraestructura:</b> Gestión de infraestructuras<br>
+- <b>Calidad de Vida (ámbito SAI):</b> Relacionada con el entorno físico y servicios de la base.<br><br>
+}
+
+// Pregunta 1. Instrucción 14/2021 ::Noveno.1::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+Según lo dispuesto en el apartado Noveno de la Instrucción 14/2021, ¿cuál de las siguientes funciones describe con mayor precisión una responsabilidad fundamental y distintiva del Gabinete del JEME, más allá del mero apoyo inmediato en relaciones institucionales y comunicación social? {
+=El trámite de los asuntos que competen al JEME como autoridad militar y que no hayan sido atribuidos específicamente a otros órganos del Cuartel General del Ejército de Tierra.
+~La dirección y coordinación del planeamiento orgánico y de recursos humanos del Ejército de Tierra, en apoyo directo al JEME.
+~La responsabilidad exclusiva sobre la planificación y ejecución del protocolo en todos los actos institucionales presididos por el JEME.
+~El asesoramiento técnico directo al JEME sobre la preparación operativa y el empleo táctico de las unidades de la Fuerza Terrestre.
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "1. El Gabinete del JEME es el órgano de apoyo inmediato al JEME, responsable del estudio, asesoramiento y trámite de los asuntos que competen a éste como autoridad militar, en sus relaciones institucionales, de comunicación social y de <b>aquellos otros que no hayan sido atribuidos específicamente a otros órganos</b> del Cuartel General del Ejército de Tierra."<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> El Gabinete del JEME (GABJEME) actúa como el staff personal y más cercano del JEME.<br>
+- <b>Relevancia Principal:</b> Su función clave es filtrar, estudiar y tramitar los asuntos que llegan directamente al JEME, asegurando que reciba el apoyo necesario para sus decisiones y relaciones.<br>
+- <b>Relaciones Orgánicas:</b> Depende directamente del JEME. Coordina o deriva asuntos a otros órganos del Cuartel General (CGET) según corresponda.<br>
+- <b>Composición:</b> Incluye personal de confianza y, notablemente, el Departamento de Comunicación del ET.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Si surge una consulta o propuesta dirigida al JEME que no encaja claramente en las competencias de las Divisiones del Estado Mayor (Planes, Operaciones, Logística) ni de los Mandos (Personal, Apoyo Logístico, Adiestramiento y Doctrina), es el GABJEME quien la estudia inicialmente, asesora al JEME sobre su gestión y la tramita, ya sea resolviéndola si es de su competencia residual o derivándola al órgano adecuado.<br>
+- <b>Implicaciones:</b> Esta función residual asegura que ningún asunto quede sin atender por lagunas competenciales dentro del CGET, garantizando la agilidad en el despacho del JEME.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"GABI-NET: El GABInete es el apoyo INmediaTo y la red (NET) que recoge los asuntos RESIDUALES del JEME."<br>
+<u>Componentes:</u><br>
+- <b>GABI:</b> GABinete.<br>
+- <b>IN T:</b> Apoyo INmediaTo.<br>
+- <b>NET (Red):</b> Función residual (como una red que recoge lo que no cae en otros cestos).<br><br>
+}
+
+// Pregunta 2. Instrucción 14/2021 ::Noveno.2::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+Considerando la articulación interna del Gabinete del JEME según la Instrucción 14/2021, ¿cuál de las siguientes afirmaciones describe con exactitud la posición y las responsabilidades específicas del Departamento de Comunicación del ET (DECOMET) y de su jefatura? {
+=El Departamento de Comunicación del ET forma parte del Gabinete del JEME y su jefe ejerce, además de la dirección de dicho departamento, las funciones de Jefe de Prensa y de Protocolo del JEME.
+~El Departamento de Comunicación del ET depende orgánicamente del Gabinete del JEME pero funcionalmente de la Secretaría General del Estado Mayor para la coordinación del protocolo institucional del Ejército.
+~El Gabinete del JEME supervisa al Departamento de Comunicación, el cual es responsable de la comunicación social y relaciones públicas, pero las funciones de Jefe de Prensa y Protocolo del JEME son ejercidas directamente por el Jefe del Gabinete.
+~El Departamento de Comunicación del ET es un órgano asesor externo al Gabinete del JEME, responsable únicamente de la estrategia de comunicación social del ET, mientras que el protocolo del JEME depende de su Ayudantía Personal.
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "2. <b>Forma parte del Gabinete del JEME el Departamento de Comunicación del ET</b>, que es el órgano responsable de la comunicación social, de las relaciones públicas y del protocolo, en el ámbito del ET. Su jefe ejerce además las funciones de <b>Jefe de Prensa y de Protocolo del JEME</b>."<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> El DECOMET está integrado dentro de la estructura del GABJEME, no es un ente separado ni depende de otro órgano para sus funciones principales.<br>
+- <b>Relevancia Principal:</b> Centraliza la comunicación social, relaciones públicas y protocolo del ET, asegurando coherencia y alineación con las directrices del JEME.<br>
+- <b>Relaciones Orgánicas:</b> Integrado en GABJEME, depende por tanto directamente del JEME a través del Jefe de Gabinete en lo orgánico, aunque funcionalmente ejecuta las directrices del JEME en comunicación y protocolo.<br>
+- <b>Composición:</b> Estructura interna propia para gestionar comunicación, relaciones públicas y protocolo.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Ante una visita oficial del JEME a una unidad, el DECOMET, como parte del GABJEME, coordina todos los aspectos de protocolo (recepción, secuencia de actos, etc.) y de comunicación social (nota de prensa, cobertura mediática). El Jefe del DECOMET actúa directamente como responsable de protocolo y prensa para el JEME en ese evento.<br>
+- <b>Implicaciones:</b> La integración del DECOMET en el GABJEME y la doble función de su jefe garantizan una gestión unificada y directa de la imagen pública, las relaciones institucionales a nivel de comunicación y el protocolo personal del JEME.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"DECOM-GAB: El DECOM está en el GABinete; su JEFE tiene DOBLE GORRA (DECOM + Prensa/Protocolo JEME)."<br>
+<u>Componentes:</u><br>
+- <b>DECOM:</b> Departamento de Comunicación.<br>
+- <b>GAB:</b> Integrado en el GABinete.<br>
+- <b>JEFE DOBLE GORRA:</b> El Jefe del DECOM es también Jefe de Prensa y Protocolo del JEME.<br><br>
+}
+
+// Pregunta 1. Instrucción 14/2021 ::Décimo.1::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+Según el apartado Décimo de la Instrucción 14/2021, ¿cuál de las siguientes opciones describe con mayor precisión el conjunto completo de materias sobre las que la Jefatura del Ciberespacio y de los Servicios de Asistencia Técnica (JCISAT) ejerce la dirección, coordinación, administración y control en el ámbito del Ejército de Tierra, incluyendo su dependencia funcional? {
+=Sistemas de información y telecomunicaciones, guerra electrónica, gestión del espectro electromagnético, ciberdefensa, estadística, investigación militar operativa, sociología, publicaciones y cartografía de libre difusión, dependiendo funcionalmente de los órganos directivos del departamento por razón de la materia.
+~Sistemas de información y telecomunicaciones, guerra electrónica operativa, gestión del espectro radioeléctrico, ciberseguridad, estadística militar, investigación operativa, sociología militar, publicaciones oficiales y cartografía táctica, dependiendo orgánicamente de la Subsecretaría de Defensa.
+~Sistemas de información y comunicaciones (CIS), guerra electrónica táctica, gestión del espectro electromagnético, ciberdefensa activa y pasiva, estadística descriptiva, investigación y desarrollo (I+D), estudios sociológicos, publicaciones técnicas y cartografía estratégica, dependiendo funcionalmente del Estado Mayor de la Defensa (EMAD).
+~Sistemas de información y telecomunicaciones, guerra electrónica, gestión del espectro radioeléctrico, ciberdefensa, estadística, investigación militar operativa, sociología, publicaciones y cartografía operativa, dependiendo funcionalmente de la Secretaría de Estado de Defensa (SEDEF) exclusivamente.
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "1. La Jefatura del Ciberespacio y de los Servicios de Asistencia Técnica es el órgano responsable de la dirección, coordinación, administración y control, en el ámbito del Ejército de Tierra, en materia de los <b>sistemas de información y telecomunicaciones, de guerra electrónica, de gestión del espectro electromagnético, de ciberdefensa, de estadística, de investigación militar operativa, de sociología, de publicaciones y de cartografía de libre difusión</b>. Depende funcionalmente de los <b>órganos directivos del departamento</b> por razón de la materia."<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> La JCISAT centraliza la gestión de áreas tecnológicas clave (CIS, GE, Ciberdefensa) y de apoyo técnico (Estadística, IMO, Sociología, Publicaciones, Cartografía) para el ET.<br>
+- <b>Relevancia Principal:</b> Asegurar la coherencia y eficacia en el uso y protección del ciberespacio y la información, así como en la aplicación de técnicas de apoyo a la decisión y difusión del conocimiento.<br>
+- <b>Relaciones Orgánicas:</b> Depende orgánicamente del JEME (implícito en la estructura del ET), pero funcionalmente de diversos órganos directivos del Ministerio de Defensa según la materia específica (ej. DIGENIN para CIS, otros para publicaciones, etc.).<br>
+- <b>Composición:</b> Se articula en Subdirecciones especializadas (SSAT, SSIT, SCACE) y otras unidades.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Ante un incidente de ciberseguridad en una red del ET, la JCISAT (a través de la SCACE) coordinaría la respuesta técnica, mientras que para la adquisición de nuevos equipos de telecomunicaciones (CIS), actuaría bajo la dependencia funcional de la DIGENIN.<br>
+- <b>Implicaciones:</b> Esta doble dependencia (orgánica del ET y funcional del MINISDEF) asegura la alineación de las capacidades tecnológicas y técnicas del ET con las políticas y directrices generales de Defensa.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"<b>CIBER-SAT</b>: <b>CIS</b>, <b>G</b>E, <b>E</b>spectro, <b>C</b>iberdefensa + <b>E</b>stadística, <b>I</b>MO, <b>S</b>ociología, <b>P</b>ublicaciones, <b>C</b>artografía Libre. Depende <b>F</b>uncionalmente del <b>Dep</b>artamento."<br>
+<u>Componentes:</u><br>
+- <b>CIBER:</b> Ciberespacio (CIS, GE, Espectro, Ciberdefensa)<br>
+- <b>SAT:</b> Servicios Asistencia Técnica (Estadística, IMO, Sociología, Publicaciones, Cartografía)<br>
+- <b>F-Dep:</b> Dependencia Funcional del Departamento (Ministerio)<br><br>
+}
+
+// Pregunta 2. Instrucción 14/2021 ::Décimo.2::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+De acuerdo con la Instrucción 14/2021, la Jefatura del Ciberespacio y de los Servicios de Asistencia Técnica (JCISAT) es el principal asesor del ______ , a través del ______ , específicamente en el ámbito ______ y en técnicas de apoyo a la decisión. {
+=JEME / SEJEME / ciberespacial (incluyendo CIS, guerra electrónica, gestión del espectro electromagnético y ciberdefensa)
+~JEMAD / Jefe del MCCE / ciberespacial y de telecomunicaciones conjuntas
+~Subsecretario de Defensa / Director General de Infraestructura (DIGENIN) / de sistemas de información y telecomunicaciones (CIS) y transformación digital
+~JEME / Jefe de la División de Planes del EME / de planeamiento ciberespacial y de guerra electrónica
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "2. Es el principal asesor del <b>JEME</b>, a través del <b>SEJEME</b>, en el <b>ámbito ciberespacial</b> – incluyendo los sistemas de información y telecomunicaciones (CIS), la guerra electrónica, la gestión del espectro electromagnético y la ciberdefensa– y en <b>técnicas de apoyo a la decisión</b>."<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> Establece la línea directa de asesoramiento de la JCISAT hacia la máxima autoridad del ET (JEME) a través de su principal colaborador (SEJEME).<br>
+- <b>Relevancia Principal:</b> Subraya la importancia estratégica del ámbito ciberespacial y las técnicas de apoyo a la decisión (IMO, estadística, sociología) para el mando del ET.<br>
+- <b>Relaciones Orgánicas:</b> Define el canal formal de comunicación y asesoramiento (JCISAT -> SEJEME -> JEME) para estas materias específicas.<br>
+- <b>Composición:</b> Implica que la información y análisis generados por las Subdirecciones de la JCISAT se consolidan para este asesoramiento.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Si el JEME necesita tomar una decisión sobre la postura defensiva del ET en el ciberespacio ante una amenaza emergente, la JCISAT prepararía un informe de situación y recomendaciones que elevaría a través del SEJEME.<br>
+- <b>Implicaciones:</b> Asegura que el JEME reciba asesoramiento técnico especializado y coordinado sobre un dominio crítico y sobre herramientas analíticas fundamentales para la toma de decisiones.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"<b>J</b>CISAT asesora al <b>J</b>EME vía <b>S</b>EJEME en <b>C</b>iberespacio y <b>T</b>écnicas <b>A</b>poyo <b>D</b>ecisión (<b>J-S-CTAD</b>)"<br>
+<u>Componentes:</u><br>
+- <b>J:</b> JCISAT / JEME<br>
+- <b>S:</b> SEJEME (canal)<br>
+- <b>CTAD:</b> Ciberespacio y Técnicas de Apoyo a la Decisión (ámbito)<br><br>
+}
+
+// Pregunta 3. Instrucción 14/2021 ::Décimo.4-7::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+Identifique la afirmación INCORRECTA relativa a la articulación y responsabilidades de las Subdirecciones de la Jefatura del Ciberespacio y de los Servicios de Asistencia Técnica (JCISAT), según la Instrucción 14/2021: {
+=La Subdirección de Sistemas de Información y Telecomunicaciones (SSIT) es responsable de la dirección, ejecución y coordinación de todos los procesos funcionales relacionados con la ciberdefensa y la gestión del espectro electromagnético.
+~La Subdirección de Servicios de Asistencia Técnica (SSAT) es responsable de la coordinación, control y ejecución en materias como estadística, investigación militar operativa y publicaciones, incluyendo cartografía de libre difusión.
+~La Subdirección de Ciberdefensa y Actividades Electromagnéticas (SCACE) es el órgano de dirección, ejecución y coordinación de procesos funcionales de ciberdefensa, gestión del espectro electromagnético y guerra electrónica en el ET.
+~La Subdirección de Sistemas de Información y Telecomunicaciones (SSIT) es responsable del análisis de procesos técnicos para proyectos CIS, desarrollo de arquitecturas, control de configuración y desarrollo de software en su ámbito.
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "4. La Jefatura del Ciberespacio y de los Servicios de Asistencia Técnica se articula en: a) La Subdirección de Servicios de Asistencia Técnica. b) La Subdirección de Sistemas de Información y Telecomunicaciones. c) La Subdirección de Ciberdefensa y Actividades Electromagnéticas... 5. La Subdirección de Servicios de Asistencia Técnica es el órgano responsable de la coordinación, control y ejecución de lo relacionado con las materias de <b>estadística, investigación militar operativa, sociología y publicaciones, incluyendo la cartografía de libre difusión</b>. 6. La Subdirección de Sistemas de Información y Telecomunicaciones es el órgano responsable del <b>análisis de los procesos técnicos para el desarrollo de los proyectos CIS del Ejército de Tierra, del desarrollo de las arquitecturas, del control de la configuración, del desarrollo de software en el ámbito de sus competencias, de la automatización técnica de procesos, de la interoperabilidad y la validación técnica de los CIS del Ejército de Tierra</b>... 7. La Subdirección de Ciberdefensa y Actividades Electromagnéticas es el órgano de dirección, ejecución y coordinación de todos los procesos funcionales relacionados con la <b>ciberdefensa, la gestión del espectro electromagnético y la guerra electrónica</b> en el ámbito del Ejército de Tierra.»"<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> La JCISAT se estructura en tres subdirecciones con ámbitos de responsabilidad claramente definidos: SSAT (apoyo técnico no-ciber), SSIT (desarrollo y gestión técnica CIS) y SCACE (ciberdefensa y espectro/GE).<br>
+- <b>Relevancia Principal:</b> Distinguir las funciones específicas de cada subdirección es crucial para entender cómo la JCISAT aborda sus diversas responsabilidades.<br>
+- <b>Relaciones Orgánicas:</b> Las tres subdirecciones dependen directamente del Jefe de la JCISAT.<br>
+- <b>Composición:</b> Cada subdirección agrupa las capacidades y personal experto en sus respectivas áreas.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Un proyecto para desarrollar un nuevo software de mando y control (CIS) sería liderado técnicamente por la SSIT, mientras que la protección de ese sistema frente a ciberataques y la gestión de las frecuencias que utilice serían responsabilidad de la SCACE. Un estudio sociológico sobre la moral de la tropa sería competencia de la SSAT.<br>
+- <b>Implicaciones:</b> La incorrecta atribución de funciones (como asignar ciberdefensa a la SSIT) llevaría a errores en la dirección de esfuerzos y recursos dentro de la JCISAT.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"<b>S</b>AT = <b>S</b>oporte (Estad, IMO, Socio, Pub, Carto); <b>SIT</b> = <b>S</b>istemas (CIS, Arq, SW, Interop); <b>S</b>CACE = <b>S</b>eguridad (Ciber, Espectro, GE)"<br>
+<u>Componentes:</u><br>
+- <b>SAT:</b> Servicios Asistencia Técnica (Apoyo técnico diverso)<br>
+- <b>SIT:</b> Sistemas Información y Telecomunicaciones (Foco en CIS)<br>
+- <b>SCACE:</b> Ciberdefensa y Actividades Electromagnéticas (Foco en seguridad y espectro)<br><br>
+}
+
+// Pregunta 4. Instrucción 14/2021 ::Décimo.6::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+Dentro de las responsabilidades específicas de la Subdirección de Sistemas de Información y Telecomunicaciones (SSIT) de la JCISAT, ¿cuál de las siguientes tareas NO se menciona explícitamente en el apartado Décimo.6 de la Instrucción 14/2021? {
+=La definición de la doctrina de empleo de los sistemas CIS en operaciones.
+~El análisis de los procesos técnicos para el desarrollo de los proyectos CIS del Ejército de Tierra.
+~El desarrollo de las arquitecturas y el control de la configuración de los CIS del ET.
+~La interoperabilidad y la validación técnica de los CIS del Ejército de Tierra, incluidos los sistemas de simulación.
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "6. La Subdirección de Sistemas de Información y Telecomunicaciones es el órgano responsable del <b>análisis de los procesos técnicos para el desarrollo de los proyectos CIS</b> del Ejército de Tierra, del <b>desarrollo de las arquitecturas</b>, del <b>control de la configuración</b>, del <b>desarrollo de software</b> en el ámbito de sus competencias, de la <b>automatización técnica de procesos</b>, de la <b>interoperabilidad y la validación técnica de los CIS</b> del Ejército de Tierra, incluidos los sistemas de simulación, y de la <b>integración de los CIS desplegables específicos</b> del Ejército de Tierra en la Infraestructura Integral de Información para la Defensa."<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> La SSIT se centra en los aspectos técnicos del ciclo de vida de los sistemas CIS: análisis, diseño (arquitectura), desarrollo (software), control (configuración), pruebas (validación, interoperabilidad) e integración.<br>
+- <b>Relevancia Principal:</b> Diferenciar las responsabilidades técnicas de la SSIT de las responsabilidades doctrinales, que generalmente recaen en otros órganos como el Mando de Adiestramiento y Doctrina (MADOC).<br>
+- <b>Relaciones Orgánicas:</b> La SSIT colabora con otras entidades para asegurar que los sistemas CIS cumplan los requisitos operativos, pero su responsabilidad directa es técnica.<br>
+- <b>Composición:</b> Incluye personal técnico especializado en ingeniería de sistemas, software, redes, etc.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> La SSIT se encargaría de diseñar la arquitectura de red para un nuevo sistema de comunicaciones tácticas y validar técnicamente su interoperabilidad con sistemas aliados, pero la elaboración del manual que explica cómo deben usar los soldados ese sistema en el campo de batalla (doctrina de empleo) sería responsabilidad del MADOC.<br>
+- <b>Implicaciones:</b> Confundir las responsabilidades técnicas con las doctrinales puede llevar a una definición inadecuada de los requisitos del sistema o a una falta de alineación entre la tecnología y su uso operativo.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"SSIT es <b>TÉCNICA</b> CIS: <b>A</b>nálisis, <b>A</b>rquitectura, <b>C</b>onfig, <b>D</b>esarrollo SW, <b>A</b>utomatización, <b>I</b>nterop, <b>V</b>alidación, <b>I</b>ntegración. (<b>NO</b> Doctrina)"<br>
+<u>Componentes:</u><br>
+- <b>TÉCNICA:</b> Enfoque principal de la SSIT.<br>
+- <b>AACDAIVI:</b> Acrónimo de funciones técnicas listadas.<br>
+- <b>NO Doctrina:</b> Exclusión clave (responsabilidad del MADOC).<br><br>
+}
+
+// Pregunta 5. Instrucción 14/2021 ::Décimo.3::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+Considerando la responsabilidad técnica del proceso de transformación digital en el ámbito del Ejército de Tierra asignada a la JCISAT según la Instrucción 14/2021, ¿con qué órgano debe ejercer esta responsabilidad en coordinación y cómo se relaciona esta función con su dependencia general? {
+=Debe coordinarse con el Estado Mayor del Ejército (EME) y esta responsabilidad se enmarca dentro de su dependencia funcional general de los órganos directivos del departamento por razón de la materia.
+~Debe coordinarse con la División de Logística del EME exclusivamente y esta responsabilidad deriva directamente de su dependencia orgánica del JEME.
+~Debe coordinarse con el Mando de Apoyo Logístico (MALOG) y esta responsabilidad es independiente de su dependencia funcional de los órganos directivos del departamento.
+~Debe coordinarse con la Dirección General de Infraestructura (DIGENIN) del Ministerio de Defensa y esta responsabilidad prevalece sobre su dependencia orgánica del JEME a través del SEJEME.
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "3. Además, es el responsable técnico del proceso de <b>transformación digital</b> en el ámbito del Ejército de Tierra, en <b>coordinación con el EME</b>." (Complementado con el punto 1: "Depende funcionalmente de los órganos directivos del departamento por razón de la materia.")<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> La transformación digital es un proceso transversal que requiere una dirección técnica (JCISAT) coordinada con el órgano de planificación y dirección general del ET (EME).<br>
+- <b>Relevancia Principal:</b> Sitúa a la JCISAT como el motor técnico de la modernización digital del ET, pero subraya la necesidad de alineación estratégica con el EME.<br>
+- <b>Relaciones Orgánicas y Funcionales:</b> La coordinación con el EME es una relación interna del ET para la ejecución de esta responsabilidad técnica. Sin embargo, la JCISAT sigue dependiendo funcionalmente de órganos superiores del Ministerio (como la DIGENIN o la futura estructura responsable de transformación digital a nivel ministerial) para asegurar la coherencia con las políticas de Defensa.<br>
+- <b>Composición:</b> Implica una interacción constante entre la JCISAT (especialmente la SSIT) y las diferentes divisiones del EME (Planes, Operaciones, Logística) involucradas en la transformación digital.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Al implementar una nueva plataforma digital para la gestión de personal en el ET, la JCISAT sería responsable de los aspectos técnicos (desarrollo, seguridad, infraestructura), pero trabajaría en coordinación con la División de Personal del EME (que define los requisitos funcionales) y bajo las directrices generales de transformación digital que puedan emanar de la SEDEF o DIGENIN (dependencia funcional).<br>
+- <b>Implicaciones:</b> La falta de coordinación con el EME podría llevar a soluciones técnicas desalineadas con las necesidades operativas o de gestión del ET. La falta de consideración de la dependencia funcional podría resultar en incompatibilidad con sistemas o políticas del Ministerio de Defensa.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"<b>T</b>ransformación <b>D</b>igital (JCISAT) = <b>T</b>écnica + <b>C</b>oordinación <b>E</b>ME + <b>D</b>ependencia <b>F</b>uncional <b>Dep</b>artamento (<b>TD = T + CE + DFD</b>)"<br>
+<u>Componentes:</u><br>
+- <b>TD:</b> Transformación Digital<br>
+- <b>T:</b> Responsabilidad Técnica (JCISAT)<br>
+- <b>CE:</b> Coordinación con EME<br>
+- <b>DFD:</b> Dependencia Funcional Departamento (MINISDEF)<br><br>
+}
+
+// Pregunta 1. Instrucción 14/2021 ::Undécimo.3::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra (Modificada por Orden DEF/559/2024)</b><br><br>
+De acuerdo con la Instrucción 14/2021, modificada por la Orden DEF/559/2024, ¿cuál de las siguientes funciones específicas corresponde a la Sección de Técnicas de Apoyo a la Decisión (STAD) de la Subdirección de Servicios de Asistencia Técnica, además de las tradicionales de estadística, investigación militar operativa y sociología? {
+=Constituir el Centro de Gestión del Dato del ET para la gestión, gobernanza y estudio científico del dato en el ET, su calidad, ciclo de vida, alojamiento, disponibilidad y orientación a su aplicación en tecnologías emergentes.
+~Coordinar y ejecutar las acciones relacionadas exclusivamente con la cartografía de libre difusión, dependiendo funcionalmente para ello de la Subdirección General de Publicaciones y Patrimonio Cultural.
+~Gestionar directamente las necesidades de traducción e interpretación del ET en operaciones internacionales, coordinando los recursos del Gabinete de Traductores e Intérpretes.
+~Supervisar la aplicación de la normativa de protección de datos en el ámbito del ET, en coordinación con la Asesoría Jurídica del Cuartel General del Ejército.
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "3. La Sección de Técnicas de Apoyo a la Decisión es la encargada de coordinar y ejecutar las actividades relacionadas con las materias de estadística, investigación militar operativa y sociología, así como la <b>ciencia de datos y la prospectiva</b> en el ámbito del ET. Asimismo, será la encargada de <b>constituir el Centro de Gestión del Dato del ET</b> para la gestión, gobernanza y estudio científico del dato en el ET, su calidad, ciclo de vida, alojamiento, disponibilidad y orientación a su aplicación en tecnologías emergentes."<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> La STAD es una de las tres secciones que articulan la Subdirección de Servicios de Asistencia Técnica (SSAT), dependiente a su vez de la Secretaría General del Estado Mayor del Ejército (SEGEME).<br>
+- <b>Relevancia Principal:</b> La STAD ha evolucionado para incorporar funciones cruciales en el manejo avanzado de datos, reflejando la importancia de la información en la toma de decisiones militares modernas.<br>
+- <b>Relaciones Orgánicas:</b> Depende orgánicamente de la SSAT. Coordina aspectos de datos con diversas unidades y órganos del ET.<br>
+- <b>Composición:</b> Aunque no se detalla su composición interna en este punto, agrupa expertos en estadística, IMO, sociología y, crucialmente, ciencia de datos.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> La STAD podría analizar grandes volúmenes de datos operativos (ej. consumo de combustible, disponibilidad de material, datos de sensores) para identificar patrones, predecir necesidades logísticas o evaluar la efectividad de tácticas mediante modelos de simulación (IMO) y análisis de datos.<br>
+- <b>Implicaciones:</b> La creación del Centro de Gestión del Dato centraliza y profesionaliza el manejo de la información como activo estratégico, permitiendo una mejor explotación para la inteligencia, la planificación y la conducción de operaciones.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"STAD: ¡Datos Deciden! (Estadística, IMO, Sociología + Datos + Prospectiva)"<br>
+<u>Componentes:</u><br>
+- <b>S:</b> Sociología<br>
+- <b>T:</b> Técnicas (Estadística, IMO)<br>
+- <b>A:</b> Apoyo<br>
+- <b>D:</b> Decisión (¡y Datos!)<br><br>
+}
+
+// Pregunta 2. Instrucción 14/2021 ::Undécimo.4::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+En el ejercicio de sus funciones relativas a publicaciones y cartografía, ¿qué condición específica debe observar la Sección de Publicaciones (SPUB) de la Subdirección de Servicios de Asistencia Técnica, según lo estipulado en la Instrucción 14/2021? {
+=Actuar sin perjuicio de las competencias asignadas a la Subdirección General de Publicaciones y Patrimonio Cultural de la Secretaría General Técnica del Ministerio de Defensa.
+~Priorizar la edición de cartografía clasificada sobre la de libre difusión, bajo supervisión directa de la División de Operaciones del EME.
+~Limitar su actividad a la coordinación, delegando la ejecución material de las publicaciones en el Mando de Adiestramiento y Doctrina (MADOC).
+~Obtener la validación técnica previa del Centro Geográfico del Ejército (CEGET) para toda la cartografía antes de su difusión.
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "4. <b>Sin perjuicio de las competencias asignadas a la Subdirección General de Publicaciones y Patrimonio Cultural de la Secretaría General Técnica</b>, la Sección de Publicaciones es la encargada de coordinar y ejecutar las acciones relacionadas con publicaciones y cartografía."<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> La SPUB es una sección de la SSAT (SEGEME/EME). La Subdirección General de Publicaciones y Patrimonio Cultural (SGTPP) pertenece a la Secretaría General Técnica (SEGENTEC), un órgano directivo del Ministerio de Defensa (nivel superior).<br>
+- <b>Relevancia Principal:</b> Esta cláusula establece una delimitación competencial crucial, reconociendo que, aunque la SPUB gestiona publicaciones y cartografía en el ámbito del ET, existe un órgano ministerial (SGTPP/SEGENTEC) con competencias propias en la materia a nivel de todo el Ministerio de Defensa.<br>
+- <b>Relaciones Orgánicas:</b> La SPUB depende de la SSAT. La relación con la SGTPP/SEGENTEC es de coordinación y respeto competencial, no de dependencia jerárquica directa.<br>
+- <b>Composición:</b> Encargada de la gestión editorial y cartográfica dentro del ET.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Si el ET desea publicar un libro sobre su historia reciente, la SPUB coordinaría su edición y producción, pero debería hacerlo respetando las normativas o directrices generales sobre publicaciones oficiales que pudiera establecer la SGTPP/SEGENTEC para todo el Ministerio de Defensa (ej. imagen institucional, ISBN, depósito legal).<br>
+- <b>Implicaciones:</b> Evita duplicidades y asegura coherencia en la política editorial y de publicaciones a nivel ministerial, aunque permite al ET gestionar sus necesidades específicas a través de la SPUB.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"SPUB publica para ET, pero ¡Ojo! con SEGENTEC (SGTPP)"<br>
+<u>Componentes:</u><br>
+- <b>SPUB:</b> Sección Publicaciones (ET)<br>
+- <b>SEGENTEC:</b> Secretaría General Técnica (MINISDEF)<br>
+- <b>SGTPP:</b> Subdirección General Publicaciones y Patrimonio Cultural (dentro de SEGENTEC)<br><br>
+}
+
+// Pregunta 3. Instrucción 14/2021 ::Undécimo.1::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+Conforme a la Instrucción 14/2021, ¿cuál de las siguientes opciones describe con mayor exactitud y completitud el ámbito de responsabilidad principal de la Subdirección de Servicios de Asistencia Técnica (SSAT)? {
+=La coordinación, control y ejecución de lo relacionado con las materias de estadística, investigación militar operativa, sociología y publicaciones, incluyendo la cartografía de libre difusión.
+~La planificación, dirección y supervisión de todas las actividades de asistencia técnica del ET, incluyendo la prospectiva tecnológica y la gestión de intérpretes.
+~El asesoramiento técnico al JEME en materias de estadística, sociología, publicaciones y traducción, proponiendo las líneas estratégicas en dichos campos.
+~La ejecución exclusiva de las tareas de investigación militar operativa y sociología, así como la gestión centralizada del Centro de Gestión del Dato del ET.
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "1. La Subdirección de servicios de Asistencia Técnica es el órgano responsable de la <b>coordinación, control y ejecución</b> de lo relacionado con las materias de <b>estadística, investigación militar operativa, sociología y publicaciones, incluyendo la cartografía de libre difusión</b>."<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> La SSAT es un órgano dentro de la Secretaría General del Estado Mayor del Ejército (SEGEME), que forma parte del Cuartel General del ET.<br>
+- <b>Relevancia Principal:</b> Define el rol fundamental de la SSAT: no es planificación estratégica ni asesoramiento directo de alto nivel, sino la gestión operativa (coordinación, control, ejecución) de áreas técnicas específicas de apoyo.<br>
+- <b>Relaciones Orgánicas:</b> Depende del Secretario General del Estado Mayor del Ejército (SEGEME). Articula sus funciones a través de sus secciones (STAD, SPUB, GATIET).<br>
+- <b>Composición:</b> Agrupa las capacidades técnicas mencionadas (estadística, IMO, sociología, publicaciones/cartografía, traducción/interpretación) bajo una única dirección.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> La SSAT sería responsable de asegurar que se recopilen y procesen correctamente las estadísticas de personal del ET, que se realicen estudios de IMO para optimizar una ruta logística, que se elaboren informes sociológicos sobre la moral de la tropa, y que se gestione la edición y distribución de manuales técnicos o mapas.<br>
+- <b>Implicaciones:</b> Concentra servicios técnicos diversos pero complementarios para apoyar la toma de decisiones y el funcionamiento general del ET, asegurando un estándar y una coordinación en estas materias.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"SSAT: Asistencia Técnica ConCiEnPS (Coordinación, Control, Ejecución en Estadística, IMO, Sociología, Publicaciones/Cartografía)"<br>
+<u>Componentes:</u><br>
+- <b>SSAT:</b> Subdirección Servicios Asistencia Técnica<br>
+- <b>CoCoE:</b> Coordinación, Control, Ejecución<br>
+- <b>EISP:</b> Estadística, IMO, Sociología, Publicaciones (+Cartografía)<br><br>
+}
+
+// Pregunta 1. Instrucción 14/2021 ::Duodécimo.1::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+Según el apartado Duodécimo de la Instrucción 14/2021, ¿cuál es una responsabilidad fundamental y específica de la Subdirección de Sistemas de Información y Telecomunicaciones (SUBSITEL) en relación con la Infraestructura Integral de Información para la Defensa (I3D)? {
+=La integración de los CIS desplegables específicos del ET en la I3D.
+~La gestión integral y el mantenimiento de toda la infraestructura física de la I3D a nivel nacional.
+~El desarrollo y la implementación de la arquitectura global de la I3D para todas las Fuerzas Armadas.
+~La validación técnica de los sistemas CIS de simulación desarrollados por el Estado Mayor de la Defensa (EMAD).
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "1. La Subdirección de Sistemas de Información y Telecomunicaciones es el órgano responsable del análisis de los procesos técnicos para el desarrollo de los proyectos CIS del ET, del desarrollo de las arquitecturas, del control de la configuración, la interoperabilidad y la validación técnica de los CIS del ET, incluidos los de los sistemas de simulación, y de la <b>integración de los CIS desplegables específicos del ET en la Infraestructura Integral de Información para la Defensa (I3D)</b>."<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> La SUBSITEL es un órgano dentro de la estructura del ET con responsabilidades técnicas específicas sobre los Sistemas de Información y Telecomunicaciones (CIS) del Ejército.
+- <b>Relevancia Principal:</b> Su función clave es asegurar que los sistemas CIS propios del ET, especialmente los diseñados para operar en despliegues, se integren correctamente y funcionen dentro de la red común de Defensa (I3D).
+- <b>Relaciones Orgánicas:</b> Depende jerárquicamente dentro del ET y coordina aspectos técnicos con otros órganos, incluyendo potencialmente el CESTIC (para aspectos de I3D) y unidades usuarias.
+- <b>Composición:</b> Se articula en Secciones y un Centro especializado (Aplicaciones y Procesos Técnicos, Operaciones de Red, Apoyo e Infraestructura, Arquitectura e Interoperabilidad, Centro de Pruebas y Validación).<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Cuando una Brigada del ET despliega en una misión internacional, sus sistemas de mando y control específicos deben poder conectarse y compartir información a través de la I3D con el Cuartel General en España y otras unidades. La SUBSITEL es responsable de asegurar que esta integración técnica sea posible y funcione correctamente desde la fase de diseño y validación.
+- <b>Implicaciones:</b> Una incorrecta integración impediría la comunicación y el flujo de información esencial para las operaciones, afectando la capacidad de mando y control del ET en despliegue.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"SUBSITEL Integra CIS Desplegables Específicos ET en I3D (SICIDEI)"<br>
+<u>Componentes:</u><br>
+- <b>SUBSITEL:</b> Subdirección de Sistemas de Información y Telecomunicaciones
+- <b>CIS:</b> Sistemas de Información y Telecomunicaciones
+- <b>ET:</b> Ejército de Tierra
+- <b>I3D:</b> Infraestructura Integral de Información para la Defensa<br><br>
+}
+
+// Pregunta 2. Instrucción 14/2021 ::Duodécimo.3::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+Dentro de la Subdirección de Sistemas de Información y Telecomunicaciones, ¿qué sección es específicamente responsable de la automatización de procesos definidos en el ET y su despliegue en la plataforma ARGO del Ministerio de Defensa? {
+=La Sección de Aplicaciones y Procesos Técnicos.
+~La Sección de Arquitectura e Interoperabilidad.
+~La Sección de Apoyo e Infraestructura.
+~El Centro de Pruebas y Validación.
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "3. La <b>Sección de Aplicaciones y Procesos Técnicos</b> es la encargada de dirigir los procesos de gestión de los servicios CIS proporcionados al ET mediante la I3D, así como la ejecución, supervisión y control del ciclo de vida de aquellas aplicaciones no comerciales de interés en el ámbito del ET. También será la encargada de <b>automatizar los Procesos que se definan en el ET y de su despliegue en la Plataforma para la Armonización de la Gestión de la Organización (ARGO)</b> del Ministerio de Defensa."<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> La Sección de Aplicaciones y Procesos Técnicos (SAPT) es una de las unidades en que se articula la SUBSITEL.
+- <b>Relevancia Principal:</b> Se centra en la gestión de servicios CIS vía I3D, el ciclo de vida de aplicaciones específicas del ET y, crucialmente, la modernización de la gestión mediante la automatización y el uso de la plataforma ministerial ARGO.
+- <b>Relaciones Orgánicas:</b> Depende de la SUBSITEL y colabora con otras secciones y unidades del ET para definir y automatizar sus procesos. Interactúa con la estructura de gestión de la plataforma ARGO a nivel ministerial.
+- <b>Composición:</b> Es una sección dentro de la SUBSITEL, con personal especializado en gestión de servicios, desarrollo de aplicaciones y automatización de procesos.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Si el Mando de Personal del ET define un nuevo procedimiento digital para la solicitud de permisos, la SAPT sería la encargada de analizar ese proceso, desarrollar la automatización necesaria y desplegarla como un servicio dentro de la plataforma ARGO para que el personal pueda utilizarlo.
+- <b>Implicaciones:</b> Esta función es clave para la transformación digital del ET, permitiendo estandarizar y agilizar procedimientos administrativos y de gestión a través de una plataforma común del Ministerio de Defensa.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"SAPT Automatiza Procesos Técnicos en ARGO (SAPTA)"<br>
+<u>Componentes:</u><br>
+- <b>SAPT:</b> Sección de Aplicaciones y Procesos Técnicos
+- <b>Automatiza:</b> Función clave de automatización
+- <b>ARGO:</b> Plataforma de despliegue<br><br>
+}
+
+// Pregunta 3. Instrucción 14/2021 ::Duodécimo.6::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+¿Qué órgano específico, encuadrado dentro de la Sección de Arquitectura e Interoperabilidad de la SUBSITEL, se constituye para la investigación, experimentación y definición de pruebas de concepto de nuevas tecnologías en el ámbito CIS, disponiendo para ello de una Unidad de Ingeniería? {
+=El Centro de Tecnologías Emergentes del Ejército de Tierra (CTEET).
+~El Centro de Pruebas y Validación (CEPROVAL).
+~La Sección de Operaciones de Red (SORED).
+~El Centro de Sistemas y Tecnologías de la Información y las Comunicaciones (CESTIC) del ET.
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "6. La Sección de Arquitectura e Interoperabilidad es la encargada de coordinar y ejecutar las actividades relacionadas con la arquitectura, control de la configuración e interoperabilidad para la definición de los requisitos técnicos de los CIS, incluidos los de los sistemas de simulación. Asimismo, será la encargada de constituir el <b>Centro de Tecnologías Emergentes del Ejército de Tierra (CTEET)</b> para la investigación, experimentación y definición de pruebas de concepto de la aplicación de nuevas tecnologías en el ámbito CIS. Para ello dispondrá de una Unidad de Ingeniería."<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> El CTEET no es una sección principal, sino un centro específico constituido *dentro* de la Sección de Arquitectura e Interoperabilidad (SARQINT).
+- <b>Relevancia Principal:</b> Su misión es la prospectiva tecnológica en el ámbito CIS: investigar, probar y evaluar la viabilidad (pruebas de concepto) de tecnologías novedosas antes de su posible adopción por el ET.
+- <b>Relaciones Orgánicas:</b> Orgánicamente forma parte de la SARQINT, que a su vez depende de la SUBSITEL. Funcionalmente, interactúa con otras secciones (como CEPROVAL para la integración posterior) y potencialmente con la industria y centros de investigación.
+- <b>Composición:</b> Incluye una Unidad de Ingeniería dedicada a estas tareas de investigación y experimentación.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Si surge una nueva tecnología de comunicación cuántica o de inteligencia artificial aplicada a redes, el CTEET sería el encargado de investigar su potencial aplicación militar para el ET, realizar experimentos controlados y definir pruebas de concepto para evaluar su viabilidad y posibles ventajas antes de considerar una adquisición o desarrollo a gran escala.
+- <b>Implicaciones:</b> El CTEET actúa como la punta de lanza tecnológica de la SUBSITEL, asegurando que el ET no quede obsoleto en el ámbito CIS y pueda aprovechar las innovaciones tecnológicas emergentes.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"SARQINT Aloja al CTEET para Explorar Tecnologías Emergentes (SACTEE)"<br>
+<u>Componentes:</u><br>
+- <b>SARQINT:</b> Sección de Arquitectura e Interoperabilidad (donde se encuadra)
+- <b>CTEET:</b> Centro de Tecnologías Emergentes del Ejército de Tierra
+- <b>Emergentes:</b> Foco en nuevas tecnologías<br><br>
+}
+
+// Pregunta 4. Instrucción 14/2021 ::Duodécimo.5::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+De acuerdo con la Instrucción 14/2021, la Sección de Apoyo e Infraestructura (SAI) de la SUBSITEL debe realizar sus funciones de adquisición, mantenimiento y control de hardware y software de la I3D en coordinación específica con qué otro órgano? {
+=El Centro de Sistemas y Tecnologías de la Información y las Comunicaciones (CESTIC), correspondiente al ET.
+~La Jefatura de los Sistemas de Información, Telecomunicaciones y Asistencia Técnica (JCISAT) del EMAD.
+~La Sección de Arquitectura e Interoperabilidad (SARQINT) de la propia SUBSITEL.
+~La Dirección de Adquisiciones del Mando de Apoyo Logístico del Ejército (MALE).
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "5. La Sección de Apoyo e Infraestructura es la encargada de coordinar y ejecutar las actividades relacionadas con los análisis orgánicos, funcionales y de sistemas, con los proyectos de infraestructuras de los CIS y con la adquisición, mantenimiento y control de hardware y software de la I3D, <b>en coordinación con el Centro de Sistemas y Tecnologías de la Información y las Comunicaciones (CESTIC), correspondiente al ET</b>."<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> La Sección de Apoyo e Infraestructura (SAI) es parte de la SUBSITEL, enfocada en el soporte físico y lógico de los sistemas.
+- <b>Relevancia Principal:</b> Gestiona aspectos tangibles como infraestructuras, hardware y software dentro del marco de la I3D para el ET.
+- <b>Relaciones Orgánicas:</b> Depende de la SUBSITEL. Crucialmente, la norma establece una relación de *coordinación* explícita con el CESTIC (órgano superior del MINISDEF en materia TIC) en lo referente a la I3D que afecta al ET. No es una dependencia, sino una colaboración necesaria.
+- <b>Composición:</b> Sección con personal técnico enfocado en infraestructuras, sistemas, hardware y software.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Cuando la SAI necesita adquirir nuevos servidores o licencias de software para ser utilizados dentro de la red I3D por unidades del ET, debe coordinar esta adquisición con el CESTIC para asegurar la compatibilidad, el cumplimiento de estándares y la correcta integración en la infraestructura global de Defensa gestionada por CESTIC.
+- <b>Implicaciones:</b> Esta coordinación es vital para mantener la coherencia y seguridad de la I3D, evitando adquisiciones descoordinadas que puedan generar incompatibilidades o vulnerabilidades en la red común de Defensa.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"SAI Apoya Infraestructura y Hardware/Software I3D Coordinando con CESTIC (SAIHC)"<br>
+<u>Componentes:</u><br>
+- <b>SAI:</b> Sección de Apoyo e Infraestructura
+- <b>I3D:</b> Infraestructura Integral de Información para la Defensa
+- <b>CESTIC:</b> Centro de Sistemas y Tecnologías de la Información y las Comunicaciones (órgano de coordinación)<br><br>
+}
+
+// Pregunta 5. Instrucción 14/2021 ::Duodécimo.4 y 7::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+Considerando las funciones específicas asignadas a las distintas secciones y centros de la SUBSITEL según la Instrucción 14/2021, ¿cuál de las siguientes afirmaciones describe INCORRECTAMENTE una responsabilidad? {
+=La Sección de Operaciones de Red (SORED) es la encargada de validar técnicamente los sistemas y servicios de los CIS de nueva adquisición y de la evolución de los existentes.
+~El Centro de Pruebas y Validación (CEPROVAL) es responsable de certificar los procesos de integración, arquitectura e interoperabilidad de los sistemas CIS en el ámbito del ET.
+~La Sección de Operaciones de Red (SORED) se encarga de controlar, coordinar y gestionar los servicios CIS permanentes.
+~La Sección de Aplicaciones y Procesos Técnicos (SAPT) dirige los procesos de gestión de los servicios CIS proporcionados al ET mediante la I3D.
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "4. La <b>Sección de Operaciones de Red</b> es la encargada de <b>controlar, coordinar y gestionar los servicios CIS permanentes</b>, así como la integración de las redes desplegables específicas del ET en la I3D." y "7. El <b>Centro de Pruebas y Validación</b> es el encargado de <b>validar técnicamente los sistemas y servicios de los CIS de nueva adquisición y de la evolución de los existentes</b>, así como de certificar los procesos de integración, arquitectura e interoperabilidad de los sistemas CIS en el ámbito del ET (...)." La afirmación incorrecta atribuye la función de validación técnica (propia del CEPROVAL según el punto 7) a la SORED (cuyas funciones se describen en el punto 4).<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> La pregunta exige diferenciar las responsabilidades específicas entre SORED y CEPROVAL, dos componentes distintos de la SUBSITEL.
+- <b>Relevancia Principal:</b> SORED se enfoca en la *operación* y gestión de redes y servicios existentes (permanentes y desplegables integrados en I3D). CEPROVAL se enfoca en la *validación* y *certificación* técnica de sistemas nuevos o modificados antes de su puesta en servicio.
+- <b>Relaciones Orgánicas:</b> Ambas son unidades de la SUBSITEL, pero con misiones claramente diferenciadas en el ciclo de vida de los sistemas CIS.
+- <b>Composición:</b> SORED tiene personal orientado a la operación de redes; CEPROVAL tiene personal orientado a pruebas técnicas y certificación.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Cuando el ET adquiere un nuevo sistema de radio definido por software, el CEPROVAL es quien realiza las pruebas técnicas exhaustivas para validar que cumple los requisitos y es interoperable. Una vez validado y desplegado, la SORED sería responsable de gestionar su operación como parte de los servicios CIS permanentes o integrarlo en redes desplegables. Atribuir la validación inicial a SORED sería incorrecto.
+- <b>Implicaciones:</b> Confundir estas funciones podría llevar a que sistemas no validados adecuadamente entren en operación (si SORED lo hiciera) o a que la operación diaria de la red se viera sobrecargada con tareas de validación (si CEPROVAL gestionara servicios permanentes).<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"SORED Opera Redes, CEPROVAL Prueba y Valida (SORO-CEPV)"<br>
+<u>Componentes:</u><br>
+- <b>SORED:</b> Sección de Operaciones de Red -> Operación
+- <b>CEPROVAL:</b> Centro de Pruebas y Validación -> Pruebas/Validación<br><br>
+}
+
+// Pregunta 1. Instrucción 14/2021 ::Decimotercero.3::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+Según el apartado Decimotercero de la Instrucción 14/2021, ¿cuál es la función específica de la Sección de Ciberdefensa en relación con la acreditación de Sistemas de Información y Telecomunicaciones (CIS) y la ejecución de actividades de ciberdefensa sobre ellos? {
+=Constituye el órgano de acreditación de los CIS específicos del ET y ejecuta las actividades de ciberdefensa en los que tengan carácter permanente.
+~Constituye el órgano de acreditación de todos los CIS del ET y ejecuta las actividades de ciberdefensa en los que tengan carácter específico.
+~Es responsable de la acreditación de los CIS permanentes y del control y coordinación de las actividades de ciberdefensa en los CIS específicos.
+~Acredita tanto los CIS específicos como los permanentes, pero solo ejecuta actividades de ciberdefensa en los específicos bajo supervisión de la Subdirección.
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "3. La Sección de Ciberdefensa es la encargada de controlar y coordinar las actividades de ciberdefensa sobre los CIS específicos del ET, y de <b>ejecutarlas en los que tengan carácter permanente</b>. Como órgano de dirección y ejecución de la seguridad de la información en los CIS, <b>constituye el órgano de acreditación de los CIS específicos</b>. Además es responsable del control y distribución del material de cifra del ET."<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> La Sección de Ciberdefensa es una de las dos secciones que articulan la Subdirección de Ciberdefensa y Actividades Electromagnéticas.<br>
+- <b>Relevancia Principal:</b> Su rol es crucial en la protección activa y pasiva de los sistemas de información del ET, diferenciando su actuación según la naturaleza del CIS.<br>
+- <b>Relaciones Orgánicas:</b> Depende de la Subdirección de Ciberdefensa y Actividades Electromagnéticas. Coordina actividades sobre CIS específicos y ejecuta sobre permanentes.<br>
+- <b>Composición:</b> Es una sección dentro de una Subdirección del Mando de Apoyo a la Maniobra (integrado en la estructura del Apoyo a la Fuerza según Orden DEF/708/2020, aunque la Instrucción no lo detalla aquí).<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Ante un nuevo sistema de mando y control desplegable (CIS específico), la Sección de Ciberdefensa evaluaría su seguridad y emitiría la acreditación antes de su uso operativo. Sin embargo, sobre la red corporativa interna del ET (CIS permanente), la Sección ejecutaría directamente las medidas de defensa ante un ciberataque.<br>
+- <b>Implicaciones:</b> Esta distinción (específico vs. permanente) optimiza recursos: la acreditación asegura un estándar en sistemas variables, mientras la ejecución directa protege la infraestructura constante.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"Ciberdefensa: Acredita lo Específico, Ejecuta lo Permanente (AEEP)"<br>
+<u>Componentes:</u><br>
+- <b>A:</b> Acredita<br>
+- <b>E:</b> Específico<br>
+- <b>E:</b> Ejecuta<br>
+- <b>P:</b> Permanente<br><br>
+}
+
+// Pregunta 2. Instrucción 14/2021 ::Decimotercero.2::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+Considerando estrictamente la redacción del punto 2 del apartado Decimotercero de la Instrucción 14/2021, ¿bajo qué denominación exacta se indica que se articula la Subdirección y en qué componentes lo hace? {
+=La Subdirección de Actividades en el Ciberespacio y Electromagnéticas se articula en la Sección de Ciberdefensa y la Sección de Inteligencia de Señales y Guerra Electrónica.
+~La Subdirección de Ciberdefensa y Actividades Electromagnéticas se articula en la Sección de Ciberdefensa y la Sección de Inteligencia de Señales y Guerra Electrónica.
+~La Subdirección de Ciberdefensa y Guerra Electrónica se articula en la Sección de Ciberseguridad y la Sección de Inteligencia de Señales.
+~La Subdirección de Actividades en el Ciberespacio y Electromagnéticas se articula en la Sección de Ciberdefensa, la Sección de Guerra Electrónica y la Sección de Gestión del Espectro.
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "2. La <b>Subdirección de Actividades en el Ciberespacio y Electromagnéticas</b> se articulaen: 1) <b>Sección de Ciberdefensa</b>. 1) <b>Sección de Inteligencia de Señales y Guerra Electrónica</b>." (Nota: Existe una discrepancia terminológica entre el nombre de la Subdirección en el punto 1 y el punto 2 del texto proporcionado. Esta pregunta evalúa la lectura literal del punto 2).<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> El punto 2 describe la estructura interna básica de la Subdirección mencionada en ese punto específico.<br>
+- <b>Relevancia Principal:</b> Establece las dos unidades orgánicas principales que componen la Subdirección para cumplir sus funciones.<br>
+- <b>Relaciones Orgánicas:</b> Define las dependencias directas de primer nivel dentro de la Subdirección.<br>
+- <b>Composición:</b> Dos Secciones: Ciberdefensa e Inteligencia de Señales y Guerra Electrónica.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Al consultar la estructura orgánica detallada en este punto específico de la Instrucción, un miembro del ET identificaría estas dos secciones como los puntos de contacto primarios para asuntos relacionados con ciberdefensa o SIGINT/EW dentro de esta Subdirección.<br>
+- <b>Implicaciones:</b> La precisión terminológica es crucial en documentos normativos. Aunque el punto 1 use un nombre ligeramente diferente ("Subdirección de Ciberdefensa y Actividades Electromagnéticas"), el punto 2 usa "Subdirección de Actividades en el Ciberespacio y Electromagnéticas" para describir su articulación. Esta pregunta mide la atención al detalle literal del texto normativo.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"Punto 2: ACE articula CIDE + SIGE" (Recordar el nombre literal del punto 2)<br>
+<u>Componentes:</u><br>
+- <b>ACE:</b> Actividades en el Ciberespacio y Electromagnéticas (Nombre en Punto 2)<br>
+- <b>CIDE:</b> Sección de Ciberdefensa<br>
+- <b>SIGE:</b> Sección de Inteligencia de Señales y Guerra Electrónica<br><br>
+}
+
+// Pregunta 3. Instrucción 14/2021 ::Decimotercero.4::
+<b>Instrucción 14/2021, de 8 de marzo, del Jefe de Estado Mayor del Ejército de Tierra, por la que se desarrolla la organización del Ejército de Tierra</b><br><br>
+De acuerdo con las funciones asignadas a la Sección de Inteligencia de Señales y Guerra Electrónica en el apartado Decimotercero.4 de la Instrucción 14/2021, ¿cuál de las siguientes afirmaciones describe INCORRECTAMENTE una de sus responsabilidades? {
+=Es la encargada de ejecutar directamente las actividades de inteligencia de señales y guerra electrónica en todas las unidades del ET.
+~Es la encargada, en el ET, de coordinar la ejecución de las actividades relacionadas con la inteligencia de señales y la guerra electrónica.
+~Tiene entre sus funciones la gestión del espectro electromagnético y el análisis técnico de las señales electromagnéticas.
+~Proporciona información sobre vulnerabilidades, riesgos y amenazas para la seguridad de los sistemas que opera el ET.
+#### RETROALIMENTACIÓN:<br><br>
+<b>Referencia:</b> "4. La Sección de Inteligencia de Señales y Guerra Electrónica es la encargada, en el ET, de <b>coordinar la ejecución</b> de las actividades relacionadas con la inteligencia de señales y la guerra electrónica, así como de <b>gestionar el espectro electromagnético</b> y el <b>análisis técnico de las señales electromagnéticas</b>, <b>proporcionando información sobre vulnerabilidades, riesgos y amenazas</b> para la seguridad de los sistemas que opera."<br>
+<b>🔍 DESGLOSE ESTRUCTURADO:</b><br>
+- <b>Fundamento Organizativo:</b> Detalla las responsabilidades específicas de la segunda sección de la Subdirección.<br>
+- <b>Relevancia Principal:</b> Se centra en la coordinación y gestión del ámbito electromagnético y de señales, más que en la ejecución directa generalizada.<br>
+- <b>Relaciones Orgánicas:</b> Depende de la Subdirección y coordina actividades en el ámbito SIGINT/EW del ET.<br>
+- <b>Composición:</b> Es una sección única con múltiples funciones interrelacionadas en el espectro electromagnético.<br><br>
+<b>⚖️ APLICACIÓN PRÁCTICA:</b><br>
+- <b>Caso real:</b> Si una Brigada del ET necesita realizar una operación de guerra electrónica, la Sección de Inteligencia de Señales y Guerra Electrónica coordinaría esta actividad, asegurando que se alinea con la doctrina y los recursos disponibles, gestionaría el uso del espectro necesario y podría analizar las señales interceptadas, pero la ejecución sobre el terreno recaería probablemente en unidades especializadas de la Brigada o del Mando correspondiente, no directamente en la Sección para todas las unidades.<br>
+- <b>Implicaciones:</b> La función principal es de coordinación y análisis a nivel ET, no de ejecución directa universal. La ejecución se delega o realiza por unidades específicas según corresponda.<br>
+<b>🧠 REGLA MNEMOTÉCNICA:</b><br>
+"SIGE-EW: Coordina, Gestiona, Analiza, Informa (No Ejecuta Todo)"<br>
+<u>Componentes:</u><br>
+- <b>Coordina:</b> Ejecución de SIGINT/EW.<br>
+- <b>Gestiona:</b> Espectro Electromagnético.<br>
+- <b>Analiza:</b> Señales Electromagnéticas.<br>
+- <b>Informa:</b> Vulnerabilidades, Riesgos, Amenazas.<br><br>
+}

@@ -1,0 +1,9 @@
+{
+  "tag_name": "v1.0.0",
+  "target_commitish": "main",
+  "name": "Primera Versión Estable - Generador de Preguntas GIFT para Oposiciones",
+  "body": "🎉 Primera versión estable del Generador de Preguntas GIFT para Oposiciones\n\nEsta versión marca el primer lanzamiento estable de nuestra plataforma web interactiva para la generación automática de preguntas tipo test en formato GIFT, especialmente diseñada para oposiciones y exámenes oficiales en el ámbito legal y militar.\n\n### ✨ Características Principales\n\n- **Taxonomía de Bloom Completa**: Implementación de los seis niveles cognitivos\n- **Sistema de Trampa Conceptual**: Detección de estudio superficial\n- **Distractores de Precisión Mejorada**: Generación de opciones con variaciones sutiles\n- **Procesamiento Mejorado de Textos Legales**: Detección y división automática\n- **Integración con Múltiples Proveedores de IA**: \n  - Anthropic (Claude 3 Opus, Sonnet)\n  - Google (Gemini Pro)\n  - OpenAI (GPT-4, 3.5)\n\n### 🛠️ Detalles Técnicos\n\n- Next.js 14 con TypeScript\n- React 18.2.0\n- TailwindCSS 3.4.17\n- Prisma 5.10.2\n- Sistema de prompts modular y configurable\n\n### 📝 Notas de Instalación\n\n1. Clonar el repositorio\n2. Instalar dependencias: `npm install`\n3. Configurar variables de entorno: Copiar `.env.example` a `.env`\n4. Iniciar el servidor: `npm run dev`\n\n### 🔑 Requisitos\n\n- Node.js\n- NPM\n- Claves API configuradas para los servicios de IA\n- Base de datos PostgreSQL\n\n### 📚 Documentación\n\nConsulta el archivo README.md para información detallada sobre:\n- Configuración completa\n- Guía de uso\n- Características detalladas\n- Flujo de trabajo recomendado",
+  "draft": false,
+  "prerelease": false,
+  "generate_release_notes": false
+} 

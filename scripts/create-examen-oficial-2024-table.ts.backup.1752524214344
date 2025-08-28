@@ -1,0 +1,53 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function createExamenOficial2024Table() {
+  try {
+    console.log('🏗️ CREANDO TABLA ExamenOficial2024');
+    console.log('==================================');
+
+    // El esquema de la tabla se debe agregar al schema.prisma primero
+    // Esta función verificará si la tabla existe y puede usarse
+
+    // Verificar si la tabla existe intentando hacer una consulta simple
+    try {
+      const count = await prisma.examenOficial2024.count();
+      console.log(`✅ Tabla ExamenOficial2024 ya existe con ${count} registros`);
+    } catch (error) {
+      console.error('❌ La tabla ExamenOficial2024 no existe.');
+      console.log('\n📋 NECESITAS AGREGAR AL SCHEMA.PRISMA:');
+      console.log(`
+model ExamenOficial2024 {
+  id                    String   @id @default(cuid())
+  createdAt            DateTime @default(now())
+  questionNumber       Int      @unique
+  question             String   @db.Text
+  options              String[]
+  correctAnswerIndex   Int
+  category             String?
+  difficulty           String?  @default("OFICIAL")
+  isActive             Boolean  @default(true)
+  sendCount            Int      @default(0)
+  lastSuccessfulSendAt DateTime?
+
+  // Relaciones con respuestas de simulacro
+  simulacroResponses   SimulacroResponse[]
+
+  @@map("ExamenOficial2024")
+}
+      `);
+      console.log('\n🔧 DESPUÉS EJECUTA: npx prisma db push');
+      return;
+    }
+
+    console.log('🎯 La tabla está lista para usar');
+
+  } catch (error) {
+    console.error('❌ Error:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+createExamenOficial2024Table().catch(console.error); 

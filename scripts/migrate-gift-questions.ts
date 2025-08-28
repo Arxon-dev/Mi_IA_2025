@@ -1,0 +1,414 @@
+#!/usr/bin/env tsx
+
+/**
+ * MIGRACIÓN DE PREGUNTAS GIFT A TABLA VALIDQUESTION
+ * 
+ * Migra preguntas parseadas con el parser GIFT mejorado desde la tabla Question
+ * hacia la tabla ValidQuestion, preservando metadatos y manejando errores.
+ * 
+ * Características:
+ * - Procesamiento en lotes para rendimiento
+ * - Verificación de duplicados
+ * - Logging detallado de progreso
+ * - Rollback en caso de errores
+ * - Preservación de metadatos originales
+ */
+
+import { PrismaClient } from '@prisma/client';
+import { parseGIFTImproved, type ParsedQuestion } from './gift-parser-improved';
+import fs from 'fs';
+import path from 'path';
+
+const prisma = new PrismaClient();
+
+interface MigrationStats {
+  totalProcessed: number;
+  successfulMigrations: number;
+  failedMigrations: number;
+  duplicatesSkipped: number;
+  errors: string[];
+  startTime: Date;
+  endTime?: Date;
+}
+
+interface MigrationOptions {
+  batchSize: number;
+  skipDuplicates: boolean;
+  dryRun: boolean;
+  logLevel: 'verbose' | 'normal' | 'quiet';
+  maxErrors: number;
+}
+
+const DEFAULT_OPTIONS: MigrationOptions = {
+  batchSize: 50,
+  skipDuplicates: true,
+  dryRun: false,
+  logLevel: 'normal',
+  maxErrors: 100
+};
+
+/**
+ * Verificar si una pregunta ya existe en ValidQuestion
+ */
+async function checkForDuplicate(questionText: string, options: string[]): Promise<boolean> {
+  const existing = await prisma.validQuestion.findFirst({
+    where: {
+      parsedQuestion: questionText,
+      parsedOptions: {
+        equals: options
+      }
+    }
+  });
+  
+  return !!existing;
+}
+
+/**
+ * Migrar una pregunta parseada a ValidQuestion
+ */
+async function migrateQuestion(
+  originalQuestion: any,
+  parsedQuestion: ParsedQuestion,
+  options: MigrationOptions
+): Promise<{ success: boolean; error?: string; skipped?: boolean }> {
+  
+  try {
+    // Verificar duplicados si está habilitado
+    if (options.skipDuplicates) {
+      const isDuplicate = await checkForDuplicate(parsedQuestion.question, parsedQuestion.options);
+      if (isDuplicate) {
+        if (options.logLevel === 'verbose') {
+          console.log(`⏭️ Saltando duplicado: ${parsedQuestion.id}`);
+        }
+        return { success: true, skipped: true };
+      }
+    }
+    
+    // Si es dry run, solo simular
+    if (options.dryRun) {
+      if (options.logLevel === 'verbose') {
+        console.log(`🔍 [DRY RUN] Migraría: ${parsedQuestion.question.substring(0, 50)}...`);
+      }
+      return { success: true };
+    }
+    
+    // Crear entrada en ValidQuestion
+    await prisma.validQuestion.create({
+      data: {
+        originalQuestionId: originalQuestion.id,
+        content: originalQuestion.content, // Contenido original completo
+        parsedQuestion: parsedQuestion.question,
+        parsedOptions: parsedQuestion.options,
+        correctanswerindex: parsedQuestion.correctanswerindex,
+        parsedExplanation: parsedQuestion.explanation || null,
+        parseMethod: 'GIFT',
+        type: originalQuestion.type || 'multiplechoice',
+        difficulty: originalQuestion.difficulty || 'unknown',
+        bloomLevel: null, // No disponible en Question original
+        documentId: originalQuestion.documentId || null,
+        isactive: true
+      }
+    });
+    
+    if (options.logLevel === 'verbose') {
+      console.log(`✅ Migrado: ${parsedQuestion.question.substring(0, 50)}...`);
+    }
+    
+    return { success: true };
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (options.logLevel !== 'quiet') {
+      console.error(`❌ Error migrando ${parsedQuestion.id}: ${errorMessage}`);
+    }
+    return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Migrar preguntas en lotes
+ */
+async function migrateBatch(
+  questions: any[],
+  options: MigrationOptions,
+  stats: MigrationStats
+): Promise<void> {
+  
+  for (const question of questions) {
+    // Verificar límite de errores
+    if (stats.errors.length >= options.maxErrors) {
+      console.log(`🛑 Deteniendo migración: se alcanzó el límite de ${options.maxErrors} errores`);
+      break;
+    }
+    
+    // Parsear la pregunta
+    const parsed = parseGIFTImproved(question.content, question.id);
+    stats.totalProcessed++;
+    
+    if (!parsed || !parsed.isValid) {
+      stats.failedMigrations++;
+      const error = `Parsing falló: ${parsed?.errors.join(', ') || 'Unknown error'}`;
+      stats.errors.push(`${question.id}: ${error}`);
+      
+      if (options.logLevel === 'verbose') {
+        console.log(`❌ Error parseando ${question.id}: ${error}`);
+      }
+      continue;
+    }
+    
+    // Migrar la pregunta
+    const result = await migrateQuestion(question, parsed, options);
+    
+    if (result.success) {
+      if (result.skipped) {
+        stats.duplicatesSkipped++;
+      } else {
+        stats.successfulMigrations++;
+      }
+    } else {
+      stats.failedMigrations++;
+      if (result.error) {
+        stats.errors.push(`${question.id}: ${result.error}`);
+      }
+    }
+    
+    // Mostrar progreso cada 100 preguntas
+    if (stats.totalProcessed % 100 === 0 && options.logLevel !== 'quiet') {
+      const progress = (stats.totalProcessed / (stats.totalProcessed + questions.length - questions.indexOf(question) - 1)) * 100;
+      console.log(`📊 Progreso: ${stats.totalProcessed} procesadas | ✅ ${stats.successfulMigrations} exitosas | ❌ ${stats.failedMigrations} fallidas | ⏭️ ${stats.duplicatesSkipped} duplicados`);
+    }
+  }
+}
+
+/**
+ * Ejecutar migración completa
+ */
+async function runMigration(options: MigrationOptions = DEFAULT_OPTIONS): Promise<MigrationStats> {
+  const stats: MigrationStats = {
+    totalProcessed: 0,
+    successfulMigrations: 0,
+    failedMigrations: 0,
+    duplicatesSkipped: 0,
+    errors: [],
+    startTime: new Date()
+  };
+  
+  console.log('🚀 Iniciando migración de preguntas GIFT...\n');
+  
+  if (options.dryRun) {
+    console.log('🔍 MODO DRY RUN - No se realizarán cambios en la base de datos\n');
+  }
+  
+  try {
+    // Contar total de preguntas
+    const totalQuestions = await prisma.question.count({ where: { archived: false } });
+    console.log(`📊 Total de preguntas a procesar: ${totalQuestions.toLocaleString()}\n`);
+    
+    // Verificar estado actual de ValidQuestion
+    const currentValidQuestions = await prisma.validQuestion.count();
+    console.log(`📋 Preguntas actuales en ValidQuestion: ${currentValidQuestions.toLocaleString()}\n`);
+    
+    // Procesar en lotes
+    for (let offset = 0; offset < totalQuestions; offset += options.batchSize) {
+      const batch = await prisma.question.findMany({
+        skip: offset,
+        take: options.batchSize,
+        select: {
+          id: true,
+          content: true,
+          type: true,
+          difficulty: true,
+          createdAt: true
+        },
+        where: {
+          archived: false
+        },
+        orderBy: {
+          createdAt: 'asc'
+        }
+      });
+      
+      if (batch.length === 0) break;
+      
+      await migrateBatch(batch, options, stats);
+      
+      // Pausa pequeña entre lotes para no sobrecargar la base de datos
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`💥 Error crítico durante la migración: ${errorMessage}`);
+    stats.errors.push(`CRITICAL: ${errorMessage}`);
+  }
+  
+  stats.endTime = new Date();
+  return stats;
+}
+
+/**
+ * Generar reporte de migración
+ */
+function generateMigrationReport(stats: MigrationStats, options: MigrationOptions): string {
+  const duration = stats.endTime ? (stats.endTime.getTime() - stats.startTime.getTime()) / 1000 : 0;
+  const successRate = stats.totalProcessed > 0 ? (stats.successfulMigrations / stats.totalProcessed) * 100 : 0;
+  
+  const report = `
+# 📊 REPORTE DE MIGRACIÓN GIFT → VALIDQUESTION
+
+**Fecha:** ${new Date().toLocaleString()}
+**Duración:** ${duration.toFixed(1)} segundos
+**Modo:** ${options.dryRun ? 'DRY RUN (simulación)' : 'MIGRACIÓN REAL'}
+
+## 🎯 RESUMEN EJECUTIVO
+
+- **Total procesadas:** ${stats.totalProcessed.toLocaleString()}
+- **Migraciones exitosas:** ${stats.successfulMigrations.toLocaleString()} (${successRate.toFixed(2)}%)
+- **Errores:** ${stats.failedMigrations.toLocaleString()}
+- **Duplicados saltados:** ${stats.duplicatesSkipped.toLocaleString()}
+
+## 📈 ESTADÍSTICAS DETALLADAS
+
+### Rendimiento
+- **Velocidad promedio:** ${(stats.totalProcessed / duration).toFixed(1)} preguntas/segundo
+- **Tasa de éxito:** ${successRate.toFixed(2)}%
+- **Tiempo total:** ${duration.toFixed(1)}s
+
+### Configuración Utilizada
+- **Tamaño de lote:** ${options.batchSize}
+- **Saltar duplicados:** ${options.skipDuplicates ? 'Sí' : 'No'}
+- **Nivel de log:** ${options.logLevel}
+- **Máximo errores:** ${options.maxErrors}
+
+## 🔍 ERRORES ENCONTRADOS
+
+${stats.errors.length === 0 ? '✅ No se encontraron errores!' : 
+  stats.errors.slice(0, 20).map((error, i) => `${i + 1}. ${error}`).join('\n') +
+  (stats.errors.length > 20 ? `\n... y ${stats.errors.length - 20} errores adicionales` : '')
+}
+
+## 💡 RECOMENDACIONES
+
+${stats.successfulMigrations > 5000 ? 
+  '🎉 ¡Excelente! La migración fue muy exitosa. Tu sistema ahora tiene miles de preguntas válidas.' :
+  stats.successfulMigrations > 1000 ?
+  '👍 Buena migración. Considera revisar los errores para mejorar la tasa de éxito.' :
+  '⚠️ La migración tuvo problemas. Revisa los errores y considera ajustar el parser.'
+}
+
+### Próximos Pasos
+1. ${options.dryRun ? 'Ejecutar migración real (sin --dry-run)' : 'Verificar preguntas migradas en ValidQuestion'}
+2. ${stats.failedMigrations > 0 ? 'Revisar y corregir errores de parsing' : 'Sistema listo para usar con preguntas migradas'}
+3. Actualizar configuración del bot para usar ValidQuestion como fuente principal
+
+---
+*Reporte generado automáticamente el ${new Date().toLocaleString()}*
+`;
+  
+  return report;
+}
+
+/**
+ * Función principal
+ */
+async function main() {
+  const args = process.argv.slice(2);
+  
+  const options: MigrationOptions = { ...DEFAULT_OPTIONS };
+  
+  // Parsear argumentos
+  for (let i = 0; i < args.length; i++) {
+    switch (args[i]) {
+      case '--dry-run':
+        options.dryRun = true;
+        break;
+      case '--batch-size':
+        options.batchSize = parseInt(args[++i]) || DEFAULT_OPTIONS.batchSize;
+        break;
+      case '--verbose':
+        options.logLevel = 'verbose';
+        break;
+      case '--quiet':
+        options.logLevel = 'quiet';
+        break;
+      case '--allow-duplicates':
+        options.skipDuplicates = false;
+        break;
+      case '--max-errors':
+        options.maxErrors = parseInt(args[++i]) || DEFAULT_OPTIONS.maxErrors;
+        break;
+      case '--help':
+        console.log(`
+Uso: npx tsx migrate-gift-questions.ts [opciones]
+
+Opciones:
+  --dry-run              Simular migración sin hacer cambios
+  --batch-size <num>     Tamaño de lote (default: 50)
+  --verbose              Logging detallado
+  --quiet                Logging mínimo
+  --allow-duplicates     Permitir duplicados (no recomendado)
+  --max-errors <num>     Máximo errores antes de parar (default: 100)
+  --help                 Mostrar esta ayuda
+
+Ejemplos:
+  npx tsx migrate-gift-questions.ts --dry-run
+  npx tsx migrate-gift-questions.ts --batch-size 100 --verbose
+        `);
+        process.exit(0);
+    }
+  }
+  
+  try {
+    console.log('🔧 CONFIGURACIÓN DE MIGRACIÓN:');
+    console.log(`   Dry Run: ${options.dryRun}`);
+    console.log(`   Tamaño de lote: ${options.batchSize}`);
+    console.log(`   Log level: ${options.logLevel}`);
+    console.log(`   Saltar duplicados: ${options.skipDuplicates}`);
+    console.log(`   Máximo errores: ${options.maxErrors}\n`);
+    
+    // Ejecutar migración
+    const stats = await runMigration(options);
+    
+    // Generar y guardar reporte
+    const report = generateMigrationReport(stats, options);
+    const reportPath = path.join(process.cwd(), 'scripts', 'output', 'migration-report.md');
+    const outputDir = path.dirname(reportPath);
+    
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+    
+    fs.writeFileSync(reportPath, report, 'utf-8');
+    
+    // Mostrar resumen final
+    console.log('\n🎉 ¡MIGRACIÓN COMPLETADA!\n');
+    console.log('📊 RESUMEN FINAL:');
+    console.log(`   Total procesadas: ${stats.totalProcessed.toLocaleString()}`);
+    console.log(`   ✅ Exitosas: ${stats.successfulMigrations.toLocaleString()}`);
+    console.log(`   ❌ Fallidas: ${stats.failedMigrations.toLocaleString()}`);
+    console.log(`   ⏭️ Duplicados: ${stats.duplicatesSkipped.toLocaleString()}`);
+    
+    if (stats.errors.length > 0) {
+      console.log(`   🚨 Errores: ${stats.errors.length}`);
+    }
+    
+    console.log(`\n📄 Reporte completo guardado en: ${reportPath}`);
+    
+    if (options.dryRun && stats.successfulMigrations > 5000) {
+      console.log('\n💡 RECOMENDACIÓN: ¡La simulación fue muy exitosa! Ejecuta sin --dry-run para migrar realmente.');
+    }
+    
+  } catch (error) {
+    console.error('💥 Error fatal:', error);
+    process.exit(1);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Ejecutar si se llama directamente
+if (require.main === module) {
+  main();
+}
+
+export { runMigration, type MigrationStats, type MigrationOptions }; 

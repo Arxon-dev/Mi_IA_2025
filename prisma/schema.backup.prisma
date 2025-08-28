@@ -1,0 +1,489 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "postgresql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+model Document {
+  id               String            @id @default(cuid())
+  title            String
+  content          String
+  date             DateTime
+  type             String
+  questionCount    Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @default(now()) @updatedAt
+  processingTime   Float?
+  tokens           Int?
+  DocumentProgress DocumentProgress?
+  questions        Question[]
+  sections         Section[]
+}
+
+model Section {
+  id               String            @id @default(uuid())
+  documentId       String
+  title            String
+  content          String
+  order            Int
+  processed        Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @default(now()) @updatedAt
+  type             SectionType
+  document         Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  sectionQuestions SectionQuestion[]
+}
+
+model Question {
+  id                   String    @id @default(uuid())
+  documentId           String
+  content              String
+  type                 String
+  difficulty           String
+  bloomLevel           String?
+  createdAt            DateTime  @default(now())
+  sectionId            String?
+  lastScheduledSendAt  DateTime?
+  sendCount            Int       @default(0)
+  lastSuccessfulSendAt DateTime?
+  archived             Boolean   @default(false)
+  document             Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model Config {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model Statistics {
+  id                 String   @id @default(uuid())
+  processedDocs      Int      @default(0)
+  generatedQuestions Int      @default(0)
+  bloomAverage       Float    @default(0)
+  savedTime          Int      @default(0)
+  updatedAt          DateTime @updatedAt
+  createdAt          DateTime @default(now())
+}
+
+model BloomLevel {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String
+  keywords    String[]
+  percentage  Int
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AIProviderKey {
+  id         String   @id @default(cuid())
+  provider   String
+  apiKey     String
+  aiConfigId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  aiConfig   AIConfig @relation(fields: [aiConfigId], references: [id], onDelete: Cascade)
+}
+
+model AIConfig {
+  id                           String          @id @default(cuid())
+  createdAt                    DateTime        @default(now())
+  updatedAt                    DateTime        @updatedAt
+  provider                     String
+  model                        String
+  temperature                  Float?
+  maxTokens                    Int?
+  systemPrompt                 String?
+  textProcessing               String?
+  format                       String?
+  feedback                     String?
+  distribution                 String?
+  questionTypes                String?
+  difficultyLevels             String?
+  questionsPerChunk            Int?            @default(5)
+  telegramSchedulerEnabled     Boolean?        @default(false)
+  telegramSchedulerFrequency   String?         @default("DAILY_MIDNIGHT_UTC")
+  telegramSchedulerLastRun     DateTime?
+  telegramSchedulerQuantity    Int?            @default(1)
+  telegramSchedulerEndHour     Int?            @default(22)
+  telegramSchedulerStartHour   Int?            @default(8)
+  telegramSchedulerEndMinute   Int?            @default(0)
+  telegramSchedulerStartMinute Int?            @default(0)
+  telegramChatId               String?         @map("telegram_chat_id")
+  providerKeys                 AIProviderKey[]
+}
+
+model AIFeatures {
+  id                   String   @id @default(uuid())
+  conceptTrap          Boolean  @default(false)
+  precisionDistractors Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model DocumentProgress {
+  id                String   @id
+  documentId        String   @unique
+  totalSections     Int      @default(0)
+  processedSections Int      @default(0)
+  status            String   @default("pending")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now())
+  Document          Document @relation(fields: [documentId], references: [id])
+}
+
+model Prompt {
+  id        String   @id
+  name      String   @unique
+  content   String
+  file      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model QuestionConfig {
+  id           String   @id
+  types        Json     @default("{}")
+  difficulties Json     @default("{}")
+  bloomLevels  Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+  optionLength String?
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Document_New {
+  id         BigInt    @id @default(autoincrement())
+  title      String
+  content    String
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model SectionQuestion {
+  id                   String    @id @default(uuid())
+  sectionId            String
+  content              String
+  type                 String
+  difficulty           String
+  bloomLevel           String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @default(now()) @updatedAt
+  lastScheduledSendAt  DateTime?
+  sendCount            Int       @default(0)
+  lastSuccessfulSendAt DateTime?
+  section              Section   @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+}
+
+model TelegramSendLog {
+  id            String   @id @default(uuid())
+  questionId    String
+  sourceModel   String
+  sendTime      DateTime @default(now())
+  success       Boolean  @default(true)
+  errorMessage  String?
+  telegramMsgId String?
+}
+
+model TelegramPoll {
+  id                 String   @id @default(uuid())
+  pollId             String   @unique
+  questionId         String
+  sourceModel        String
+  correctAnswerIndex Int
+  options            Json
+  chatId             String
+  createdAt          DateTime @default(now())
+}
+
+model ValidQuestion {
+  id                   String    @id @default(uuid())
+  originalQuestionId   String    @unique
+  content              String
+  parsedQuestion       String
+  parsedOptions        Json
+  correctAnswerIndex   Int
+  parsedExplanation    String?
+  parseMethod          String
+  type                 String
+  difficulty           String
+  bloomLevel           String?
+  documentId           String?
+  sendCount            Int       @default(0)
+  lastSuccessfulSendAt DateTime?
+  isActive             Boolean   @default(true)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([isActive, sendCount, lastSuccessfulSendAt])
+  @@index([type, difficulty])
+  @@index([sendCount, createdAt])
+}
+
+model TelegramUser {
+  id              String             @id @default(uuid())
+  telegramUserId  String             @unique
+  username        String?
+  firstName       String?
+  lastName        String?
+  totalPoints     Int                @default(0)
+  level           Int                @default(1)
+  streak          Int                @default(0)
+  bestStreak      Int                @default(0)
+  lastActivity    DateTime           @default(now())
+  joinedAt        DateTime           @default(now())
+  accuracy        Float              @default(0)
+  responses       TelegramResponse[]
+  achievements    UserAchievement[]
+  goals           UserGoal[]
+  rewards         UserReward[]
+  challengedDuels Duel[]             @relation("DuelChallenged")
+  challengerDuels Duel[]             @relation("DuelChallenger")
+  wonDuels        Duel[]             @relation("DuelWinner")
+  duelResponses   DuelResponse[]
+  simulacros      Simulacro[]
+
+  @@map("TelegramUser")
+}
+
+model TelegramResponse {
+  id            String       @id @default(uuid())
+  userId        String
+  questionId    String
+  telegramMsgId String?
+  isCorrect     Boolean
+  responseTime  Int?
+  points        Int          @default(0)
+  answeredAt    DateTime     @default(now())
+  user          TelegramUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Achievement {
+  id          String            @id @default(uuid())
+  name        String            @unique
+  description String
+  icon        String
+  category    String
+  condition   Json
+  points      Int               @default(0)
+  rarity      String
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  users       UserAchievement[]
+}
+
+model UserAchievement {
+  id            String       @id @default(uuid())
+  userId        String
+  achievementId String
+  unlockedAt    DateTime     @default(now())
+  user          TelegramUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement   Achievement  @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+}
+
+model UserGoal {
+  id        String       @id @default(uuid())
+  userId    String
+  type      String
+  target    Int
+  current   Int          @default(0)
+  reward    Int
+  deadline  DateTime
+  completed Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  user      TelegramUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Reward {
+  id          String       @id @default(uuid())
+  name        String
+  description String
+  cost        Int
+  type        String
+  icon        String?
+  available   Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  users       UserReward[]
+}
+
+model UserReward {
+  id        String       @id @default(uuid())
+  userId    String
+  rewardId  String
+  claimedAt DateTime     @default(now())
+  user      TelegramUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward    Reward       @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, rewardId])
+}
+
+model Duel {
+  id             String         @id @default(uuid())
+  challengerId   String
+  challengedId   String
+  status         String         @default("pending")
+  type           String         @default("standard")
+  questionsCount Int            @default(5)
+  timeLimit      Int            @default(300)
+  stake          Int            @default(0)
+  expiresAt      DateTime
+  startedAt      DateTime?
+  completedAt    DateTime?
+  winnerId       String?
+  result         String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  challenger     TelegramUser   @relation("DuelChallenger", fields: [challengerId], references: [id], onDelete: Cascade)
+  challenged     TelegramUser   @relation("DuelChallenged", fields: [challengedId], references: [id], onDelete: Cascade)
+  winner         TelegramUser?  @relation("DuelWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  responses      DuelResponse[]
+  questions      DuelQuestion[]
+
+  @@index([challengerId])
+  @@index([challengedId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model DuelResponse {
+  id             String       @id @default(uuid())
+  duelId         String
+  userId         String
+  questionId     String
+  pollId         String?
+  selectedOption Int?
+  isCorrect      Boolean?
+  responseTime   Int?
+  points         Int          @default(0)
+  answeredAt     DateTime     @default(now())
+  duel           Duel         @relation(fields: [duelId], references: [id], onDelete: Cascade)
+  user           TelegramUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([duelId, userId, questionId])
+  @@index([duelId])
+  @@index([userId])
+}
+
+model DuelQuestion {
+  id         String    @id @default(uuid())
+  duelId     String
+  questionId String
+  pollId     String?
+  order      Int
+  sentAt     DateTime?
+  createdAt  DateTime  @default(now())
+  duel       Duel      @relation(fields: [duelId], references: [id], onDelete: Cascade)
+
+  @@unique([duelId, questionId])
+  @@index([duelId])
+}
+
+model ExamenOficial2018 {
+  id                   String              @id @default(uuid())
+  questionNumber       Int                 @unique
+  question             String
+  options              String[]
+  correctAnswerIndex   Int
+  category             String?
+  difficulty           String?
+  isActive             Boolean             @default(true)
+  sendCount            Int                 @default(0)
+  lastSuccessfulSendAt DateTime?
+  createdAt            DateTime            @default(now())
+  simulacroResponses   SimulacroResponse[]
+
+  @@map("ExamenOficial2018")
+}
+
+model ExamenOficial2024 {
+  id                     String              @id @default(uuid())
+  questionNumber         Int                 @unique
+  question               String
+  options                String[]
+  correctAnswerIndex     Int
+  category               String?
+  difficulty             String?             @default("OFICIAL")
+  isActive               Boolean             @default(true)
+  sendCount              Int                 @default(0)
+  lastSuccessfulSendAt   DateTime?
+  createdAt              DateTime            @default(now())
+  simulacroResponses2024 SimulacroResponse[] @relation("ExamenOficial2024ToSimulacroResponse")
+
+  @@map("ExamenOficial2024")
+}
+
+model Simulacro {
+  id                   String              @id @default(uuid())
+  userId               String
+  status               String              @default("in_progress")
+  startedAt            DateTime            @default(now())
+  completedAt          DateTime?
+  timeLimit            Int                 @default(10800)
+  timeElapsed          Int                 @default(0)
+  currentQuestionIndex Int                 @default(0)
+  totalQuestions       Int                 @default(100)
+  finalScore           Int                 @default(0)
+  finalPercentage      Float               @default(0)
+  passed               Boolean             @default(false)
+  averageResponseTime  Float?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  examType             String              @default("EXAMEN_2018")
+  user                 TelegramUser        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  responses            SimulacroResponse[]
+
+  @@index([userId, status])
+  @@index([startedAt])
+  @@index([status, timeLimit])
+  @@index([examType])
+  @@map("Simulacro")
+}
+
+model SimulacroResponse {
+  id                 String             @id @default(uuid())
+  simulacroId        String
+  questionId         String
+  questionNumber     Int
+  pollId             String?
+  selectedOption     Int?
+  isCorrect          Boolean?
+  responseTime       Int?
+  answeredAt         DateTime?          @default(now())
+  skipped            Boolean            @default(false)
+  questionCategory   String?
+  questionDifficulty String?
+  createdAt          DateTime           @default(now())
+  examType           String             @default("EXAMEN_2018")
+  simulacro          Simulacro          @relation(fields: [simulacroId], references: [id], onDelete: Cascade)
+  question           ExamenOficial2018? @relation(fields: [questionId], references: [id], onDelete: Cascade, map: "SimulacroResponse_question2018_fkey")
+  questionExamen2024 ExamenOficial2024? @relation("ExamenOficial2024ToSimulacroResponse", fields: [questionId], references: [id], onDelete: Cascade, map: "SimulacroResponse_question2024_fkey")
+
+  @@unique([simulacroId, questionNumber])
+  @@index([simulacroId])
+  @@index([questionNumber])
+  @@index([isCorrect])
+  @@index([examType])
+  @@map("SimulacroResponse")
+}
+
+enum SectionType {
+  SECTION
+  PARAGRAPH
+  GENERIC
+  CHAPTER
+  ARTICLE
+  MAIN_SECTION
+  TITLE
+  PROVISION
+  THEME
+  BLOCK
+}

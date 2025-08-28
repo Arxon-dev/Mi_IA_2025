@@ -1,0 +1,87 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function verifyHeaderFix() {
+  try {
+    console.log('🔧 VERIFICANDO SOLUCIÓN DEL HEADER ACORTADO');
+    console.log('==========================================');
+
+    // 1. Buscar la pregunta 34 problemática
+    const pregunta34 = await prisma.examenOficial2018.findFirst({
+      where: { questionNumber: 34 }
+    });
+
+    if (!pregunta34) {
+      console.error('❌ Pregunta 34 no encontrada');
+      return;
+    }
+
+    console.log('✅ Pregunta 34 encontrada');
+    console.log(`   Longitud de pregunta: ${pregunta34.question.length} caracteres`);
+
+    // 2. Comparar headers anterior vs nuevo
+    const oldHeader = `🎯 <b>SIMULACRO</b> ⏰ 34/100\n⏱️ 2h 30m\n\n`;
+    const newHeader = `🎯 SIMULACRO 34/100 ⏱️2h30m\n\n`;
+    
+    console.log(`\n📏 COMPARACIÓN DE HEADERS:`);
+    console.log(`   Header anterior: "${oldHeader.replace(/\n/g, '\\n')}" (${oldHeader.length} chars)`);
+    console.log(`   Header nuevo:    "${newHeader.replace(/\n/g, '\\n')}" (${newHeader.length} chars)`);
+    console.log(`   Reducción: ${oldHeader.length - newHeader.length} caracteres`);
+
+    // 3. Verificar total con pregunta 34
+    const oldTotal = oldHeader.length + pregunta34.question.length;
+    const newTotal = newHeader.length + pregunta34.question.length;
+    
+    console.log(`\n🎯 VERIFICACIÓN CON PREGUNTA 34:`);
+    console.log(`   Total anterior: ${oldTotal} chars (${oldTotal > 300 ? '❌ EXCEDE' : '✅ VÁLIDO'})`);
+    console.log(`   Total nuevo:    ${newTotal} chars (${newTotal > 300 ? '❌ EXCEDE' : '✅ VÁLIDO'})`);
+    console.log(`   Diferencia: ${oldTotal - newTotal} caracteres menos`);
+
+    // 4. Verificar otras preguntas que podrían ser problemáticas
+    const allQuestions = await prisma.examenOficial2018.findMany({
+      orderBy: { questionNumber: 'asc' }
+    });
+
+    console.log(`\n🔍 VERIFICACIÓN COMPLETA DE TODAS LAS PREGUNTAS:`);
+    let problematicas = 0;
+    let maxLength = 0;
+    let questionWithMaxLength = 0;
+
+    for (const question of allQuestions) {
+      const totalWithNewHeader = newHeader.length + question.question.length;
+      if (totalWithNewHeader > 300) {
+        problematicas++;
+        console.log(`   ❌ Pregunta ${question.questionNumber}: ${totalWithNewHeader} chars (excede por ${totalWithNewHeader - 300})`);
+      }
+      
+      if (totalWithNewHeader > maxLength) {
+        maxLength = totalWithNewHeader;
+        questionWithMaxLength = question.questionNumber;
+      }
+    }
+
+    console.log(`\n📊 RESUMEN:`);
+    console.log(`   Total preguntas: ${allQuestions.length}`);
+    console.log(`   Preguntas problemáticas: ${problematicas}`);
+    console.log(`   Pregunta más larga: ${questionWithMaxLength} (${maxLength} chars)`);
+    console.log(`   ¿Solución exitosa?: ${problematicas === 0 ? '✅ SÍ' : '❌ NO'}`);
+
+    if (problematicas > 0) {
+      console.log(`\n🚨 PREGUNTAS PROBLEMÁTICAS RESTANTES:`);
+      for (const question of allQuestions) {
+        const totalWithNewHeader = newHeader.length + question.question.length;
+        if (totalWithNewHeader > 300) {
+          console.log(`   ${question.questionNumber}: "${question.question.substring(0, 50)}..." (${totalWithNewHeader} chars)`);
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error('❌ Error en verificación:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+verifyHeaderFix().catch(console.error); 

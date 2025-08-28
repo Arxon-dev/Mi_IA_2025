@@ -1,0 +1,212 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function debugSimulacroCreation() {
+  try {
+    console.log('🔍 DEBUGGING SIMULACRO CREATION PROCESS');
+    console.log('======================================');
+
+    const CARLOS_TELEGRAM_ID = '5793286375';
+
+    // 1. Buscar usuario Carlos
+    const user = await prisma.telegramUser.findUnique({
+      where: { telegramUserId: CARLOS_TELEGRAM_ID }
+    });
+
+    if (!user) {
+      console.error('❌ Usuario no encontrado');
+      return;
+    }
+
+    console.log('✅ Usuario encontrado:', user.firstName);
+
+    // 2. Verificar si hay simulacros existentes activos
+    const activeSimulacros = await prisma.simulacro.findMany({
+      where: {
+        userId: user.id,
+        status: 'in_progress'
+      }
+    });
+
+    if (activeSimulacros.length > 0) {
+      console.log('⚠️ Ya hay simulacros activos, limpiando primero...');
+      for (const sim of activeSimulacros) {
+        await prisma.simulacroResponse.deleteMany({
+          where: { simulacroId: sim.id }
+        });
+        await prisma.simulacro.delete({
+          where: { id: sim.id }
+        });
+      }
+      console.log('✅ Simulacros activos eliminados');
+    }
+
+    // 3. Simular creación de simulacro paso a paso
+    console.log('\n🏗️ INICIANDO CREACIÓN DE SIMULACRO...');
+    console.log('=====================================');
+
+    // Paso 1: Obtener preguntas del examen
+    const allQuestions = await prisma.examenOficial2018.findMany({
+      where: { isActive: true },
+      orderBy: { questionNumber: 'asc' },
+      take: 5 // Solo 5 para debugging
+    });
+
+    console.log('📚 Preguntas obtenidas:', allQuestions.length);
+
+    // Paso 2: Crear el simulacro
+    console.log('\n📝 CREANDO SIMULACRO...');
+    const simulacro = await prisma.simulacro.create({
+      data: {
+        userId: user.id,
+        status: 'in_progress',
+        timeLimit: 10800,
+        totalQuestions: 5, // Solo 5 para debugging
+        currentQuestionIndex: 0
+      }
+    });
+
+    console.log('✅ Simulacro creado:', {
+      id: simulacro.id,
+      status: simulacro.status,
+      totalQuestions: simulacro.totalQuestions
+    });
+
+    // Paso 3: Crear respuestas una por una y verificar el estado
+    console.log('\n📋 CREANDO RESPUESTAS UNA POR UNA...');
+    console.log('====================================');
+
+    for (let i = 0; i < allQuestions.length; i++) {
+      const question = allQuestions[i];
+      
+      console.log(`\n${i + 1}. Creando respuesta para pregunta ${i + 1}:`);
+      
+      // Crear la respuesta
+      const response = await prisma.simulacroResponse.create({
+        data: {
+          simulacroId: simulacro.id,
+          questionId: question.id,
+          questionNumber: i + 1,
+          questionCategory: question.category,
+          questionDifficulty: question.difficulty,
+          answeredAt: null,  // ← EXPLÍCITAMENTE NULL
+          selectedOption: null,
+          isCorrect: null,
+          responseTime: null,
+          skipped: false
+        }
+      });
+
+      console.log(`   ✅ Response creada: ${response.id}`);
+      console.log(`   📊 answeredAt: ${response.answeredAt}`);
+      console.log(`   📊 selectedOption: ${response.selectedOption}`);
+      console.log(`   📊 isCorrect: ${response.isCorrect}`);
+
+      // Verificar inmediatamente después de crear cada respuesta
+      const verifyResponse = await prisma.simulacroResponse.findUnique({
+        where: { id: response.id }
+      });
+
+      if (!verifyResponse) {
+        console.log(`   ❌ ERROR: No se pudo verificar la respuesta recién creada`);
+        break;
+      }
+
+      console.log(`   🔍 VERIFICACIÓN INMEDIATA:`);
+      console.log(`      answeredAt: ${verifyResponse.answeredAt}`);
+      console.log(`      selectedOption: ${verifyResponse.selectedOption}`);
+      console.log(`      isCorrect: ${verifyResponse.isCorrect}`);
+
+      if (verifyResponse.answeredAt !== null) {
+        console.log(`   🚨 CORRUPCIÓN DETECTADA: answeredAt se estableció automáticamente!`);
+        console.log(`      Valor inesperado: ${verifyResponse.answeredAt}`);
+        break;
+      }
+
+      // Verificar el conteo total de respuestas "respondidas"
+      const answeredCount = await prisma.simulacroResponse.count({
+        where: {
+          simulacroId: simulacro.id,
+          answeredAt: { not: null }
+        }
+      });
+
+      console.log(`   📈 Total respondidas hasta ahora: ${answeredCount}`);
+
+      if (answeredCount > 0) {
+        console.log(`   🚨 PROBLEMA: Hay ${answeredCount} respuestas marcadas como respondidas cuando no debería haber ninguna!`);
+        
+        // Investigar cuáles están marcadas
+        const unexpectedAnswered = await prisma.simulacroResponse.findMany({
+          where: {
+            simulacroId: simulacro.id,
+            answeredAt: { not: null }
+          },
+          take: 3
+        });
+
+        console.log(`   🔍 Respuestas inesperadamente marcadas:`);
+        unexpectedAnswered.forEach(r => {
+          console.log(`      Q${r.questionNumber}: answeredAt=${r.answeredAt}, option=${r.selectedOption}`);
+        });
+        break;
+      }
+    }
+
+    // Verificación final
+    console.log('\n📊 VERIFICACIÓN FINAL:');
+    console.log('======================');
+
+    const finalResponses = await prisma.simulacroResponse.findMany({
+      where: { simulacroId: simulacro.id },
+      orderBy: { questionNumber: 'asc' }
+    });
+
+    console.log(`Total respuestas creadas: ${finalResponses.length}`);
+
+    const finalAnsweredCount = finalResponses.filter(r => r.answeredAt !== null).length;
+    const finalNullCount = finalResponses.filter(r => r.answeredAt === null).length;
+
+    console.log(`Respuestas con answeredAt != null: ${finalAnsweredCount}`);
+    console.log(`Respuestas con answeredAt == null: ${finalNullCount}`);
+
+    if (finalAnsweredCount > 0) {
+      console.log('🚨 PROBLEMA CONFIRMADO: Hay respuestas marcadas como respondidas sin ser respondidas');
+      
+      // Verificar si hay algún patrón en las fechas
+      const answeredTimes = finalResponses
+        .filter(r => r.answeredAt !== null)
+        .map(r => r.answeredAt)
+        .filter((time, index, arr) => arr.findIndex(t => t?.getTime() === time?.getTime()) === index);
+
+      console.log('Fechas de answeredAt únicas:', answeredTimes);
+      
+      if (answeredTimes.length === 1) {
+        console.log('🔍 Todas las respuestas tienen la misma fecha - posible batch update');
+        console.log('   Fecha común:', answeredTimes[0]);
+        console.log('   ¿Es la fecha de creación del simulacro?', answeredTimes[0]?.getTime() === simulacro.startedAt.getTime());
+      }
+    } else {
+      console.log('✅ Todas las respuestas están correctamente marcadas como no respondidas');
+    }
+
+    // Limpiar el simulacro de prueba
+    console.log('\n🗑️ LIMPIANDO SIMULACRO DE PRUEBA...');
+    await prisma.simulacroResponse.deleteMany({
+      where: { simulacroId: simulacro.id }
+    });
+    await prisma.simulacro.delete({
+      where: { id: simulacro.id }
+    });
+    console.log('✅ Simulacro de prueba eliminado');
+
+  } catch (error) {
+    console.error('❌ Error en debug de creación:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Ejecutar el debug
+debugSimulacroCreation(); 
