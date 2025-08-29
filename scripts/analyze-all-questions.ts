@@ -288,7 +288,7 @@ async function analyzeAllQuestions() {
     // Obtener count total
     const [questionsCount, sectionQuestionsCount] = await Promise.all([
       prisma.question.count(),
-      prisma.sectionQuestion.count()
+      prisma.sectionquestion.count()
     ]);
     
     stats.total = questionsCount + sectionQuestionsCount;
@@ -355,7 +355,7 @@ async function analyzeAllQuestions() {
     let sectionOffset = 0;
     
     while (sectionOffset < sectionQuestionsCount) {
-      const sectionQuestions = await prisma.sectionQuestion.findMany({
+      const sectionQuestions = await prisma.sectionquestion.findMany({
         select: { id: true, content: true },
         skip: sectionOffset,
         take: batchSize,
