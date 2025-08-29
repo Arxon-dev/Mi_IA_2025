@@ -5,6 +5,8 @@ FROM node:18-alpine
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+# Variable temporal para el build (será sobrescrita en runtime)
+ENV DATABASE_URL="mysql://temp:temp@localhost:3306/temp"
 
 # Instalar dependencias del sistema
 RUN apk add --no-cache libc6-compat openssl
