@@ -137,6 +137,7 @@ export class PaymentServiceSimple {
         console.log('👤 Usuario no encontrado, creando...');
         user = await prisma.telegramuser.create({
           data: {
+            id: `telegram_${userid}_${Date.now()}`,
             telegramuserid: userid,
             username: `user_${userid}`,
             firstname: 'Usuario',
