@@ -173,8 +173,14 @@ export async function POST(
 
     console.log(`📝 [API POST /sections/${sectionId}/questions] Creando ${questionsData.length} pregunta(s)`);
 
+    // Función para generar ID único
+    const generateUniqueId = (): string => {
+      return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    };
+
     // Preparar datos para inserción masiva
     const questionsToCreate = questionsData.map((questionData: any) => ({
+      id: generateUniqueId(), // 🔧 FIX: Agregar ID único requerido por el modelo
       content: questionData.content,
       type: questionData.type || 'gift',
       difficulty: questionData.difficulty || 'medium',
