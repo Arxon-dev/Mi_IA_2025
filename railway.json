@@ -6,6 +6,17 @@
   "deploy": {
     "numReplicas": 1,
     "sleepApplication": false,
-    "restartPolicyType": "ON_FAILURE"
+    "restartPolicyType": "ON_FAILURE",
+    "healthcheckPath": "/api/health",
+    "healthcheckTimeout": 300
+  },
+  "environments": {
+    "production": {
+      "variables": {
+        "NODE_OPTIONS": "--max-old-space-size=4096",
+        "NEXT_TELEMETRY_DISABLED": "1",
+        "NODE_ENV": "production"
+      }
+    }
   }
 }

@@ -1,0 +1,26 @@
+[variables]
+NODE_OPTIONS = "--max-old-space-size=4096"
+NEXT_TELEMETRY_DISABLED = "1"
+NODE_ENV = "production"
+
+[phases.setup]
+nixPkgs = ["nodejs_18", "npm-9_x", "openssl"]
+
+[phases.install]
+cmds = [
+  "npm ci --prefer-offline --no-audit"
+]
+
+[phases.build]
+cmds = [
+  "npm run build:railway"
+]
+
+[start]
+cmd = "npm start"
+
+[staticAssets]
+publicDir = "public"
+
+[buildOptions]
+optimizePackageManager = true

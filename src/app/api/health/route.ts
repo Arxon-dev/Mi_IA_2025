@@ -1,10 +1,30 @@
 import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export async function GET() {
-  return NextResponse.json({ 
-    status: 'ok',
-    service: 'Telegram Webhook',
-    timestamp: new Date().toISOString(),
-    polls_enabled: true
-  });
-} 
+  try {
+    // Verificar conexión a la base de datos
+    await prisma.$queryRaw`SELECT 1`;
+    
+    return NextResponse.json({
+      status: 'ok',
+      service: 'NeuroOpositor AI',
+      timestamp: new Date().toISOString(),
+      database: 'connected',
+      environment: process.env.NODE_ENV || 'development',
+      polls_enabled: true
+    }, { status: 200 });
+  } catch (error) {
+    console.error('Health check failed:', error);
+    
+    return NextResponse.json({
+      status: 'error',
+      service: 'NeuroOpositor AI',
+      timestamp: new Date().toISOString(),
+      database: 'disconnected',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 503 });
+  }
+}
