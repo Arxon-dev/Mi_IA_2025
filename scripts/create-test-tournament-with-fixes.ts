@@ -27,7 +27,7 @@ async function createTestTournament() {
     const tournamentData = {
       name: `🧪 TORNEO PRUEBA CORREGIDO ${Date.now()}`,
       description: '🔧 Torneo de prueba para verificar las correcciones implementadas: prizePool dinámico, sanitización y límites corregidos.',
-      scheduledDate: startTime,
+      scheduleddate: startTime,
       startTime: startTime,
       status: 'SCHEDULED' as const,
       questionscount: 20, // ✅ Usando el nuevo valor por defecto
@@ -83,11 +83,7 @@ async function createTestTournament() {
       where: { id: tournament.id },
       include: {
         tournamentquestions: true,
-        _count: {
-          select: {
-            tournamentparticipants: true
-          }
-        }
+        tournamentparticipants: true
       }
     });
     
@@ -96,7 +92,7 @@ async function createTestTournament() {
       console.log(`   🆔 ID: ${finalTournament.id}`);
       console.log(`   📛 Nombre: ${finalTournament.name}`);
       console.log(`   ❓ Preguntas asignadas: ${finalTournament.tournamentquestions.length}`);
-      console.log(`   👥 Participantes: ${finalTournament._count.tournamentparticipants}`);
+      console.log(`   👥 Participantes: ${finalTournament.tournamentparticipants.length}`);
       console.log(`   💰 PrizePool final: ${finalTournament.prizepool} puntos`);
       console.log(`   📊 Estado: ${finalTournament.status}`);
       
@@ -158,7 +154,7 @@ async function assignQuestionsToTournament(tournamentId: string, questionscount:
     for (const question of questions2024.slice(0, Math.min(questions2024.length, questionscount - questionnumber + 1))) {
       await prisma.tournamentquestion.create({
         data: {
-          tournamentId,
+          tournamentid,
           questionid: question.id,
           questionnumber: questionnumber++,
           sourceTable: 'ExamenOficial2024'
@@ -171,7 +167,7 @@ async function assignQuestionsToTournament(tournamentId: string, questionscount:
       if (questionnumber > questionscount) break;
       await prisma.tournamentquestion.create({
         data: {
-          tournamentId,
+          tournamentid,
           questionid: question.id,
           questionnumber: questionnumber++,
           sourceTable: 'ExamenOficial2018'
@@ -184,7 +180,7 @@ async function assignQuestionsToTournament(tournamentId: string, questionscount:
       if (questionnumber > questionscount) break;
       await prisma.tournamentquestion.create({
         data: {
-          tournamentId,
+          tournamentid,
           questionid: question.id,
           questionnumber: questionnumber++,
           sourceTable: 'ValidQuestion'
@@ -216,7 +212,7 @@ async function simulateParticipantRegistration(tournamentId: string, questionsco
       // Crear participación
       await prisma.tournamentparticipant.create({
         data: {
-          tournamentId,
+          tournamentid,
           userid: user.id,
           status: 'REGISTERED',
           registeredAt: new Date()
