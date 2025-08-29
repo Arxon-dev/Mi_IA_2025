@@ -29,17 +29,14 @@ export async function GET(request: NextRequest) {
       // Sesiones recientes (últimas 24 horas)
       prisma.userstudysession.findMany({
         where: {
-          createdAt: {
+          createdat: {
             gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
           }
         },
         include: {
-          responses: true,
-          _count: {
-            select: { responses: true }
-          }
+          responses: true
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdat: 'desc' },
         take: 10
       })
     ]);
@@ -52,11 +49,11 @@ export async function GET(request: NextRequest) {
       },
       _sum: {
         totalquestions: true,
-        correctAnswers: true,
-        incorrectAnswers: true
+        correctanswers: true,
+        incorrectanswers: true
       },
       _avg: {
-        averageResponseTime: true
+        averageresponsetime: true
       }
     });
 
@@ -73,10 +70,10 @@ export async function GET(request: NextRequest) {
     });
 
     const averageSessionDuration = await prisma.$queryRaw`
-      SELECT AVG(EXTRACT(EPOCH FROM ("lastActivityAt" - "createdAt"))) as avg_duration_seconds
-      FROM "UserStudySession"
+      SELECT AVG(EXTRACT(EPOCH FROM ("lastactivityat" - "createdat"))) as avg_duration_seconds
+      FROM "userstudysession"
       WHERE status IN ('completed', 'cancelled')
-      AND "lastActivityAt" IS NOT NULL
+      AND "lastactivityat" IS NOT NULL
     ` as any[];
 
     const stats = {
@@ -99,15 +96,15 @@ export async function GET(request: NextRequest) {
       // Estadísticas por materia
       subjectStats: statsBySubject.map(stat => ({
         subject: stat.subject,
-        users: stat._count.subject,
-        totalquestions: stat._sum.totalquestions || 0,
-        correctAnswers: stat._sum.correctAnswers || 0,
-        incorrectAnswers: stat._sum.incorrectAnswers || 0,
-        averageResponseTime: stat._avg.averageResponseTime 
-          ? Math.round(stat._avg.averageResponseTime / 1000)
+        users: stat._count?.subject || 0,
+        totalquestions: stat._sum?.totalquestions || 0,
+        correctAnswers: stat._sum?.correctanswers || 0,
+        incorrectAnswers: stat._sum?.incorrectanswers || 0,
+        averageResponseTime: stat._avg?.averageresponsetime 
+          ? Math.round(stat._avg.averageresponsetime / 1000)
           : 0,
-        accuracy: stat._sum.totalquestions && stat._sum.correctAnswers
-          ? Math.round((stat._sum.correctAnswers / (stat._sum.correctAnswers + (stat._sum.incorrectAnswers || 0))) * 100)
+        accuracy: stat._sum?.totalquestions && stat._sum?.correctanswers
+          ? Math.round((stat._sum.correctanswers / (stat._sum.correctanswers + (stat._sum?.incorrectanswers || 0))) * 100)
           : 0
       })).sort((a, b) => b.totalquestions - a.totalquestions),
 
@@ -118,9 +115,9 @@ export async function GET(request: NextRequest) {
         subject: session.subject,
         status: session.status,
         progress: `${session.currentindex}/${session.totalquestions}`,
-        responses: session._count.responses,
-        createdAt: session.createdAt,
-        lastActivity: session.lastActivityAt,
+        responses: session.responses?.length || 0,
+        createdAt: session.createdat,
+        lastActivity: session.lastactivityat,
         timeoutat: session.timeoutat
       })),
 
@@ -148,7 +145,7 @@ export async function DELETE(request: NextRequest) {
       where: {
         AND: [
           { status: { in: ['completed', 'cancelled'] } },
-          { createdAt: { lt: sevenDaysAgo } }
+          { createdat: { lt: sevenDaysAgo } }
         ]
       }
     });
