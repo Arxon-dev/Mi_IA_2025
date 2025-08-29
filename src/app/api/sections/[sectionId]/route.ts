@@ -65,7 +65,7 @@ export async function GET(
     const skip = (page - 1) * limit;
 
     const [questions, total] = await Promise.all([
-      prisma.sectionQuestion.findMany({
+      prisma.sectionquestion.findMany({
         where,
         orderBy: [
           { createdAt: 'desc' }
@@ -84,7 +84,7 @@ export async function GET(
           lastScheduledSendAt: true
         }
       }),
-      prisma.sectionQuestion.count({ where })
+      prisma.sectionquestion.count({ where })
     ]);
 
     // Obtener conteos adicionales
@@ -203,7 +203,7 @@ export async function POST(
 
     for (const questionPayload of questionsToCreate) {
       try {
-        const createdQuestion = await prisma.sectionQuestion.create({
+        const createdQuestion = await prisma.sectionquestion.create({
           data: questionPayload,
         });
         createdQuestionsList.push(createdQuestion);
