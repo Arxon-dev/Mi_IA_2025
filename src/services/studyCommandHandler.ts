@@ -148,22 +148,28 @@ export class StudyCommandHandler {
       const { prisma } = await import('@/lib/prisma');
 
       const session = await prisma.userstudysession.findFirst({
-        where: { userid, status: 'active' },
-        include: {
-          responses: {
-            where: { answeredAt: null },
-            orderBy: { createdAt: 'desc' },
-            take: 1
-          }
-        }
+        where: { userid, status: 'active' }
       });
 
-      if (!session || session.responses.length === 0) {
+      if (!session) {
+        return null;
+      }
+
+      // Buscar respuestas pendientes por separado
+      const pendingResponse = await prisma.studyresponse.findFirst({
+        where: { 
+          sessionid: session.id,
+          answeredat: null 
+        },
+        orderBy: { createdat: 'desc' }
+      });
+
+      if (!pendingResponse) {
         return null;
       }
 
       return {
-        pendingPollId: session.responses[0].pollid
+        pendingPollId: pendingResponse.pollid
       };
 
     } catch (error) {
