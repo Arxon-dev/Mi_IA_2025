@@ -163,16 +163,16 @@ async function getUserAnalytics(telegramuserid: number) {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   // Get user's Telegram responses
-  const telegramResponses = await prisma.telegramResponse.findMany({
+  const telegramResponses = await prisma.telegramresponse.findMany({
     where: {
       userid: telegramuserid.toString(),
-      answeredAt: { gte: thirtyDaysAgo }
+      answeredat: { gte: thirtyDaysAgo }
     },
     select: {
       iscorrect: true,
       responsetime: true,
       questionid: true,
-      answeredAt: true
+      answeredat: true
     }
   });
 
@@ -180,7 +180,7 @@ async function getUserAnalytics(telegramuserid: number) {
   const studyResponses = await prisma.studyresponse.findMany({
     where: {
       userid: telegramuserid.toString(),
-      answeredAt: { 
+      answeredat: { 
         gte: thirtyDaysAgo,
         not: null
       }
@@ -189,7 +189,7 @@ async function getUserAnalytics(telegramuserid: number) {
       iscorrect: true,
       responsetime: true,
       subject: true,
-      answeredAt: true,
+      answeredat: true,
       timedOut: true
     }
   });
@@ -309,12 +309,12 @@ async function getOptimizationData(telegramuserid: number) {
 
 async function getSocialData(telegramuserid: number) {
   // Get all users' performance for comparison
-  const allUsersData = await prisma.telegramResponse.groupBy({
+  const allUsersData = await prisma.telegramresponse.groupBy({
     by: ['userid'],
     _count: { id: true },
     _avg: { responsetime: true },
     where: {
-      answeredAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+      answeredat: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
     }
   });
 
@@ -325,7 +325,7 @@ async function getSocialData(telegramuserid: number) {
   // Calculate percentile ranking
   const userAccuracies = await Promise.all(
     allUsersData.map(async (user) => {
-      const responses = await prisma.telegramResponse.findMany({
+      const responses = await prisma.telegramresponse.findMany({
         where: { userid: user.userid },
         select: { iscorrect: true }
       });
