@@ -39,7 +39,6 @@ function startScheduler() {
       console.error('❌ Error en envío automático:', error);
     }
   }, {
-    scheduled: true,
     timezone: "Europe/Madrid" // Ajusta según tu zona horaria
   });
   
