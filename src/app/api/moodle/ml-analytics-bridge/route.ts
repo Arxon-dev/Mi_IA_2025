@@ -253,7 +253,7 @@ async function getPredictiveData(telegramuserid: number) {
 async function getLearningMetrics(telegramuserid: number) {
   const userData = await getUserAnalytics(telegramuserid);
   const allResponses = [
-    ...userData.telegram_responses.map(r => ({ ...r, source: 'telegram', timedOut: false })),
+    ...userData.telegram_responses.map(r => ({ ...r, source: 'telegram', timedout: false })),
     ...userData.study_responses.map(r => ({ ...r, source: 'study' }))
   ];
 
