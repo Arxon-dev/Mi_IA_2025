@@ -4,8 +4,8 @@ const prisma = new PrismaClient();
 
 interface LeaderboardEntry {
   id: string;
-  firstname: string;
-  lastname?: string;
+  firstname: string | null;
+  lastname?: string | null;
   totalpoints: number;
   level: number;
   accuracy?: number;
@@ -143,16 +143,16 @@ class AdvancedRankingSystem {
             ELSE 0 
           END as accuracy
         FROM telegramuser tu
-        LEFT JOIN telegramresponse tr ON tu.userid = tr.userid
+        LEFT JOIN telegramresponse tr ON tu.id = tr.userid
         ${timeframe !== 'ALL_TIME' ? 'WHERE tr.answeredat >= ?' : ''}
-        GROUP BY tu.userid, tu.firstname, tu.lastname, tu.totalpoints, tu.level
+        GROUP BY tu.id, tu.firstname, tu.lastname, tu.totalpoints, tu.level
         HAVING COUNT(tr.id) >= 5
         ORDER BY accuracy DESC, tu.totalpoints DESC
         LIMIT ?
       ` as any[];
       
       return userAccuracy.map((user, index) => ({
-        userid: user.userid,
+        id: user.id,
         firstname: user.firstname,
         lastname: user.lastname,
         totalpoints: user.totalpoints,
@@ -184,7 +184,7 @@ class AdvancedRankingSystem {
       
       // Obtener estadísticas de respuestas
       const responses = await prisma.telegramresponse.findMany({
-        where: { telegramuserid: user.id },
+        where: { userid: user.id },
         orderBy: { answeredat: 'desc' }
       });
       
