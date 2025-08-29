@@ -17,14 +17,14 @@ export async function GET(request: NextRequest) {
     console.log(`🔍 GET /api/ai-provider-key: Buscando API key para ${provider}`);
 
     // Obtener la configuración de IA
-    const aiConfig = await prisma.aIConfig.findFirst();
+    const aiConfig = await prisma.aiconfig.findFirst();
     
     if (!aiConfig) {
       return NextResponse.json({ error: 'No hay configuración de IA' }, { status: 404 });
     }
     
     // Buscar la API key para el proveedor
-    const providerKey = await prisma.aIProviderKey.findFirst({
+    const providerKey = await prisma.aiproviderkey.findFirst({
       where: {
         aiConfigId: aiConfig.id,
         provider: provider
@@ -75,14 +75,14 @@ export async function POST(request: NextRequest) {
     console.log(`💾 POST /api/ai-provider-key: Guardando API key para ${provider}`);
 
     // Obtener la configuración de IA
-    const aiConfig = await prisma.aIConfig.findFirst();
+    const aiConfig = await prisma.aiconfig.findFirst();
     
     if (!aiConfig) {
       return NextResponse.json({ error: 'No hay configuración de IA' }, { status: 404 });
     }
     
     // Buscar si ya existe una API key para este proveedor
-    const existingKey = await prisma.aIProviderKey.findFirst({
+    const existingKey = await prisma.aiproviderkey.findFirst({
       where: {
         aiConfigId: aiConfig.id,
         provider: provider
@@ -92,14 +92,14 @@ export async function POST(request: NextRequest) {
     let result;
     if (existingKey) {
       // Actualizar la API key existente
-      result = await prisma.aIProviderKey.update({
+      result = await prisma.aiproviderkey.update({
         where: { id: existingKey.id },
         data: { apiKey: apiKey }
       });
       console.log(`✅ API key actualizada para ${provider}`);
     } else {
       // Crear nueva API key
-      result = await prisma.aIProviderKey.create({
+      result = await prisma.aiproviderkey.create({
         data: {
           provider: provider,
           apiKey: apiKey,
