@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 interface LeaderboardEntry {
-  userid: string;
+  id: string;
   firstname: string;
   lastname?: string;
   totalpoints: number;
@@ -14,7 +14,7 @@ interface LeaderboardEntry {
 }
 
 interface PlayerStats {
-  userid: string;
+  id: string;
   totalQuestions: number;
   correctAnswers: number;
   accuracy: number;
@@ -50,7 +50,7 @@ class AdvancedRankingSystem {
         }
         
         whereClause = {
-          updatedat: {
+          lastactivity: {
             gte: startDate
           }
         };
@@ -61,7 +61,7 @@ class AdvancedRankingSystem {
         orderBy: { totalpoints: 'desc' },
         take: limit,
         select: {
-          userid: true,
+          id: true,
           firstname: true,
           lastname: true,
           totalpoints: true,
@@ -166,15 +166,15 @@ class AdvancedRankingSystem {
     }
   }
   
-  async getPlayerHistoricalStats(userid: string): Promise<PlayerStats | null> {
+  async getPlayerHistoricalStats(id: string): Promise<PlayerStats | null> {
     try {
       const user = await prisma.telegramuser.findUnique({
-        where: { userid },
+        where: { id },
         select: {
-          userid: true,
+          id: true,
           totalpoints: true,
           level: true,
-          updatedat: true
+          lastactivity: true
         }
       });
       
@@ -184,7 +184,7 @@ class AdvancedRankingSystem {
       
       // Obtener estadísticas de respuestas
       const responses = await prisma.telegramresponse.findMany({
-        where: { userid },
+        where: { telegramuserid: user.id },
         orderBy: { answeredat: 'desc' }
       });
       
@@ -210,7 +210,7 @@ class AdvancedRankingSystem {
       bestStreak = Math.max(bestStreak, tempStreak);
       
       return {
-        userid: user.userid,
+        id: user.id,
         totalQuestions,
         correctAnswers,
         accuracy: Math.round(accuracy * 100) / 100,
@@ -218,7 +218,7 @@ class AdvancedRankingSystem {
         level: user.level,
         streakCurrent: currentStreak,
         streakBest: bestStreak,
-        lastActivity: user.updatedat
+        lastActivity: user.lastactivity
       };
     } catch (error) {
       console.error('Error getting player historical stats:', error);
@@ -226,15 +226,15 @@ class AdvancedRankingSystem {
     }
   }
   
-  async updatePlayerRanking(userid: string, points: number): Promise<boolean> {
+  async updatePlayerRanking(id: string, points: number): Promise<boolean> {
     try {
       await prisma.telegramuser.update({
-        where: { userid },
+        where: { id },
         data: {
           totalpoints: {
             increment: points
           },
-          updatedat: new Date()
+          lastactivity: new Date()
         }
       });
       
