@@ -47,7 +47,7 @@ export class ExamRankingService {
    * Obtiene el ranking específico del examen oficial 2018
    */
   static async getExam2018Ranking(limit: number = 10): Promise<ExamRankingEntry[]> {
-    const examResponses = await prisma.simulacroResponse.findMany({
+    const examResponses = await prisma.simulacroresponse.findMany({
       where: {
         examType: 'EXAMEN_2018'
       },
@@ -123,7 +123,7 @@ export class ExamRankingService {
    * Obtiene el ranking específico del examen oficial 2024
    */
   static async getExam2024Ranking(limit: number = 10): Promise<ExamRankingEntry[]> {
-    const examResponses = await prisma.simulacroResponse.findMany({
+    const examResponses = await prisma.simulacroresponse.findMany({
       where: {
         examType: 'EXAMEN_2024'
       },
@@ -199,7 +199,7 @@ export class ExamRankingService {
    */
   static async getUserExamComparison(telegramuserid: string): Promise<ExamComparison> {
     // Obtener respuestas del examen 2018
-    const exam2018Responses = await prisma.simulacroResponse.findMany({
+    const exam2018Responses = await prisma.simulacroresponse.findMany({
       where: {
         examType: 'EXAMEN_2018',
         simulacro: {
@@ -216,7 +216,7 @@ export class ExamRankingService {
     });
 
     // Obtener respuestas del examen 2024
-    const exam2024Responses = await prisma.simulacroResponse.findMany({
+    const exam2024Responses = await prisma.simulacroresponse.findMany({
       where: {
         examType: 'EXAMEN_2024',
         simulacro: {
@@ -310,7 +310,7 @@ export class ExamRankingService {
 
     return {
       attempted: true,
-      totalQuestions,
+      totalquestions: totalQuestions,
       correctAnswers,
       accuracy,
       averageTime,
