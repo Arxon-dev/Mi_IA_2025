@@ -51,6 +51,7 @@
     "cross-env": "^7.0.3",
     "autoprefixer": "^10.4.21",
     "cssnano": "^7.0.7",
+    "@tailwindcss/typography": "^0.5.16",
     "@types/uuid": "^10.0.0",
     "axios": "^1.9.0",
     "chalk": "^5.4.1",
@@ -97,7 +98,6 @@
     "vis-network": "^9.1.9"
   },
   "devDependencies": {
-    "@tailwindcss/typography": "^0.5.16",
     "@types/csv-parse": "^1.1.12",
     "@types/d3": "^7.4.3",
     "@types/express": "^5.0.2",
