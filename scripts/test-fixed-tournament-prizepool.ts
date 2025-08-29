@@ -115,7 +115,12 @@ async function checkExistingTournaments() {
   
   try {
     const tournaments = await prisma.tournament.findMany({
-      // include removed for MySQL compatibility
+      include: {
+        _count: {
+          select: {
+            participants: true
+          }
+        }
       },
       orderBy: { createdAt: 'desc' },
       take: 5
@@ -201,4 +206,4 @@ async function main() {
 // Ejecutar si es llamado directamente
 if (require.main === module) {
   main();
-} 
+}

@@ -81,8 +81,13 @@ async function createTestTournament() {
     // ✅ MOSTRAR ESTADO FINAL
     const finalTournament = await prisma.tournament.findUnique({
       where: { id: tournament.id },
-      // include removed for MySQL compatibility,
-        questions: true
+      include: {
+        questions: true,
+        _count: {
+          select: {
+            participants: true
+          }
+        }
       }
     });
     
@@ -251,4 +256,4 @@ async function main() {
 // Ejecutar si es llamado directamente
 if (require.main === module) {
   main();
-} 
+}

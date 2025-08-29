@@ -18,15 +18,15 @@ async function testDailyPollFix() {
     }
     
     console.log(`📝 Pregunta seleccionada: ${preguntaPrueba.id}`);
-    console.log(`📊 Pregunta: "${preguntaPrueba.parsedquestion?.substring(0, 50)}..."`);
+    console.log(`📊 Pregunta: "${preguntaPrueba.question?.substring(0, 50)}..."`);
     
     // 2. Parsear opciones
     let options: string[] = [];
-    if (preguntaPrueba.parsedoptions) {
-      if (typeof preguntaPrueba.parsedoptions === 'string') {
-        options = JSON.parse(preguntaPrueba.parsedoptions);
+    if (preguntaPrueba.options) {
+      if (typeof preguntaPrueba.options === 'string') {
+        options = JSON.parse(preguntaPrueba.options);
       } else {
-        options = preguntaPrueba.parsedoptions as string[];
+        options = preguntaPrueba.options as string[];
       }
     } else {
       // Si no hay opciones parseadas, usar opciones de ejemplo
@@ -80,7 +80,7 @@ async function testDailyPollFix() {
       
       if (originalQuestion) {
         console.log('✅ ¡Pregunta original encontrada!');
-        console.log(`   - Pregunta: "${originalQuestion.parsedquestion?.substring(0, 50)}..."`);
+        console.log(`   - Pregunta: "${originalQuestion.question?.substring(0, 50)}..."`);
         console.log(`   - Respuesta correcta original: ${originalQuestion.correctanswerindex}`);
         console.log(`   - Respuesta correcta en mapeo: ${mappingFound.correctanswerindex}`);
          
