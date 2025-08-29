@@ -51,7 +51,7 @@ async function sendPrivateMessage(telegramuserid: string, message: string): Prom
 // Función para enviar recordatorio de duelo expirando
 async function sendDuelExpirationReminder(duel: any): Promise<boolean> {
   try {
-    const timeLeft = Math.max(0, Math.ceil((duel.expiresAt.getTime() - Date.now()) / (1000 * 60)));
+    const timeLeft = Math.max(0, Math.ceil((duel.expiresat.getTime() - Date.now()) / (1000 * 60)));
     
     if (timeLeft <= 0) {
       console.log(`⚠️ Duelo ${duel.id} ya expiró`);
@@ -134,13 +134,9 @@ async function processDuelReminders(): Promise<void> {
     const duelsWith15MinLeft = await prisma.duel.findMany({
       where: {
         status: 'pending',
-        expiresAt: {
+        expiresat: {
           gte: now,
           lte: in15Minutes
-        },
-        // Evitar duplicados verificando que no se haya enviado recordatorio reciente
-        lastReminderSent: {
-          lt: new Date(now.getTime() - (10 * 60 * 1000)) // Hace más de 10 min
         }
       },
       include: {
@@ -156,11 +152,7 @@ async function processDuelReminders(): Promise<void> {
       const sent = await sendDuelExpirationReminder(duel);
       
       if (sent) {
-        // Actualizar timestamp del recordatorio
-        await prisma.duel.update({
-          where: { id: duel.id },
-          data: { lastReminderSent: now }
-        });
+        console.log(`✅ Recordatorio enviado para duelo ${duel.id}`);
       }
       
       // Pausa entre recordatorios
@@ -171,14 +163,12 @@ async function processDuelReminders(): Promise<void> {
     const staleResponseDuels = await prisma.duel.findMany({
       where: {
         status: 'pending',
-        createdAt: {
+        createdat: {
           lt: new Date(now.getTime() - (10 * 60 * 1000)) // Creado hace más de 10 min
         },
-        expiresAt: {
+        expiresat: {
           gte: in20Minutes // Pero aún quedan más de 20 min
-        },
-        // Solo enviar un recordatorio de respuesta tardía por duelo
-        staleReminderSent: false
+        }
       },
       include: {
         challenger: true,
@@ -193,11 +183,7 @@ async function processDuelReminders(): Promise<void> {
       const sent = await sendStaleResponseReminder(duel);
       
       if (sent) {
-        // Marcar como enviado para evitar spam
-        await prisma.duel.update({
-          where: { id: duel.id },
-          data: { staleReminderSent: true }
-        });
+        console.log(`✅ Recordatorio de respuesta tardía enviado para duelo ${duel.id}`);
       }
       
       // Pausa entre recordatorios
@@ -225,7 +211,7 @@ async function cleanupExpiredDuels(): Promise<number> {
     const expiredDuels = await prisma.duel.findMany({
       where: {
         status: 'pending',
-        expiresAt: {
+        expiresat: {
           lt: now
         }
       }
@@ -238,13 +224,13 @@ async function cleanupExpiredDuels(): Promise<number> {
       const updated = await prisma.duel.updateMany({
         where: {
           status: 'pending',
-          expiresAt: {
+          expiresat: {
             lt: now
           }
         },
         data: {
           status: 'expired',
-          completedAt: now
+          completedat: now
         }
       });
 
@@ -273,7 +259,7 @@ async function getDuelReminderStats(): Promise<any> {
       expiringSoon: await prisma.duel.count({
         where: {
           status: 'pending',
-          expiresAt: {
+          expiresat: {
             gte: now,
             lte: new Date(now.getTime() + (30 * 60 * 1000))
           }
@@ -282,17 +268,14 @@ async function getDuelReminderStats(): Promise<any> {
       expiredToday: await prisma.duel.count({
         where: {
           status: 'expired',
-          completedAt: {
+          completedat: {
             gte: oneDayAgo
           }
         }
       }),
       needingReminders: await prisma.duel.count({
         where: {
-          status: 'pending',
-          lastReminderSent: {
-            lt: new Date(now.getTime() - (10 * 60 * 1000))
-          }
+          status: 'pending'
         }
       })
     };
