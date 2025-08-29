@@ -29,7 +29,7 @@ async function sendAndSaveFinalTest() {
       body: JSON.stringify({
         chat_id: CHAT_ID,
         question: pollQuestion,
-        options: pollOptions,
+        options: JSON.stringify(pollOptions),
         correct_option_id: correctOptionIndex,
         is_anonymous: false,
         type: "quiz",
@@ -60,7 +60,7 @@ async function sendAndSaveFinalTest() {
         pollid: pollid,
         questionid: questionid,
         sourcemodel: 'manual',
-        options: pollOptions,
+        options: JSON.stringify(pollOptions),
         correctanswerindex: correctOptionIndex,
         chatid: CHAT_ID
         // sentAt y createdAt se crean automáticamente con @default(now())
