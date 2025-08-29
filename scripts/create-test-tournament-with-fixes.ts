@@ -54,7 +54,7 @@ async function createTestTournament() {
     const tournament = await prisma.tournament.create({
       data: {
         ...tournamentData,
-        prizePool: basePrizePool // ✅ Ya no es 0 - calculado automáticamente
+        prizepool: basePrizePool // ✅ Ya no es 0 - calculado automáticamente
       }
     });
     
@@ -62,9 +62,9 @@ async function createTestTournament() {
     console.log(`   🆔 ID: ${tournament.id}`);
     console.log(`   📛 Nombre: ${tournament.name}`);
     console.log(`   ❓ Preguntas: ${tournament.questionscount}`);
-    console.log(`   💰 PrizePool: ${tournament.prizePool} puntos (¡YA NO ES 0!)`);
+    console.log(`   💰 PrizePool: ${tournament.prizepool} puntos (¡YA NO ES 0!)`);
     console.log(`   📊 Estado: ${tournament.status}`);
-    console.log(`   📅 Inicio: ${tournament.scheduledDate.toLocaleString('es-ES')}\n`);
+    console.log(`   📅 Inicio: ${tournament.scheduleddate.toLocaleString('es-ES')}\n`);
     
     // ✅ ASIGNAR PREGUNTAS AL TORNEO (simulando el sistema de la API)
     console.log('🎯 ASIGNANDO PREGUNTAS AL TORNEO...\n');
@@ -82,10 +82,10 @@ async function createTestTournament() {
     const finalTournament = await prisma.tournament.findUnique({
       where: { id: tournament.id },
       include: {
-        questions: true,
+        tournamentquestions: true,
         _count: {
           select: {
-            participants: true
+            tournamentparticipants: true
           }
         }
       }
@@ -95,14 +95,14 @@ async function createTestTournament() {
       console.log('\n🎉 ESTADO FINAL DEL TORNEO:');
       console.log(`   🆔 ID: ${finalTournament.id}`);
       console.log(`   📛 Nombre: ${finalTournament.name}`);
-      console.log(`   ❓ Preguntas asignadas: ${finalTournament.questions.length}`);
-      console.log(`   👥 Participantes: ${finalTournament._count.participants}`);
-      console.log(`   💰 PrizePool final: ${finalTournament.prizePool} puntos`);
+      console.log(`   ❓ Preguntas asignadas: ${finalTournament.tournamentquestions.length}`);
+      console.log(`   👥 Participantes: ${finalTournament._count.tournamentparticipants}`);
+      console.log(`   💰 PrizePool final: ${finalTournament.prizepool} puntos`);
       console.log(`   📊 Estado: ${finalTournament.status}`);
       
       console.log('\n✅ COMPARACIÓN CON EL SISTEMA ANTERIOR:');
       console.log(`   ❌ ANTES: prizePool = 0 (hardcodeado)`);
-      console.log(`   ✅ AHORA: prizePool = ${finalTournament.prizePool} (calculado dinámicamente)`);
+      console.log(`   ✅ AHORA: prizePool = ${finalTournament.prizepool} (calculado dinámicamente)`);
       console.log(`   ❌ ANTES: questionsCount default = 50`);
       console.log(`   ✅ AHORA: questionsCount default = 20`);
       console.log(`   ❌ ANTES: límite = 300 caracteres`);
@@ -126,7 +126,7 @@ function calculateBasePrizePool(participantCount: number, questionscount: number
   const participantBonus = participantCount * 10; // 10 puntos adicionales por participante
   const competitivenessMultiplier = participantCount > 10 ? 1.5 : 1.2; // Más atractivo con más gente
   
-  const basePrize = (questionsCount * basePerQuestion) + participantBonus;
+  const basePrize = (questionscount * basePerQuestion) + participantBonus;
   const finalPrize = Math.round(basePrize * competitivenessMultiplier);
   
   // Mínimo garantizado de 100 puntos para que sea atractivo
@@ -137,26 +137,26 @@ function calculateBasePrizePool(participantCount: number, questionscount: number
 async function assignQuestionsToTournament(tournamentId: string, questionscount: number): Promise<number> {
   try {
     // Obtener preguntas aleatorias de diferentes fuentes
-    const questions2024 = await prisma.examenOficial2024.findMany({
-      take: Math.ceil(questionsCount * 0.5),
+    const questions2024 = await prisma.examenoficial2024.findMany({
+      take: Math.ceil(questionscount * 0.5),
       orderBy: { questionnumber: 'asc' }
     });
     
-    const questions2018 = await prisma.examenOficial2018.findMany({
-      take: Math.ceil(questionsCount * 0.3),
+    const questions2018 = await prisma.examenoficial2018.findMany({
+      take: Math.ceil(questionscount * 0.3),
       orderBy: { questionnumber: 'asc' }
     });
     
-    const validQuestions = await prisma.validQuestion.findMany({
-      take: Math.ceil(questionsCount * 0.2),
+    const validQuestions = await prisma.validquestion.findMany({
+      take: Math.ceil(questionscount * 0.2),
       orderBy: { id: 'asc' }
     });
     
     let questionnumber = 1;
     
     // Asignar preguntas 2024
-    for (const question of questions2024.slice(0, Math.min(questions2024.length, questionsCount - questionnumber + 1))) {
-      await prisma.tournamentQuestion.create({
+    for (const question of questions2024.slice(0, Math.min(questions2024.length, questionscount - questionnumber + 1))) {
+      await prisma.tournamentquestion.create({
         data: {
           tournamentId,
           questionid: question.id,
@@ -167,9 +167,9 @@ async function assignQuestionsToTournament(tournamentId: string, questionscount:
     }
     
     // Asignar preguntas 2018
-    for (const question of questions2018.slice(0, Math.min(questions2018.length, questionsCount - questionnumber + 1))) {
-      if (questionnumber > questionsCount) break;
-      await prisma.tournamentQuestion.create({
+    for (const question of questions2018.slice(0, Math.min(questions2018.length, questionscount - questionnumber + 1))) {
+      if (questionnumber > questionscount) break;
+      await prisma.tournamentquestion.create({
         data: {
           tournamentId,
           questionid: question.id,
@@ -180,9 +180,9 @@ async function assignQuestionsToTournament(tournamentId: string, questionscount:
     }
     
     // Asignar preguntas válidas
-    for (const question of validQuestions.slice(0, Math.min(validQuestions.length, questionsCount - questionnumber + 1))) {
-      if (questionnumber > questionsCount) break;
-      await prisma.tournamentQuestion.create({
+    for (const question of validQuestions.slice(0, Math.min(validQuestions.length, questionscount - questionnumber + 1))) {
+      if (questionnumber > questionscount) break;
+      await prisma.tournamentquestion.create({
         data: {
           tournamentId,
           questionid: question.id,
@@ -214,7 +214,7 @@ async function simulateParticipantRegistration(tournamentId: string, questionsco
       const user = users[i];
       
       // Crear participación
-      await prisma.tournamentParticipant.create({
+      await prisma.tournamentparticipant.create({
         data: {
           tournamentId,
           userid: user.id,
@@ -225,11 +225,11 @@ async function simulateParticipantRegistration(tournamentId: string, questionsco
       
       // ✅ ACTUALIZAR PRIZEPOOL DINÁMICAMENTE (como en el sistema corregido)
       const newParticipantCount = i + 1;
-      const updatedPrizePool = calculateBasePrizePool(newParticipantCount, questionsCount);
+      const updatedPrizePool = calculateBasePrizePool(newParticipantCount, questionscount);
       
       await prisma.tournament.update({
         where: { id: tournamentId },
-        data: { prizePool: updatedPrizePool }
+        data: { prizepool: updatedPrizePool }
       });
       
       console.log(`   ✅ ${user.firstname} registrado - PrizePool actualizado a ${updatedPrizePool} puntos`);
