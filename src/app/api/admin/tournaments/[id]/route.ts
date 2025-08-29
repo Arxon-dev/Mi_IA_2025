@@ -13,11 +13,7 @@ export async function DELETE(
     
     // Verificar que el torneo existe
     const tournament = await prisma.tournament.findUnique({
-      where: { id },
-      include: {
-        participants: true,
-        questions: true,
-      }
+      where: { id }
     });
     
     if (!tournament) {
@@ -35,9 +31,17 @@ export async function DELETE(
       );
     }
     
+    // Obtener conteos de participantes y preguntas
+    const participantsCount = await prisma.tournamentparticipant.count({
+      where: { tournamentid: id }
+    });
+    const questionsCount = await prisma.tournamentquestion.count({
+      where: { tournamentid: id }
+    });
+
     console.log(`📊 Torneo a eliminar: ${tournament.name}`);
-    console.log(`👥 Participantes: ${tournament.participants.length}`);
-    console.log(`❓ Preguntas: ${tournament.questions.length}`);
+    console.log(`👥 Participantes: ${participantsCount}`);
+    console.log(`❓ Preguntas: ${questionsCount}`);
     
     // Eliminar el torneo (Prisma se encarga de las relaciones en cascada)
     await prisma.tournament.delete({
@@ -52,8 +56,8 @@ export async function DELETE(
       deletedTournament: {
         id: tournament.id,
         name: tournament.name,
-        participants: tournament.participants.length,
-        questions: tournament.questions.length
+        participants: participantsCount,
+        questions: questionsCount
       }
     });
   } catch (error) {
