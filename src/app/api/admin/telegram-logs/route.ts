@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/services/prismaService';
+import { prisma } from '@/lib/prisma';
 
 // Configuración para forzar renderizado dinámico
 export const runtime = 'nodejs';

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { GamificationService } from '@/services/gamificationService';
 import { ExamRankingService } from '@/services/examRankingService';
 import { DuelService } from '@/services/duelService';
@@ -15,7 +15,6 @@ import { SubscriptionCommands } from '@/services/subscriptionCommandsSimple';
 import { SubscriptionService } from '@/services/subscriptionService';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
-const prisma = new PrismaClient();
 
 // Instancia del servicio de sesiones de estudio
 const studySessionService = new StudySessionService();
@@ -735,4 +734,4 @@ export async function POST(request: NextRequest) {
       error: 'Error interno del servidor' 
     }, { status: 500 });
   }
-} 
+}
