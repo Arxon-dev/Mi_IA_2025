@@ -23,7 +23,11 @@
     "test:subscription-integration": "ts-node scripts/test-subscription-integration.ts",
     "test:subscription-simple": "ts-node scripts/test-subscription-simple.ts",
     "test:payments": "ts-node scripts/test-payments.ts",
-    "test:redsys": "ts-node scripts/test-redsys.ts"
+    "test:redsys": "ts-node scripts/test-redsys.ts",
+    "scheduler:start": "tsx scripts/notification-scheduler.ts",
+    "scheduler:dev": "tsx scripts/notification-scheduler.ts --dev",
+    "scheduler:railway": "tsx scripts/railway-scheduler.ts",
+    "scheduler:railway:dev": "tsx scripts/railway-scheduler.ts --dev"
   },
   "dependencies": {
     "@agentdeskai/browser-tools-mcp": "^1.2.0",
