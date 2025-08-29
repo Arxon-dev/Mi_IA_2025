@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "start": "next start",
-    "build": "node scripts/railway-build.js",
+    "build": "cross-env NODE_OPTIONS=\"--max-old-space-size=4096\" NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production npx prisma generate && npx next build",
     "build:standard": "prisma generate && next build",
     "build:railway": "node scripts/railway-build.js",
     "lint": "next lint",
