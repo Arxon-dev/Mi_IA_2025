@@ -1081,7 +1081,7 @@ export default function DocumentSectionSelector({
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setEditingDocQuestion(prev => ({ ...prev, [q.id]: q.content }))}
+                          onClick={() => setEditingDocQuestion({ ...editingDocQuestion, [q.id]: q.content })}
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
@@ -1135,7 +1135,7 @@ export default function DocumentSectionSelector({
                       <div className="space-y-3">
                         <textarea
                           value={String(typeof editingDocQuestion[q.id] === 'string' ? editingDocQuestion[q.id] : (q.content ?? ''))}
-                          onChange={e => setEditingDocQuestion(prev => ({ ...prev, [q.id]: e.target.value }))}
+                          onChange={e => setEditingDocQuestion({ ...editingDocQuestion, [q.id]: e.target.value })}
                           className="w-full min-h-[120px] p-3 rounded-lg border border-border bg-background text-foreground 
                                    focus:ring-2 focus:ring-primary focus:border-primary resize-y transition-all duration-200"
                         />
@@ -1143,7 +1143,7 @@ export default function DocumentSectionSelector({
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setEditingDocQuestion(prev => { const copy = {...prev}; delete copy[q.id]; return copy; })}
+                            onClick={() => { const copy = {...editingDocQuestion}; delete copy[q.id]; setEditingDocQuestion(copy); }}
                           >
                             Cancelar
                           </Button>
@@ -1160,7 +1160,7 @@ export default function DocumentSectionSelector({
                                   toast.error('Error al actualizar la pregunta');
                                 }
                               }
-                              setEditingDocQuestion(prev => { const copy = {...prev}; delete copy[q.id]; return copy; });
+                              const copy = {...editingDocQuestion}; delete copy[q.id]; setEditingDocQuestion(copy);
                             }}
                           >
                             <CheckCircle className="w-4 h-4 mr-2" />
