@@ -432,6 +432,7 @@ async function handleNewChatMembers(message: any): Promise<NextResponse> {
         // Crear nuevo usuario
         await prisma.telegramuser.create({
           data: {
+            id: `telegram_${newMember.id}_${Date.now()}`, // ID único
             telegramuserid: newMember.id.toString(),
             username: newMember.username,
             firstname: newMember.first_name,
