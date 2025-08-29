@@ -57,6 +57,7 @@ async function sendAndSaveFinalTest() {
     
     await prisma.telegrampoll.create({
       data: {
+        id: randomUUID(),
         pollid: pollid,
         questionid: questionid,
         sourcemodel: 'manual',
