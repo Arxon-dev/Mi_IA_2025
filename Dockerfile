@@ -19,11 +19,14 @@ COPY prisma ./prisma/
 # Instalar dependencias
 RUN npm ci --prefer-offline --no-audit
 
-# Copiar código fuente
-COPY . .
+# Copiar scripts necesarios para el build
+COPY scripts ./scripts/
 
 # Generar Prisma Client
 RUN npx prisma generate
+
+# Copiar resto del código fuente
+COPY . .
 
 # Ejecutar build optimizado
 RUN npm run build
