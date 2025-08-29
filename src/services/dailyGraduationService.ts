@@ -232,7 +232,7 @@ export class DailyGraduationService {
       const graduationsToday = await prisma.studyresponse.count({
         where: {
           userid,
-          createdAt: {
+          createdat: {
             gte: today,
             lt: tomorrow
           },
@@ -254,17 +254,19 @@ export class DailyGraduationService {
   private static async getUserContext(userid: string): Promise<any> {
     try {
       const user = await prisma.telegramuser.findUnique({
-        where: { id: userid },
-        include: {
-          studyStats: true
-        }
+        where: { id: userid }
       });
 
       if (!user) return { totalGraduations: 0, level: 1 };
 
+      // Obtener estadísticas del usuario por separado
+      const userStats = await prisma.studystats.findMany({
+        where: { userid }
+      });
+
       // Calcular graduaciones totales aproximadas
-      const totalGraduations = user.studystats.reduce((sum, stat) => {
-        return sum + Math.floor(stat.correctAnswers / 3); // Estimación de graduaciones
+      const totalGraduations = userStats.reduce((sum, stat) => {
+        return sum + Math.floor(stat.correctanswers / 3); // Estimación de graduaciones
       }, 0);
 
       return {
