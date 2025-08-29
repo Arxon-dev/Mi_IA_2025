@@ -15,7 +15,7 @@ function calculateBasePrizePool(participantCount: number, questionscount: number
   const participantBonus = participantCount * 10; // 10 puntos adicionales por participante
   const competitivenessMultiplier = participantCount > 10 ? 1.5 : 1.2; // Más atractivo con más gente
   
-  const basePrize = (questionsCount * basePerQuestion) + participantBonus;
+  const basePrize = (questionscount * basePerQuestion) + participantBonus;
   const finalPrize = Math.round(basePrize * competitivenessMultiplier);
   
   // Mínimo garantizado de 100 puntos para que sea atractivo
@@ -116,13 +116,9 @@ async function checkExistingTournaments() {
   try {
     const tournaments = await prisma.tournament.findMany({
       include: {
-        _count: {
-          select: {
-            participants: true
-          }
-        }
+        tournamentparticipants: true
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdat: 'desc' },
       take: 5
     });
     
@@ -130,8 +126,8 @@ async function checkExistingTournaments() {
     console.log('');
     
     for (const tournament of tournaments) {
-      const participantCount = tournament._count.participants;
-      const currentPrizePool = tournament.prizePool;
+      const participantCount = tournament.tournamentparticipants.length;
+      const currentPrizePool = tournament.prizepool;
       const suggestedPrizePool = calculateBasePrizePool(participantCount, tournament.questionscount);
       
       console.log(`🏆 ${tournament.name}:`);
