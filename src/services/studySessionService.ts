@@ -12,8 +12,14 @@ declare global {
   }> | undefined;
 }
 
-// Instancia del servicio de Telegram (requerirá token del entorno)
-const telegramService = new TelegramService(process.env.TELEGRAM_BOT_TOKEN || '');
+// Función para obtener instancia de TelegramService de forma lazy
+function getTelegramService(): TelegramService {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    throw new Error('Se requiere un token de bot de Telegram.');
+  }
+  return new TelegramService(token);
+}
 
 // Importar scheduler de forma lazy para evitar dependencias circulares
 let studyTimeoutScheduler: any = null;
@@ -579,8 +585,7 @@ export class StudySessionService {
       const confirmationMessage = `📚 ¡Sesión de repaso iniciada!\n\n🎯 Materia: ${subject.toUpperCase()}\n📊 Preguntas solicitadas: ${totalquestions}\n📋 Preguntas disponibles: ${failedQuestions.length}\n\n⏱️ Tienes 1 minuto por pregunta\n⚡ Usa /stop para cancelar`;
       
       // Enviar confirmación inmediatamente
-      const { TelegramService } = await import('./telegramService');
-      const telegramService = new TelegramService(process.env.TELEGRAM_BOT_TOKEN || '');
+      const telegramService = getTelegramService();
       await telegramService.sendMessage(userid, confirmationMessage);
       
       // Luego enviar la primera pregunta
@@ -739,8 +744,7 @@ export class StudySessionService {
 📈 Usa /progreso para ver tu estado`;
       
       // Enviar confirmación inmediatamente
-      const { TelegramService } = await import('./telegramService');
-      const telegramService = new TelegramService(process.env.TELEGRAM_BOT_TOKEN || '');
+      const telegramService = getTelegramService();
       await telegramService.sendMessage(userid, confirmationMessage);
       
       // Luego enviar la primera pregunta
@@ -963,8 +967,7 @@ export class StudySessionService {
         await this.updateUserStats(prisma, userId, actualSubject, isCorrect, 1000, pollMapping.questionid, pollId, selectedOption, question.questionnumber || 0);
         // Notificar al usuario
         feedbackMessage = StudySessionService.formatResponseFeedback(isCorrect, question, updatedSession, pollId);
-        const { TelegramService } = await import('./telegramService');
-        const telegramService = new TelegramService(process.env.TELEGRAM_BOT_TOKEN || '');
+        const telegramService = getTelegramService();
         await telegramService.sendMessage(userId, feedbackMessage);
         // Verificar si debemos finalizar la sesión
         if (updatedSession.currentindex >= updatedSession.totalquestions) {
@@ -997,8 +1000,7 @@ export class StudySessionService {
           console.error('Error cancelando timeout:', error);
         }
         const summary = await this.generateSessionCompletionMessage(sessionIdForNext);
-        const { TelegramService } = await import('./telegramService');
-        const telegramService = new TelegramService(process.env.TELEGRAM_BOT_TOKEN || '');
+        const telegramService = getTelegramService();
         await telegramService.sendMessage(userId, summary);
       }
         // Notificaciones de graduación fuera de la transacción (igual que antes)
@@ -1009,8 +1011,7 @@ export class StudySessionService {
             try {
               const { NotificationService } = await import('./notificationService');
               const notificationService = new NotificationService();
-              const { TelegramService } = await import('./telegramService');
-              const telegramService = new TelegramService(process.env.TELEGRAM_BOT_TOKEN || '');
+              const telegramService = getTelegramService();
               // ... lógica de notificación ...
             } catch (error) {
               console.error('Error enviando notificación de graduación:', error);
@@ -1785,8 +1786,7 @@ export class StudySessionService {
         // Realizar acciones después de la transacción
         if (shouldCompleteSession) {
           // Enviar mensaje de timeout
-          const { TelegramService } = await import('./telegramService');
-          const telegramService = new TelegramService(process.env.TELEGRAM_BOT_TOKEN || '');
+          const telegramService = getTelegramService();
           await telegramService.sendMessage(userid, '⏰ ¡Tiempo agotado! Pasando a la siguiente pregunta.');
           
           console.log(`🏁 Generando resumen de sesión completada por timeout: ${sessionIdForCompletion}...`);
@@ -1804,8 +1804,7 @@ export class StudySessionService {
           await telegramService.sendMessage(userid, summary);
         } else {
           // Enviar mensaje de timeout para sesiones que continúan
-          const { TelegramService } = await import('./telegramService');
-          const telegramService = new TelegramService(process.env.TELEGRAM_BOT_TOKEN || '');
+          const telegramService = getTelegramService();
           await telegramService.sendMessage(userid, '⏰ ¡Tiempo agotado! Pasando a la siguiente pregunta.');
           
           // Enviar siguiente pregunta fuera de la transacción usando datos ya obtenidos
