@@ -1,9 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { parseGiftQuestion } from '@/utils/giftParser';
 import { cleanMalformedOptionsJSON } from '@/utils/optionsParser';
-
-// Instancia global de Prisma
-const prisma = new PrismaClient();
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002352049779';

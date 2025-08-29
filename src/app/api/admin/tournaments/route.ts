@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { cleanMalformedOptionsJSON } from '@/utils/optionsParser';
-
-const prisma = new PrismaClient();
 
 // ✅ FUNCIÓN PARA CALCULAR PRIZEPOOL AUTOMÁTICAMENTE
 function calculateBaseprizepool(participantCount: number, questionscount: number): number {

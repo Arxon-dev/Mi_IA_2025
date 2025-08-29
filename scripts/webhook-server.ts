@@ -1,9 +1,8 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../src/lib/prisma';
 
 const app = express();
 const PORT = 3000;
-const prisma = new PrismaClient();
 
 // Middleware
 app.use(express.json());
@@ -84,4 +83,4 @@ process.on('SIGTERM', async () => {
   console.log('\n🛑 Shutting down webhook server...');
   await prisma.$disconnect();
   process.exit(0);
-}); 
+});

@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client';
 import { config } from 'dotenv';
+import { prisma } from '@/lib/prisma';
 
 config();
-
-const prisma = new PrismaClient();
 
 async function testDatabaseConnection() {
   try {
@@ -56,4 +54,4 @@ async function testDatabaseConnection() {
   }
 }
 
-testDatabaseConnection(); 
+testDatabaseConnection();

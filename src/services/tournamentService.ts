@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
 import { cleanMalformedOptionsJSON } from '../utils/optionsParser';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 interface TournamentManager {
   isRunning: boolean;

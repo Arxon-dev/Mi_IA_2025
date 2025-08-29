@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { studySessionService } from './studySessionService';
-
-const prisma = new PrismaClient();
 
 export class StudyTimeoutScheduler {
   private static instance: StudyTimeoutScheduler;
@@ -209,4 +207,4 @@ if (typeof window === 'undefined') { // Solo en servidor
     studyTimeoutScheduler.stop();
     process.exit(0);
   });
-} 
+}

@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 // DELETE /api/admin/tournaments/[id] - Eliminar un torneo
 export async function DELETE(
@@ -65,4 +63,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-} 
+}

@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
 // Configuración para forzar renderizado dinámico
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const prisma = new PrismaClient();
 
 // GET /api/admin/tournaments/stats - Obtener estadísticas de torneos
 export async function GET() {

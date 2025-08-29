@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
 import { SubscriptionPlanService } from './subscriptionPlanService';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export interface InvoiceData {
   title: string;

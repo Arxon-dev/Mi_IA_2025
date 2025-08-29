@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 interface ParsedQuestion {
   title: string;
@@ -465,4 +463,4 @@ if (require.main === module) {
   analyzeAllQuestions().catch(console.error);
 }
 
-export { analyzeAllQuestions, validateQuestion }; 
+export { analyzeAllQuestions, validateQuestion };

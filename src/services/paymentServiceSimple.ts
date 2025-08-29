@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export interface InvoiceData {
   title: string;
@@ -191,4 +189,4 @@ ${planName === 'basic' ?
   }
 }
 
-export { PaymentServiceSimple as PaymentService }; 
+export { PaymentServiceSimple as PaymentService };

@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 // CORS headers for cross-origin requests from hosting
 const corsHeaders = {
@@ -516,4 +514,4 @@ function findStudyGroupMatches(userAccuracy: number, allAccuracies: number[]) {
     compatible_users: matches.length,
     accuracy_range: `${Math.round(userAccuracy - tolerance)}% - ${Math.round(userAccuracy + tolerance)}%`
   };
-} 
+}

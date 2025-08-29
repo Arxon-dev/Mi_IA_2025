@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 // POST /api/admin/tournaments/[id]/stop - Detener un torneo
 export async function POST(
@@ -148,4 +146,4 @@ export async function POST(
       { status: 500 }
     );
   }
-} 
+}

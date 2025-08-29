@@ -145,8 +145,7 @@ export class StudyCommandHandler {
   private static async getActiveSessionWithPendingQuestion(userid: string): Promise<{ pendingPollId: string } | null> {
     try {
       // Importar Prisma aquí para evitar dependencias circulares
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@/lib/prisma');
 
       const session = await prisma.userstudysession.findFirst({
         where: { userid, status: 'active' },
@@ -216,4 +215,4 @@ export class StudyCommandHandler {
   }
 }
 
-export { StudyCommandHandler as studyCommandHandler }; 
+export { StudyCommandHandler as studyCommandHandler };

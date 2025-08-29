@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
 
 // Función para enviar mensaje privado
@@ -329,4 +327,4 @@ if (require.main === module) {
   }).catch(error => {
     console.error('❌ Error en procesamiento:', error);
   });
-} 
+}

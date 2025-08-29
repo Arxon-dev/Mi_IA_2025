@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { cleanMalformedOptionsJSON, cleanOptionPercentages } from '@/utils/optionsParser';
 
 // Configuración para forzar renderizado dinámico
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const prisma = new PrismaClient();
 
 // GET - Listar preguntas con paginación y búsqueda desde múltiples tablas
 export async function GET(request: NextRequest) {

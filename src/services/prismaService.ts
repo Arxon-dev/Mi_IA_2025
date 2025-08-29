@@ -883,7 +883,7 @@ export class PrismaService {
     });
 
     try {
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@/lib/prisma');
       
       // Verificar si la configuración ya existe
       const existingConfig = await prisma.aiconfig.findFirst();

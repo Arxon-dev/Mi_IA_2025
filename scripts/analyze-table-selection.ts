@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../src/lib/prisma';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-
-const prisma = new PrismaClient();
 
 interface SchedulerConfig {
   dailyPolls: {

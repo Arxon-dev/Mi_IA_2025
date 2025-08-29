@@ -34,8 +34,9 @@ function generateId(): string {
 // Función para asegurar que prisma esté disponible
 function ensurePrisma() {
   if (!prisma) {
-    console.error('❌ Prisma instance is undefined, creating fallback instance');
-    return new PrismaClient();
+    console.error('❌ Prisma instance is undefined, using centralized instance');
+    const { prisma: centralizedPrisma } = require('@/lib/prisma');
+    return centralizedPrisma;
   }
   return prisma;
 }

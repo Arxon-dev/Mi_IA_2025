@@ -1,12 +1,6 @@
-import { PrismaClient } from '@prisma/client';
 import { TelegramService } from './telegramService';
 import { GamificationService, UserResponse } from './gamificationService';
-
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-export const prisma =
-  globalForPrisma.prisma ||
-  new PrismaClient({ log: ['query', 'error', 'warn'] });
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+import { prisma } from '@/lib/prisma';
 
 // Declarar tipos globales para notificaciones
 declare global {
