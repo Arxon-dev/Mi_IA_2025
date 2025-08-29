@@ -68,7 +68,7 @@ export async function GET(
       prisma.sectionquestion.findMany({
         where,
         orderBy: [
-          { createdAt: 'desc' }
+          { createdat: 'desc' }
         ],
         skip,
         take: limit,
@@ -77,11 +77,11 @@ export async function GET(
           content: true,
           type: true,
           difficulty: true,
-          bloomLevel: true,
-          createdAt: true,
-          sectionId: true,
+          bloomlevel: true,
+          createdat: true,
+          sectionid: true,
           isactive: true, // 🔧 FIX: Incluir isActive en la selección para debugging
-          lastScheduledSendAt: true
+          lastscheduledsendat: true
         }
       }),
       prisma.sectionquestion.count({ where })
@@ -178,10 +178,10 @@ export async function POST(
       content: questionData.content,
       type: questionData.type || 'gift',
       difficulty: questionData.difficulty || 'medium',
-      bloomLevel: questionData.bloomLevel || null,
-      sectionId: sectionId,
+      bloomlevel: questionData.bloomLevel || null,
+      sectionid: sectionId,
       isactive: questionData.isactive !== undefined ? questionData.isactive : true, // 🔧 FIX: Asegurar que isActive se establece explícitamente
-      lastScheduledSendAt: questionData.lastScheduledSendAt || null
+      lastscheduledsendat: questionData.lastScheduledSendAt || null
     }));
 
     // Crear preguntas en batch
