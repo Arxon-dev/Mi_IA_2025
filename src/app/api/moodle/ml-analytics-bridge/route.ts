@@ -190,7 +190,7 @@ async function getUserAnalytics(telegramuserid: number) {
       responsetime: true,
       subject: true,
       answeredat: true,
-      timedOut: true
+      timedout: true
     }
   });
 
@@ -269,7 +269,7 @@ async function getLearningMetrics(telegramuserid: number) {
     .filter(r => r.responsetime && r.responsetime > 0)
     .reduce((sum, r) => sum + (r.responsetime || 0), 0) / allResponses.length;
   
-  const timeoutRate = allResponses.filter(r => r.timedOut).length / allResponses.length;
+  const timeoutRate = allResponses.filter(r => r.timedout).length / allResponses.length;
   const efficiencyScore = Math.max(0, 100 - (avgResponseTime / 1000) - (timeoutRate * 50));
 
   // Calculate learning velocity
