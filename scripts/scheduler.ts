@@ -10,6 +10,9 @@ const SCHEDULE_CONFIG = {
   // Envío diario a las 9:00 AM (hora local)
   dailyAt9AM: '0 9 * * *',
   
+  // Envío cada 30 minutos
+  every30Minutes: '*/30 * * * *',
+  
   // Envío cada 2 horas entre 8 AM y 8 PM
   everyTwoHours: '0 8-20/2 * * *',
   
@@ -23,11 +26,11 @@ const SCHEDULE_CONFIG = {
 // Función principal del scheduler
 function startScheduler() {
   console.log('🚀 Iniciando scheduler...');
-  console.log('📅 Configuración actual: Envío diario a las 9:00 AM');
+  console.log('📅 Configuración actual: Envío cada 30 minutos');
   console.log('');
   
-  // Programar envío diario
-  cron.schedule(SCHEDULE_CONFIG.dailyAt9AM, async () => {
+  // Programar envío cada 30 minutos
+  cron.schedule(SCHEDULE_CONFIG.every30Minutes, async () => {
     console.log('⏰ Hora de envío automático:', new Date().toLocaleString());
     try {
       await sendDailyPoll();
@@ -41,7 +44,7 @@ function startScheduler() {
   });
   
   console.log('✅ Scheduler activo');
-  console.log('📋 Próximo envío programado: Mañana a las 9:00 AM');
+  console.log('📋 Próximo envío programado: En 30 minutos');
   console.log('');
   console.log('💡 Para cambiar horarios, edita SCHEDULE_CONFIG en scheduler.ts');
   console.log('🛑 Para detener: Ctrl+C');
@@ -86,10 +89,10 @@ if (args.includes('--now')) {
   console.log('     npx tsx scripts/scheduler.ts --help');
   console.log('');
   console.log('⚙️  CONFIGURACIÓN ACTUAL:');
-  console.log('   • Envío diario: 9:00 AM');
+  console.log('   • Envío cada: 30 minutos');
   console.log('   • Zona horaria: Europe/Madrid');
-  console.log('   • Repetición: Todos los días');
+  console.log('   • Repetición: Continua (24/7)');
 } else {
   // Iniciar scheduler por defecto
   startScheduler();
-} 
+}
