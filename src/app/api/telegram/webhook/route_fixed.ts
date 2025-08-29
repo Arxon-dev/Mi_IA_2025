@@ -11,7 +11,7 @@ import { DuelManager } from '@/services/duelManager';
 import { tournamentService } from '@/services/tournamentService';
 import { StudySessionService } from '@/services/studySessionService';
 import { PaymentService } from '@/services/paymentServiceRedsys';
-import { SubscriptionCommands } from '@/services/subscriptionCommandsSimple';
+import { SubscriptionCommandsSimple } from '@/services/subscriptionCommandsSimple';
 import { SubscriptionService } from '@/services/subscriptionService';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
@@ -360,7 +360,7 @@ async function handlePollAnswer(pollAnswer: any) {
     const userStats = await GamificationService.processUserResponse({
       telegramuserid: userid,
       username: pollAnswer.user.username,
-      firstname: pollAnswer.user.first_name,
+      firstName: pollAnswer.user.first_name,
       lastname: pollAnswer.user.last_name,
       questionid: questionData.questionid,
       telegramMsgId: pollid,
@@ -377,7 +377,7 @@ async function handlePollAnswer(pollAnswer: any) {
       questionData,
       {
         telegramuserid: userid,
-        firstname: pollAnswer.user.first_name,
+        firstName: pollAnswer.user.first_name,
         username: pollAnswer.user.username
       },
       questionData.chatid
@@ -434,10 +434,10 @@ async function handleNewChatMembers(message: any): Promise<NextResponse> {
           data: {
             telegramuserid: newMember.id.toString(),
             username: newMember.username,
-            firstname: newMember.first_name,
+            firstName: newMember.first_name,
             lastname: newMember.last_name,
             totalpoints: 25, // Puntos iniciales
-            lastActivity: new Date()
+            lastactivity: new Date()
           }
         });
         
@@ -469,7 +469,13 @@ async function handleNewChatMembers(message: any): Promise<NextResponse> {
 
 // ============ PLACEHOLDER FUNCTIONS (TO BE IMPLEMENTED) ============
 
-async function findQuestionByPollId(pollid: string) {
+async function findQuestionByPollId(pollid: string): Promise<{
+  questionid: string;
+  sourcemodel: string;
+  correctanswerindex: number;
+  createdAt: Date;
+  chatid: number;
+} | null> {
   // This function needs to be implemented based on your database structure
   // For now, returning null to prevent compilation errors
   return null;
@@ -689,7 +695,7 @@ export async function POST(request: NextRequest) {
     const userStats = await GamificationService.processUserResponse({
       telegramuserid: user.id.toString(),
       username: user.username,
-      firstname: user.first_name,
+      firstName: user.first_name,
       lastname: user.last_name,
       questionid: questionid,
       telegramMsgId: message.message_id.toString(),
