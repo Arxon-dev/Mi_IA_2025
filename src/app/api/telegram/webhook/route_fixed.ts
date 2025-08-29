@@ -361,7 +361,7 @@ async function handlePollAnswer(pollAnswer: any) {
       telegramuserid: userid,
       username: pollAnswer.user.username,
       firstName: pollAnswer.user.first_name,
-      lastname: pollAnswer.user.last_name,
+      lastName: pollAnswer.user.last_name,
       questionid: questionData.questionid,
       telegramMsgId: pollid,
       iscorrect: iscorrect,
@@ -380,7 +380,7 @@ async function handlePollAnswer(pollAnswer: any) {
         firstName: pollAnswer.user.first_name,
         username: pollAnswer.user.username
       },
-      questionData.chatid
+      questionData.chatid.toString()
     );
 
     console.log('📤 Respuesta enviada:', notificationResult.method, '|', notificationResult.message);
@@ -434,7 +434,7 @@ async function handleNewChatMembers(message: any): Promise<NextResponse> {
           data: {
             telegramuserid: newMember.id.toString(),
             username: newMember.username,
-            firstName: newMember.first_name,
+            firstname: newMember.first_name,
             lastname: newMember.last_name,
             totalpoints: 25, // Puntos iniciales
             lastactivity: new Date()
@@ -696,7 +696,7 @@ export async function POST(request: NextRequest) {
       telegramuserid: user.id.toString(),
       username: user.username,
       firstName: user.first_name,
-      lastname: user.last_name,
+      lastName: user.last_name,
       questionid: questionid,
       telegramMsgId: message.message_id.toString(),
       iscorrect: iscorrect,
