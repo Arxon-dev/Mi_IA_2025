@@ -33,9 +33,6 @@ export async function GET(request: NextRequest) {
             gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
           }
         },
-        include: {
-          responses: true
-        },
         orderBy: { createdat: 'desc' },
         take: 10
       })
@@ -109,16 +106,21 @@ export async function GET(request: NextRequest) {
       })).sort((a, b) => b.totalquestions - a.totalquestions),
 
       // Sesiones recientes
-      recentSessions: recentSessions.map(session => ({
-        id: session.id,
-        userid: session.userid,
-        subject: session.subject,
-        status: session.status,
-        progress: `${session.currentindex}/${session.totalquestions}`,
-        responses: session.responses?.length || 0,
-        createdAt: session.createdat,
-        lastActivity: session.lastactivityat,
-        timeoutat: session.timeoutat
+      recentSessions: await Promise.all(recentSessions.map(async session => {
+        const responseCount = await prisma.studyresponse.count({
+          where: { sessionid: session.id }
+        });
+        return {
+          id: session.id,
+          userid: session.userid,
+          subject: session.subject,
+          status: session.status,
+          progress: `${session.currentindex}/${session.totalquestions}`,
+          responses: responseCount,
+          createdAt: session.createdat,
+          lastActivity: session.lastactivityat,
+          timeoutat: session.timeoutat
+        };
       })),
 
       // Metadatos
