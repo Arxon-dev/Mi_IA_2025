@@ -1380,27 +1380,13 @@ export class PrismaService {
         orderBy: { createdat: 'desc' }
       });
 
-      // Determinar qué tabla usar en esta ejecución
-      let currentTable = aiConfig?.telegramschedulercurrenttable || null;
-      let currentTableIndex = -1;
+      // Determinar qué tabla usar en esta ejecución (rotación simple basada en fecha)
+      const currentDate = new Date();
+      const dayOfYear = Math.floor((currentDate.getTime() - new Date(currentDate.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
+      const currentTableIndex = dayOfYear % availableTables.length;
+      const currentTable = availableTables[currentTableIndex];
 
-      if (currentTable) {
-        // Encontrar el índice de la tabla actual
-        currentTableIndex = availableTables.indexOf(currentTable);
-      }
-
-      // Avanzar a la siguiente tabla (rotación)
-      currentTableIndex = (currentTableIndex + 1) % availableTables.length;
-      currentTable = availableTables[currentTableIndex];
-
-      // Actualizar la configuración con la nueva tabla actual
-      await prisma.aiconfig.updateMany({
-        where: { id: aiConfig?.id },
-        data: {
-          telegramschedulercurrenttable: currentTable,
-          updatedat: new Date()
-        }
-      });
+      // No necesitamos actualizar la configuración ya que usamos rotación basada en fecha
 
       console.log(`[Scheduler] 🔄 Rotación de tablas: Usando tabla '${currentTable}' para esta ejecución (${currentTableIndex + 1}/${availableTables.length})`);
       console.log(`[Scheduler] 🔄 Buscando ${quantity} preguntas para Telegram de la tabla '${currentTable}', saltando ${skip}. Intervalo: ${minimumIntervalDays} días.`);
