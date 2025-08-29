@@ -28,7 +28,7 @@
     "test:redsys": "ts-node scripts/test-redsys.ts",
     "scheduler:start": "npx tsx scripts/notification-scheduler.ts",
     "scheduler:dev": "npx tsx scripts/notification-scheduler.ts --dev",
-    "scheduler:railway": "npx tsx scripts/railway-scheduler.ts",
+    "scheduler:railway": "npx tsx scripts/scheduler.ts",
     "scheduler:railway:dev": "npx tsx scripts/railway-scheduler.ts --dev"
   },
   "dependencies": {
