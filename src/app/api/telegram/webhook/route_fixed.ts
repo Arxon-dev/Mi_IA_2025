@@ -509,10 +509,11 @@ export async function handleBotCommands(message: any): Promise<string | null> {
         },
         create: {
           id: userid,
+          telegramuserid: userid,
           firstname: message.from.first_name || '',
           lastname: message.from.last_name || '',
           username: message.from.username || '',
-          createdat: new Date()
+          joinedat: new Date()
         }
       });
       
@@ -583,16 +584,24 @@ export async function handleBotCommands(message: any): Promise<string | null> {
     }
 
     if (text === '/mi_plan') {
-      const subscription = await SubscriptionService.getUserSubscription(userid);
+      const subscription = await SubscriptionService.getCurrentSubscription(userid);
       if (subscription) {
-        const plan = subscription.plan;
-        return `📋 <b>TU SUSCRIPCIÓN ACTUAL</b>\n\n` +
-               `🎯 Plan: <b>${plan.displayname}</b>\n` +
-               `💰 Precio: <b>€${plan.price}/mes</b>\n` +
-               `📅 Activa desde: ${subscription.createdat.toLocaleDateString()}\n` +
-               `📊 Estado: <b>${subscription.isactive ? '✅ Activa' : '❌ Inactiva'}</b>\n\n` +
-               `🎓 Límite diario: ${plan.dailyquestionslimit || 'Ilimitado'} preguntas\n` +
-               `📈 Estadísticas avanzadas: ${plan.canuseadvancedstats ? '✅' : '❌'}\n` +
+        // Obtener el plan por separado
+        const plan = await prisma.subscriptionplan.findUnique({
+          where: { id: subscription.planid }
+        });
+        
+        if (plan) {
+          const isActive = subscription.status === 'active' || 
+                          (subscription.status === 'cancelled' && subscription.enddate && subscription.enddate > new Date());
+          
+          return `📋 <b>TU SUSCRIPCIÓN ACTUAL</b>\n\n` +
+                 `🎯 Plan: <b>${plan.displayname}</b>\n` +
+                 `💰 Precio: <b>€${plan.price}/mes</b>\n` +
+                 `📅 Activa desde: ${subscription.createdat.toLocaleDateString()}\n` +
+                 `📊 Estado: <b>${isActive ? '✅ Activa' : '❌ Inactiva'}</b>\n\n` +
+                 `🎓 Límite diario: ${plan.dailyquestionslimit || 'Ilimitado'} preguntas\n` +
+                 `📈 Estadísticas avanzadas: ${plan.canuseadvancedstats ? '✅' : '❌'}\n` +
                `🎯 Simulacros: ${plan.canusesimulations ? '✅' : '❌'}\n` +
                `🤖 Análisis IA: ${plan.canuseaianalysis ? '✅' : '❌'}`;
       } else {
@@ -626,11 +635,11 @@ export async function handleBotCommands(message: any): Promise<string | null> {
       const userStats = await GamificationService.getUserStats(userid);
       if (userStats) {
         return `📊 <b>TUS ESTADÍSTICAS</b>\n\n` +
-               `🎯 Preguntas respondidas: <b>${userStats.totalanswered}</b>\n` +
-               `✅ Respuestas correctas: <b>${userStats.totalcorrect}</b>\n` +
-               `📈 Porcentaje de aciertos: <b>${userStats.accuracypercentage}%</b>\n` +
-               `🔥 Racha actual: <b>${userStats.currentstreak}</b>\n` +
-               `🏆 Mejor racha: <b>${userStats.beststreak}</b>\n` +
+               `🎯 Preguntas respondidas: <b>${userStats.totalResponses}</b>\n` +
+               `✅ Respuestas correctas: <b>${userStats.correctResponses}</b>\n` +
+               `📈 Porcentaje de aciertos: <b>${userStats.accuracy.toFixed(1)}%</b>\n` +
+               `🔥 Racha actual: <b>${userStats.streak}</b>\n` +
+               `🏆 Mejor racha: <b>${userStats.bestStreak}</b>\n` +
                `⭐ Puntos totales: <b>${userStats.totalpoints}</b>\n` +
                `📊 Nivel: <b>${userStats.level}</b> ${getLevelEmoji(userStats.level)}`;
       } else {
@@ -639,12 +648,13 @@ export async function handleBotCommands(message: any): Promise<string | null> {
     }
 
     if (text === '/ranking') {
-      const ranking = await ExamRankingService.getGeneralRanking(10);
+      const ranking = await GamificationService.getLeaderboard(10);
       let response = '🏆 <b>RANKING GENERAL</b>\n\n';
       
-      ranking.forEach((user, index) => {
+      ranking.forEach((entry, index) => {
         const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-        response += `${medal} ${user.firstname} - ${user.totalpoints} pts\n`;
+        const displayName = entry.user.firstName || entry.user.username || 'Usuario';
+        response += `${medal} ${displayName} - ${entry.points} pts\n`;
       });
       
       return response;
