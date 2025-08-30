@@ -80,19 +80,24 @@ async function createTestTournament() {
     
     // ✅ MOSTRAR ESTADO FINAL
     const finalTournament = await prisma.tournament.findUnique({
-      where: { id: tournament.id },
-      include: {
-        tournamentquestions: true,
-        tournamentparticipants: true
-      }
+      where: { id: tournament.id }
+    });
+    
+    // Obtener conteos por separado
+    const questionsCount = await prisma.tournamentquestion.count({
+      where: { tournamentid: tournament.id }
+    });
+    
+    const participantsCount = await prisma.tournamentparticipant.count({
+      where: { tournamentid: tournament.id }
     });
     
     if (finalTournament) {
       console.log('\n🎉 ESTADO FINAL DEL TORNEO:');
       console.log(`   🆔 ID: ${finalTournament.id}`);
       console.log(`   📛 Nombre: ${finalTournament.name}`);
-      console.log(`   ❓ Preguntas asignadas: ${finalTournament.tournamentquestions.length}`);
-      console.log(`   👥 Participantes: ${finalTournament.tournamentparticipants.length}`);
+      console.log(`   ❓ Preguntas asignadas: ${questionsCount}`);
+      console.log(`   👥 Participantes: ${participantsCount}`);
       console.log(`   💰 PrizePool final: ${finalTournament.prizepool} puntos`);
       console.log(`   📊 Estado: ${finalTournament.status}`);
       
@@ -154,10 +159,10 @@ async function assignQuestionsToTournament(tournamentId: string, questionscount:
     for (const question of questions2024.slice(0, Math.min(questions2024.length, questionscount - questionnumber + 1))) {
       await prisma.tournamentquestion.create({
         data: {
-          tournamentid,
+          tournamentid: tournamentId,
           questionid: question.id,
           questionnumber: questionnumber++,
-          sourceTable: 'ExamenOficial2024'
+          sourcetable: 'ExamenOficial2024'
         }
       });
     }
@@ -167,10 +172,10 @@ async function assignQuestionsToTournament(tournamentId: string, questionscount:
       if (questionnumber > questionscount) break;
       await prisma.tournamentquestion.create({
         data: {
-          tournamentid,
+          tournamentid: tournamentId,
           questionid: question.id,
           questionnumber: questionnumber++,
-          sourceTable: 'ExamenOficial2018'
+          sourcetable: 'ExamenOficial2018'
         }
       });
     }
@@ -180,10 +185,10 @@ async function assignQuestionsToTournament(tournamentId: string, questionscount:
       if (questionnumber > questionscount) break;
       await prisma.tournamentquestion.create({
         data: {
-          tournamentid,
+          tournamentid: tournamentId,
           questionid: question.id,
           questionnumber: questionnumber++,
-          sourceTable: 'ValidQuestion'
+          sourcetable: 'ValidQuestion'
         }
       });
     }
@@ -212,10 +217,10 @@ async function simulateParticipantRegistration(tournamentId: string, questionsco
       // Crear participación
       await prisma.tournamentparticipant.create({
         data: {
-          tournamentid,
+          tournamentid: tournamentId,
           userid: user.id,
           status: 'REGISTERED',
-          registeredAt: new Date()
+          registeredat: new Date()
         }
       });
       
