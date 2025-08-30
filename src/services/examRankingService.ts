@@ -49,7 +49,7 @@ export class ExamRankingService {
   static async getExam2018Ranking(limit: number = 10): Promise<ExamRankingEntry[]> {
     const examResponses = await prisma.simulacroresponse.findMany({
       where: {
-        examType: 'EXAMEN_2018'
+        examtype: 'EXAMEN_2018'
       },
       include: {
         simulacro: {
@@ -68,15 +68,15 @@ export class ExamRankingService {
     }>();
 
     examResponses.forEach(response => {
-      const userid = response.simulacro.user.telegramuserid;
+      const userid = response.simulacroid;
       
       if (!userStats.has(userid)) {
         userStats.set(userid, {
-          user: response.simulacro.user,
+          user: response.simulacroid,
           totalquestions: 0,
           correctAnswers: 0,
           totalTime: 0,
-          lastAttempt: response.answeredAt || response.createdAt
+          lastAttempt: response.answeredat || response.createdat
         });
       }
 
@@ -84,7 +84,7 @@ export class ExamRankingService {
       stats.totalquestions++;
       if (response.iscorrect) stats.correctAnswers++;
       if (response.responsetime) stats.totalTime += response.responsetime;
-      const responseDate = response.answeredAt || response.createdAt;
+      const responseDate = response.answeredat || response.createdat;
       if (responseDate > stats.lastAttempt) stats.lastAttempt = responseDate;
     });
 
@@ -125,7 +125,7 @@ export class ExamRankingService {
   static async getExam2024Ranking(limit: number = 10): Promise<ExamRankingEntry[]> {
     const examResponses = await prisma.simulacroresponse.findMany({
       where: {
-        examType: 'EXAMEN_2024'
+        examtype: 'EXAMEN_2024'
       },
       include: {
         simulacro: {
@@ -144,15 +144,15 @@ export class ExamRankingService {
     }>();
 
     examResponses.forEach((response: any) => {
-      const userid = response.simulacro.user.telegramuserid;
+      const userid = response.simulacroid;
       
       if (!userStats.has(userid)) {
         userStats.set(userid, {
-          user: response.simulacro.user,
+          user: response.simulacroid,
           totalquestions: 0,
           correctAnswers: 0,
           totalTime: 0,
-          lastAttempt: response.answeredAt || response.createdAt
+          lastAttempt: response.answeredat || response.createdat
         });
       }
 
@@ -160,7 +160,7 @@ export class ExamRankingService {
       stats.totalquestions++;
       if (response.iscorrect) stats.correctAnswers++;
       if (response.responsetime) stats.totalTime += response.responsetime;
-      const responseDate = response.answeredAt || response.createdAt;
+      const responseDate = response.answeredat || response.createdat;
       if (responseDate > stats.lastAttempt) stats.lastAttempt = responseDate;
     });
 
@@ -201,12 +201,8 @@ export class ExamRankingService {
     // Obtener respuestas del examen 2018
     const exam2018Responses = await prisma.simulacroresponse.findMany({
       where: {
-        examType: 'EXAMEN_2018',
-        simulacro: {
-          user: {
-            telegramuserid: telegramuserid
-          }
-        }
+        examtype: 'EXAMEN_2018',
+        simulacroid: telegramuserid
       },
       include: {
         simulacro: {
@@ -218,12 +214,8 @@ export class ExamRankingService {
     // Obtener respuestas del examen 2024
     const exam2024Responses = await prisma.simulacroresponse.findMany({
       where: {
-        examType: 'EXAMEN_2024',
-        simulacro: {
-          user: {
-            telegramuserid: telegramuserid
-          }
-        }
+        examtype: 'EXAMEN_2024',
+        simulacroid: telegramuserid
       },
       include: {
         simulacro: {
