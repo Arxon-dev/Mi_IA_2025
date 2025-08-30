@@ -578,8 +578,7 @@ export async function handleBotCommands(message: any): Promise<string | null> {
     }
 
     if (text === '/basico') {
-      SubscriptionCommandsSimple.handleBasicoCommand(message, createBotInterface(message.chat.id));
-      return 'INTELLIGENT_SYSTEM_HANDLED';
+      return await SubscriptionCommandsSimple.handleBasicoCommand(message, createBotInterface(message.chat.id));
     }
 
     if (text === '/mi_plan') {
