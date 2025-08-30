@@ -54,6 +54,8 @@ async function createTestTournament() {
     const tournament = await prisma.tournament.create({
       data: {
         ...tournamentData,
+        id: `tournament_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        updatedat: new Date(),
         prizepool: basePrizePool // ✅ Ya no es 0 - calculado automáticamente
       }
     });
