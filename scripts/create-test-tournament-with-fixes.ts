@@ -159,6 +159,7 @@ async function assignQuestionsToTournament(tournamentId: string, questionscount:
     for (const question of questions2024.slice(0, Math.min(questions2024.length, questionscount - questionnumber + 1))) {
       await prisma.tournamentquestion.create({
         data: {
+          id: `tq_${tournamentId}_${questionnumber}`,
           tournamentid: tournamentId,
           questionid: question.id,
           questionnumber: questionnumber++,
@@ -172,6 +173,7 @@ async function assignQuestionsToTournament(tournamentId: string, questionscount:
       if (questionnumber > questionscount) break;
       await prisma.tournamentquestion.create({
         data: {
+          id: `tq_${tournamentId}_${questionnumber}`,
           tournamentid: tournamentId,
           questionid: question.id,
           questionnumber: questionnumber++,
@@ -185,6 +187,7 @@ async function assignQuestionsToTournament(tournamentId: string, questionscount:
       if (questionnumber > questionscount) break;
       await prisma.tournamentquestion.create({
         data: {
+          id: `tq_${tournamentId}_${questionnumber}`,
           tournamentid: tournamentId,
           questionid: question.id,
           questionnumber: questionnumber++,
@@ -217,6 +220,7 @@ async function simulateParticipantRegistration(tournamentId: string, questionsco
       // Crear participación
       await prisma.tournamentparticipant.create({
         data: {
+          id: `tp_${tournamentId}_${user.id}`,
           tournamentid: tournamentId,
           userid: user.id,
           status: 'REGISTERED',
