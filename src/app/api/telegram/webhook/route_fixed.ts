@@ -10,6 +10,7 @@ import { Simulacro2024Service } from '@/services/simulacro2024Service';
 import { DuelManager } from '@/services/duelManager';
 import { tournamentService } from '@/services/tournamentService';
 import { StudySessionService } from '@/services/studySessionService';
+import { StudyCommandHandler } from '@/services/studyCommandHandler';
 import { PaymentService } from '@/services/paymentServiceRedsys';
 import { SubscriptionCommandsSimple } from '@/services/subscriptionCommandsSimple';
 import { SubscriptionService } from '@/services/subscriptionService';
@@ -483,34 +484,179 @@ async function findQuestionByPollId(pollid: string): Promise<{
 }
 
 export async function handleBotCommands(message: any): Promise<string | null> {
-  // This function needs to be implemented with all the bot commands
-  // For now, returning null to prevent compilation errors
   const text = message.text?.toLowerCase().trim();
+  const originalText = message.text?.trim(); // Mantener texto original para comandos case-sensitive
   
   if (!text || !text.startsWith('/')) {
     return null;
   }
 
-  // Basic implementation - you'll need to add all the command handlers
-  if (text === '/start') {
-    return `🎉 ¡Bienvenido a Permanencia OPOMELILLA! 
-
-Usa /help para ver todos los comandos disponibles.`;
+  const userid = message.from?.id?.toString();
+  if (!userid) {
+    return '❌ No se pudo identificar el usuario.';
   }
 
-  if (text === '/help') {
-    return `📋 <b>COMANDOS DISPONIBLES:</b>
+  try {
+    // ============ COMANDOS BÁSICOS ============
+    if (text === '/start') {
+      // Registrar usuario si no existe
+      await prisma.telegramuser.upsert({
+        where: { id: userid },
+        update: {
+          firstname: message.from.first_name || '',
+          lastname: message.from.last_name || '',
+          username: message.from.username || ''
+        },
+        create: {
+          id: userid,
+          firstname: message.from.first_name || '',
+          lastname: message.from.last_name || '',
+          username: message.from.username || '',
+          createdat: new Date()
+        }
+      });
+      
+      return `🎉 ¡Bienvenido a Permanencia OPOMELILLA! 
 
-🏆 <b>PRINCIPALES:</b>
-/start - Comenzar
-/stats - Mis estadísticas  
+📚 **SESIONES DE ESTUDIO PRIVADAS**
+• /pdc2 - 2 preguntas de PDC
+• /constitucion10 - 10 preguntas de Constitución
+• /aleatorias5 - 5 preguntas aleatorias
+• /falladas - Repasar preguntas falladas
+
+💰 **SUSCRIPCIONES**
+• /planes - Ver planes disponibles
+• /premium - Suscribirse al plan premium
+• /basico - Suscribirse al plan básico
+
+📊 **ESTADÍSTICAS**
+• /stats - Mis estadísticas
+• /ranking - Ver ranking
+
+❓ /help - Ver todos los comandos`;
+    }
+
+    if (text === '/help') {
+      return `📋 <b>COMANDOS DISPONIBLES:</b>
+
+🎓 <b>SESIONES DE ESTUDIO:</b>
+/pdc[X] - Preguntas de PDC
+/constitucion[X] - Constitución
+/defensanacional[X] - Defensa Nacional
+/rjsp[X] o /rio[X] - RJP
+/et[X] - Ejército de Tierra
+/armada[X] - Armada
+/aire[X] - Ejército del Aire
+/aleatorias[X] - Preguntas aleatorias
+/falladas[X] - Preguntas falladas
+
+💰 <b>SUSCRIPCIONES:</b>
+/planes - Ver planes
+/premium - Plan premium
+/basico - Plan básico
+/mi_plan - Ver mi suscripción
+
+📊 <b>ESTADÍSTICAS:</b>
+/stats - Mis estadísticas
 /ranking - Ver ranking
-/help - Esta ayuda
 
-💡 Más comandos disponibles próximamente...`;
+🛠️ <b>GESTIÓN:</b>
+/stop - Cancelar sesión
+/progreso - Ver progreso
+
+<i>Ejemplo: /pdc2 para 2 preguntas de PDC</i>`;
+    }
+
+    // ============ COMANDOS DE SUSCRIPCIÓN ============
+    if (text === '/planes') {
+      return await SubscriptionCommandsSimple.handlePlanesCommand(message, createBotInterface(message.chat.id));
+    }
+
+    if (text === '/premium') {
+      await SubscriptionCommandsSimple.handlePremiumCommand(message, createBotInterface(message.chat.id));
+      return 'INTELLIGENT_SYSTEM_HANDLED'; // Indica que el sistema inteligente ya manejó la respuesta
+    }
+
+    if (text === '/basico') {
+      await SubscriptionCommandsSimple.handleBasicoCommand(message, createBotInterface(message.chat.id));
+      return 'INTELLIGENT_SYSTEM_HANDLED';
+    }
+
+    if (text === '/mi_plan') {
+      const subscription = await SubscriptionService.getUserSubscription(userid);
+      if (subscription) {
+        const plan = subscription.plan;
+        return `📋 <b>TU SUSCRIPCIÓN ACTUAL</b>\n\n` +
+               `🎯 Plan: <b>${plan.displayname}</b>\n` +
+               `💰 Precio: <b>€${plan.price}/mes</b>\n` +
+               `📅 Activa desde: ${subscription.createdat.toLocaleDateString()}\n` +
+               `📊 Estado: <b>${subscription.isactive ? '✅ Activa' : '❌ Inactiva'}</b>\n\n` +
+               `🎓 Límite diario: ${plan.dailyquestionslimit || 'Ilimitado'} preguntas\n` +
+               `📈 Estadísticas avanzadas: ${plan.canuseadvancedstats ? '✅' : '❌'}\n` +
+               `🎯 Simulacros: ${plan.canusesimulations ? '✅' : '❌'}\n` +
+               `🤖 Análisis IA: ${plan.canuseaianalysis ? '✅' : '❌'}`;
+      } else {
+        return `❌ <b>No tienes suscripción activa</b>\n\n` +
+               `💡 Usa /planes para ver los planes disponibles\n` +
+               `🎯 Usa /premium o /basico para suscribirte`;
+      }
+    }
+
+    // ============ COMANDOS DE SESIONES DE ESTUDIO ============
+    // Importar StudyCommandHandler dinámicamente para evitar dependencias circulares
+    const { StudyCommandHandler } = await import('@/services/studyCommandHandler');
+    
+    if (StudyCommandHandler.isStudyCommand(originalText)) {
+      const result = await StudyCommandHandler.handleStudyCommand(originalText, userid);
+      return result.message;
+    }
+
+    if (text === '/stop') {
+      const result = await StudyCommandHandler.handleStopCommand(userid);
+      return result.message;
+    }
+
+    if (text === '/progreso') {
+      const result = await StudyCommandHandler.handleProgressCommand(userid);
+      return result.message;
+    }
+
+    // ============ COMANDOS DE ESTADÍSTICAS ============
+    if (text === '/stats') {
+      const userStats = await GamificationService.getUserStats(userid);
+      if (userStats) {
+        return `📊 <b>TUS ESTADÍSTICAS</b>\n\n` +
+               `🎯 Preguntas respondidas: <b>${userStats.totalanswered}</b>\n` +
+               `✅ Respuestas correctas: <b>${userStats.totalcorrect}</b>\n` +
+               `📈 Porcentaje de aciertos: <b>${userStats.accuracypercentage}%</b>\n` +
+               `🔥 Racha actual: <b>${userStats.currentstreak}</b>\n` +
+               `🏆 Mejor racha: <b>${userStats.beststreak}</b>\n` +
+               `⭐ Puntos totales: <b>${userStats.totalpoints}</b>\n` +
+               `📊 Nivel: <b>${userStats.level}</b> ${getLevelEmoji(userStats.level)}`;
+      } else {
+        return '❌ No se encontraron estadísticas. ¡Responde algunas preguntas primero!';
+      }
+    }
+
+    if (text === '/ranking') {
+      const ranking = await ExamRankingService.getGeneralRanking(10);
+      let response = '🏆 <b>RANKING GENERAL</b>\n\n';
+      
+      ranking.forEach((user, index) => {
+        const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+        response += `${medal} ${user.firstname} - ${user.totalpoints} pts\n`;
+      });
+      
+      return response;
+    }
+
+    // ============ COMANDOS NO RECONOCIDOS ============
+    return `❓ Comando no reconocido: ${originalText}\n\n💡 Usa /help para ver todos los comandos disponibles.`;
+
+  } catch (error) {
+    console.error('Error en handleBotCommands:', error);
+    return '❌ Error procesando comando. Inténtalo de nuevo.';
   }
-
-  return null;
 }
 
 // ============ MAIN HANDLERS ============
