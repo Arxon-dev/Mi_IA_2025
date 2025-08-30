@@ -574,8 +574,7 @@ export async function handleBotCommands(message: any): Promise<string | null> {
     }
 
     if (text === '/premium') {
-      SubscriptionCommandsSimple.handlePremiumCommand(message, createBotInterface(message.chat.id));
-      return 'INTELLIGENT_SYSTEM_HANDLED'; // Indica que el sistema inteligente ya manejó la respuesta
+      return await SubscriptionCommandsSimple.handlePremiumCommand(message, createBotInterface(message.chat.id));
     }
 
     if (text === '/basico') {
