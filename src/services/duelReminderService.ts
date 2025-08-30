@@ -139,9 +139,6 @@ async function processDuelReminders(): Promise<void> {
           lte: in15Minutes
         }
       },
-      include: {
-        challenger: true,
-        challenged: true
       }
     });
 
@@ -170,9 +167,6 @@ async function processDuelReminders(): Promise<void> {
           gte: in20Minutes // Pero aún quedan más de 20 min
         }
       },
-      include: {
-        challenger: true,
-        challenged: true
       }
     });
 
