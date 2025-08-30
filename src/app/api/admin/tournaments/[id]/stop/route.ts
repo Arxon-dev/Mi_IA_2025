@@ -13,11 +13,7 @@ export async function POST(
     
     // Verificar que el torneo existe y está activo
     const tournament = await prisma.tournament.findUnique({
-      where: { id },
-      include: {
-        participants: true,
-        questions: true,
-      }
+      where: { id }
     });
     
     if (!tournament) {
@@ -35,37 +31,41 @@ export async function POST(
     }
     
     console.log(`📊 Finalizando torneo: ${tournament.name}`);
-    console.log(`👥 Participantes activos: ${tournament.participants.length}`);
+    // Obtener participantes por separado
+    const participantsCount = await prisma.tournamentparticipant.count({
+      where: { tournamentid: id }
+    });
+    console.log(`👥 Participantes activos: ${participantsCount}`);
     
     // Actualizar el estado del torneo a COMPLETED
     const updatedTournament = await prisma.tournament.update({
       where: { id },
       data: {
         status: 'COMPLETED',
-        actualEndTime: new Date(),
+        actualendtime: new Date(),
         endTime: new Date()
       }
     });
     
     // Actualizar participantes que aún estén activos
-    await prisma.tournamentParticipant.updateMany({
+    await prisma.tournamentparticipant.updateMany({
       where: {
-        tournamentId: id,
+        tournamentid: id,
         status: 'IN_PROGRESS'
       },
       data: {
         status: 'COMPLETED',
-        completedAt: new Date()
+        completedat: new Date()
       }
     });
     
     // Calcular posiciones finales basadas en puntuación
-    const participants = await prisma.tournamentParticipant.findMany({
-      where: { tournamentId: id },
+    const participants = await prisma.tournamentparticipant.findMany({
+      where: { tournamentid: id },
       orderBy: [
         { score: 'desc' },
-        { correctAnswers: 'desc' },
-        { completedAt: 'asc' }
+        { correctanswers: 'desc' },
+        { completedat: 'asc' }
       ],
       // include removed for MySQL compatibility
     });
@@ -75,11 +75,11 @@ export async function POST(
       const finalPosition = i + 1;
       const pointsEarned = Math.max(0, 100 - (i * 10)); // 1er=100, 2do=90, 3ro=80, etc.
       
-      await prisma.tournamentParticipant.update({
+      await prisma.tournamentparticipant.update({
         where: { id: participants[i].id },
         data: { 
           finalPosition,
-          pointsEarned
+          pointsearned
         }
       });
 
@@ -92,7 +92,7 @@ export async function POST(
           }
         });
         
-        console.log(`💰 ${participants[i].user.firstname}: +${pointsEarned} puntos transferidos (posición ${finalPosition})`);
+        console.log(`💰 Usuario ${participants[i].userid}: +${pointsEarned} puntos transferidos (posición ${finalPosition})`);
         
         // Enviar notificación individual de puntos ganados
         const notificationMessage = `🎉 ¡FELICIDADES! 🎉
@@ -113,19 +113,19 @@ export async function POST(
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              chat_id: participants[i].user.telegramuserid,
+              chat_id: participants[i].userid,
               text: notificationMessage,
               parse_mode: 'HTML'
             })
           });
         } catch (notifError) {
-          console.error(`❌ Error enviando notificación a ${participants[i].user.firstname}:`, notifError);
+          console.error(`❌ Error enviando notificación a usuario ${participants[i].userid}:`, notifError);
         }
       }
     }
     
     console.log(`✅ Torneo "${tournament.name}" finalizado correctamente`);
-    console.log(`🏆 Ganador: ${participants[0]?.user.firstname || 'N/A'} con ${participants[0]?.score || 0} puntos`);
+    console.log(`🏆 Ganador: Usuario ${participants[0]?.userid || 'N/A'} con ${participants[0]?.score || 0} puntos`);
     
     return NextResponse.json({ 
       success: true, 
@@ -134,9 +134,9 @@ export async function POST(
       status: 'COMPLETED',
       participants: participants.length,
       winner: participants[0] ? {
-        name: participants[0].user.firstname,
+        userid: participants[0].userid,
         score: participants[0].score,
-        correctAnswers: participants[0].correctAnswers
+        correctAnswers: participants[0].correctanswers
       } : null
     });
   } catch (error) {
