@@ -101,9 +101,12 @@ export async function POST(request: NextRequest) {
       // Crear nueva API key
       result = await prisma.aiproviderkey.create({
         data: {
+          id: aiConfig.id + '_' + provider + '_' + Date.now(),
           provider: provider,
           apikey: apiKey,
-          aiconfigid: aiConfig.id
+          aiconfigid: aiConfig.id,
+          createdat: new Date(),
+          updatedat: new Date()
         }
       });
       console.log(`✅ Nueva API key creada para ${provider}`);
