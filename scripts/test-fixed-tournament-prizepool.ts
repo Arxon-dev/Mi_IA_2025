@@ -115,9 +115,6 @@ async function checkExistingTournaments() {
   
   try {
     const tournaments = await prisma.tournament.findMany({
-      include: {
-        tournamentparticipants: true
-      },
       orderBy: { createdat: 'desc' },
       take: 5
     });
@@ -126,7 +123,9 @@ async function checkExistingTournaments() {
     console.log('');
     
     for (const tournament of tournaments) {
-      const participantCount = tournament.tournamentparticipants.length;
+      const participantCount = await prisma.tournamentparticipant.count({
+        where: { tournamentid: tournament.id }
+      });
       const currentPrizePool = tournament.prizepool;
       const suggestedPrizePool = calculateBasePrizePool(participantCount, tournament.questionscount);
       
