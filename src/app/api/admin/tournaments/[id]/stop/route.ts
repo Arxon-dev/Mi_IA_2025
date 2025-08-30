@@ -43,7 +43,7 @@ export async function POST(
       data: {
         status: 'COMPLETED',
         actualendtime: new Date(),
-        endTime: new Date()
+        endtime: new Date()
       }
     });
     
@@ -78,8 +78,8 @@ export async function POST(
       await prisma.tournamentparticipant.update({
         where: { id: participants[i].id },
         data: { 
-          finalPosition,
-          pointsearned
+          finalposition: finalPosition,
+          pointsearned: pointsEarned
         }
       });
 
