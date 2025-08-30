@@ -570,15 +570,18 @@ export async function handleBotCommands(message: any): Promise<string | null> {
 
     // ============ COMANDOS DE SUSCRIPCIÓN ============
     if (text === '/planes') {
-      return await SubscriptionCommandsSimple.handlePlanesCommand(message, createBotInterface(message.chat.id));
+      await SubscriptionCommandsSimple.handlePlanesCommand(message, createBotInterface(message.chat.id));
+      return 'INTELLIGENT_SYSTEM_HANDLED';
     }
 
     if (text === '/premium') {
-      return await SubscriptionCommandsSimple.handlePremiumCommand(message, createBotInterface(message.chat.id));
+      await SubscriptionCommandsSimple.handlePremiumCommand(message, createBotInterface(message.chat.id));
+      return 'INTELLIGENT_SYSTEM_HANDLED';
     }
 
     if (text === '/basico') {
-      return await SubscriptionCommandsSimple.handleBasicoCommand(message, createBotInterface(message.chat.id));
+      await SubscriptionCommandsSimple.handleBasicoCommand(message, createBotInterface(message.chat.id));
+      return 'INTELLIGENT_SYSTEM_HANDLED';
     }
 
     if (text === '/mi_plan') {
