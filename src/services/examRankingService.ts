@@ -50,11 +50,6 @@ export class ExamRankingService {
     const examResponses = await prisma.simulacroresponse.findMany({
       where: {
         examtype: 'EXAMEN_2018'
-      },
-      include: {
-        simulacro: {
-          // include removed for MySQL compatibility
-        }
       }
     });
 
@@ -126,11 +121,6 @@ export class ExamRankingService {
     const examResponses = await prisma.simulacroresponse.findMany({
       where: {
         examtype: 'EXAMEN_2024'
-      },
-      include: {
-        simulacro: {
-          // include removed for MySQL compatibility
-        }
       }
     });
 
@@ -203,11 +193,6 @@ export class ExamRankingService {
       where: {
         examtype: 'EXAMEN_2018',
         simulacroid: telegramuserid
-      },
-      include: {
-        simulacro: {
-          // include removed for MySQL compatibility
-        }
       }
     });
 
@@ -216,11 +201,6 @@ export class ExamRankingService {
       where: {
         examtype: 'EXAMEN_2024',
         simulacroid: telegramuserid
-      },
-      include: {
-        simulacro: {
-          // include removed for MySQL compatibility
-        }
       }
     });
 
