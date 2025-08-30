@@ -574,12 +574,12 @@ export async function handleBotCommands(message: any): Promise<string | null> {
     }
 
     if (text === '/premium') {
-      await SubscriptionCommandsSimple.handlePremiumCommand(message, createBotInterface(message.chat.id));
+      SubscriptionCommandsSimple.handlePremiumCommand(message, createBotInterface(message.chat.id));
       return 'INTELLIGENT_SYSTEM_HANDLED'; // Indica que el sistema inteligente ya manejó la respuesta
     }
 
     if (text === '/basico') {
-      await SubscriptionCommandsSimple.handleBasicoCommand(message, createBotInterface(message.chat.id));
+      SubscriptionCommandsSimple.handleBasicoCommand(message, createBotInterface(message.chat.id));
       return 'INTELLIGENT_SYSTEM_HANDLED';
     }
 
@@ -604,6 +604,7 @@ export async function handleBotCommands(message: any): Promise<string | null> {
                  `📈 Estadísticas avanzadas: ${plan.canuseadvancedstats ? '✅' : '❌'}\n` +
                `🎯 Simulacros: ${plan.canusesimulations ? '✅' : '❌'}\n` +
                `🤖 Análisis IA: ${plan.canuseaianalysis ? '✅' : '❌'}`;
+        }
       } else {
         return `❌ <b>No tienes suscripción activa</b>\n\n` +
                `💡 Usa /planes para ver los planes disponibles\n` +
@@ -612,9 +613,6 @@ export async function handleBotCommands(message: any): Promise<string | null> {
     }
 
     // ============ COMANDOS DE SESIONES DE ESTUDIO ============
-    // Importar StudyCommandHandler dinámicamente para evitar dependencias circulares
-    const { StudyCommandHandler } = await import('@/services/studyCommandHandler');
-    
     if (StudyCommandHandler.isStudyCommand(originalText)) {
       const result = await StudyCommandHandler.handleStudyCommand(originalText, userid);
       return result.message;
