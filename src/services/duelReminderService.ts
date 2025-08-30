@@ -138,7 +138,6 @@ async function processDuelReminders(): Promise<void> {
           gte: now,
           lte: in15Minutes
         }
-      },
       }
     });
 
@@ -166,7 +165,6 @@ async function processDuelReminders(): Promise<void> {
         expiresat: {
           gte: in20Minutes // Pero aún quedan más de 20 min
         }
-      },
       }
     });
 
