@@ -131,7 +131,7 @@ async function checkTelegramInfo() {
     }
     
     // Obtener información del chat
-    const CHAT_ID = '-1002352049779';
+    const CHAT_ID = '-1002519334308';
     const chatResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getChat?chat_id=${CHAT_ID}`);
     const chatInfo = await chatResponse.json() as any;
     

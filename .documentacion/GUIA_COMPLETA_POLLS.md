@@ -78,7 +78,7 @@ ngrok http 3000
 ### **🔧 Variables de entorno necesarias:**
 ```env
 TELEGRAM_BOT_TOKEN=8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs
-TELEGRAM_CHAT_ID=-1002352049779
+TELEGRAM_CHAT_ID=-1002519334308
 DATABASE_URL=postgresql://...
 ```
 

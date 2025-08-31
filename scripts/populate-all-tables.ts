@@ -267,7 +267,7 @@ async function populateAllTables() {
           sourcemodel: 'document',
           options: questionData.options,
           correctanswerindex: questionData.correct,
-          chatid: '-1002352049779', // Tu chat ID
+          chatid: '-1002519334308', // Tu chat ID
           sentAt: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000) // Últimos 7 días
         }
       });

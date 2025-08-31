@@ -61,7 +61,7 @@ http://localhost:3000/manual-question-generator  # Generador manual
 ```
 Token: 8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs
 Grupo: @Mi_IA_11_38_Telegram_Moodle
-Chat ID: -1002352049779
+Chat ID: -1002519334308
 ```
 
 ---

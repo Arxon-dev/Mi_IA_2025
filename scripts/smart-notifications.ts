@@ -3,7 +3,7 @@ import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { prisma } from '../src/lib/prisma';
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
-const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002352049779';
+const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002519334308';
 const CONFIG_FILE = join(process.cwd(), 'scheduler-config.json');
 
 interface NotificationRule {

@@ -9,6 +9,53 @@
       "description": "Horario permitido para envío de notificaciones inteligentes (07:00 - 22:00)"
     }
   },
+  "intelligentAlerts": {
+    "enabled": true,
+    "interval": 4,
+    "allowedHours": {
+      "start": 7,
+      "end": 22
+    },
+    "maxAlertsPerUser": 3,
+    "cooldownBetweenChecks": 30,
+    "description": "Sistema de alertas inteligentes que monitoriza el rendimiento y envía notificaciones personalizadas",
+    "alertTypes": {
+      "performanceDrop": {
+        "enabled": true,
+        "threshold": -0.15,
+        "cooldownHours": 12
+      },
+      "inactivityWarning": {
+        "enabled": true,
+        "minQuestionsThreshold": 5,
+        "cooldownHours": 24
+      },
+      "responseTimeIncrease": {
+        "enabled": true,
+        "thresholdMultiplier": 1.5,
+        "maxResponseTime": 45,
+        "cooldownHours": 8
+      },
+      "streakBreakRisk": {
+        "enabled": true,
+        "minStreakDays": 3,
+        "hoursWithoutActivity": 20,
+        "cooldownHours": 6
+      },
+      "motivationalBoost": {
+        "enabled": true,
+        "accuracyImprovementThreshold": 0.1,
+        "studyFrequencyMultiplier": 1.2,
+        "cooldownHours": 48
+      },
+      "studyFrequencyDrop": {
+        "enabled": true,
+        "frequencyDropMultiplier": 0.5,
+        "minHistoricalFrequency": 10,
+        "cooldownHours": 18
+      }
+    }
+  },
   "promotionalNotifications": {
     "enabled": true,
     "morningTime": "10:00",

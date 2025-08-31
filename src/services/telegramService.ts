@@ -18,7 +18,7 @@ export class TelegramService {
     this.apiUrl = `https://api.telegram.org/bot${this.botToken}`;
   }
 
-  async sendMessage(chatid: string | number, text: string): Promise<any> {
+  async sendMessage(chatid: string | number, text: string, options?: any): Promise<any> {
     // 🔧 FIX: Validar que chat_id no esté vacío antes de enviar
     if (!chatid || chatid === '' || chatid === 0) {
       console.error('❌ Error: chat_id está vacío o es inválido:', chatid);
@@ -27,16 +27,19 @@ export class TelegramService {
     
     const url = `${this.apiUrl}/sendMessage`;
     try {
+      const messageData = {
+        chat_id: chatid,
+        text: text,
+        parse_mode: options?.parse_mode || 'Markdown',
+        ...options
+      };
+      
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          chat_id: chatid,
-          text: text,
-          parse_mode: 'Markdown', // O 'HTML', según prefieras formatear
-        }),
+        body: JSON.stringify(messageData),
       });
 
       const responseData = await response.json() as TelegramResponse;

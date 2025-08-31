@@ -61,7 +61,7 @@ async function monitorWebhook() {
           username: "monitor_test"
         },
         chat: {
-          id: -1002352049779,
+          id: -1002519334308,
           type: "supergroup"
         },
         date: Math.floor(Date.now() / 1000),

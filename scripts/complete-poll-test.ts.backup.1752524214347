@@ -19,7 +19,7 @@ async function completeTestPoll() {
         sourceModel: "test",
         correctAnswerIndex: 0, // Madrid es la respuesta correcta (índice 0)
         options: ["Madrid", "Barcelona", "Valencia", "Sevilla"],
-        chatId: "-1002352049779"
+        chatId: "-1002519334308"
       }
     });
     

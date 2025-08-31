@@ -66,7 +66,7 @@ async function testPrivateCommands() {
             username: "test_user"
           },
           chat: {
-            id: -1002352049779, // ID del grupo (simulación)
+            id: -1002519334308, // ID del grupo (simulación)
             type: "supergroup"
           },
           date: Math.floor(Date.now() / 1000),

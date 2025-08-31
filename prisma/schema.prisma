@@ -10110,11 +10110,13 @@ model usernotificationsettings {
   milestonenotifications     Boolean   @default(true)
   remindernotifications      Boolean   @default(true)
   weeklyreportnotifications  Boolean   @default(true)
+  intelligentalertsnotifications Boolean @default(true)
   notificationstarthour      Int       @default(8)
   notificationendhour        Int       @default(22)
   lastgraduationnotification DateTime?
   lastremindernotification   DateTime?
   lastweeklyreport           DateTime?
+  lastintelligentalertsnotification DateTime?
   reminderdaysthreshold      Int       @default(3)
   maxnotificationsperday     Int       @default(5)
   createdat                  DateTime  @default(now())
