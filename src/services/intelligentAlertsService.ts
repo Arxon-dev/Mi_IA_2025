@@ -76,8 +76,12 @@ export class IntelligentAlertsService {
           return current.accuracyTrend < -0.15 && historical.accuracyTrend > 0;
         },
         message: (userName, metrics) => 
-          `📉 <b>${userName}</b>, he notado que tu precisión ha bajado un ${Math.abs(metrics.accuracyTrend * 100).toFixed(1)}%.\n\n` +
-          `💪 ¡No te desanimes! Todos tenemos días difíciles. ¿Qué tal si repasas las preguntas falladas?\n\n` +
+          `📉 <b>${userName}</b>, he notado que tu precisión ha bajado un ${Math.abs(metrics.accuracyTrend * 100).toFixed(1)}% en tus sesiones de estudio y participación en el grupo.
+
+` +
+          `💪 ¡No te desanimes! Todos tenemos días difíciles. ¿Qué tal si repasas las preguntas falladas?
+
+` +
           `🎯 Usa <code>/falladas10</code> para practicar tus errores más recientes.`,
         cooldown: 12, // 12 horas
         priority: 'high'
@@ -89,8 +93,12 @@ export class IntelligentAlertsService {
           return current.studyFrequency < 5 && historical.studyFrequency > 15;
         },
         message: (userName, metrics, historical) => 
-          `⏰ <b>${userName}</b>, hace tiempo que no te veo por aquí...\n\n` +
-          `📚 Tu ritmo de estudio ha bajado de ${historical?.studyFrequency?.toFixed(0) || 'N/A'} a ${metrics.studyFrequency.toFixed(0)} preguntas por día.\n\n` +
+          `⏰ <b>${userName}</b>, hace tiempo que no te veo por aquí...
+
+` +
+          `📚 Tu actividad (estudio + grupo) ha bajado de ${historical?.studyFrequency?.toFixed(0) || 'N/A'} a ${metrics.studyFrequency.toFixed(0)} preguntas por día.
+
+` +
           `🚀 ¡Vamos! Solo 10 minutos al día pueden marcar la diferencia. ¿Empezamos con <code>/random10</code>?`,
         cooldown: 24, // 24 horas
         priority: 'medium'
@@ -103,8 +111,12 @@ export class IntelligentAlertsService {
                  current.averageResponseTime > 45; // Más de 45 segundos
         },
         message: (userName, metrics) => 
-          `⏱️ <b>${userName}</b>, veo que estás tardando más en responder las preguntas.\n\n` +
-          `🤔 Tu tiempo promedio ha aumentado a ${metrics.averageResponseTime.toFixed(0)} segundos.\n\n` +
+          `⏱️ <b>${userName}</b>, veo que estás tardando más en responder las preguntas tanto en sesiones como en el grupo.
+
+` +
+          `🤔 Tu tiempo promedio ha aumentado a ${metrics.averageResponseTime.toFixed(0)} segundos.
+
+` +
           `💡 ¿Necesitas repasar algún tema específico? Usa <code>/temas</code> para ver las opciones disponibles.`,
         cooldown: 8, // 8 horas
         priority: 'low'
@@ -132,8 +144,12 @@ export class IntelligentAlertsService {
           return current.accuracyTrend > 0.1 && current.studyFrequency > historical.studyFrequency * 1.2;
         },
         message: (userName, metrics) => 
-          `🚀 <b>${userName}</b>, ¡estás en racha! Tu rendimiento ha mejorado un ${(metrics.accuracyTrend * 100).toFixed(1)}%.\n\n` +
-          `📈 Además, estás estudiando ${metrics.studyFrequency.toFixed(0)} preguntas por día.\n\n` +
+          `🚀 <b>${userName}</b>, ¡estás en racha! Tu rendimiento ha mejorado un ${(metrics.accuracyTrend * 100).toFixed(1)}% en sesiones y grupo.
+
+` +
+          `📈 Además, estás muy activo con ${metrics.studyFrequency.toFixed(0)} preguntas por día.
+
+` +
           `🏆 ¡Sigue así! ¿Te animas con un desafío? Prueba <code>/dificil20</code>`,
         cooldown: 48, // 48 horas
         priority: 'low'
@@ -146,8 +162,12 @@ export class IntelligentAlertsService {
                  historical.studyFrequency > 10;
         },
         message: (userName, metrics, historical) => 
-          `📊 <b>${userName}</b>, he notado un cambio en tu rutina de estudio.\n\n` +
-          `📉 Has pasado de ${historical?.studyFrequency.toFixed(0) || 'N/A'} a ${metrics.studyFrequency.toFixed(0)} preguntas por día.\n\n` +
+          `📊 <b>${userName}</b>, he notado un cambio en tu rutina de estudio y participación.
+
+` +
+          `📉 Tu actividad total ha pasado de ${historical?.studyFrequency.toFixed(0) || 'N/A'} a ${metrics.studyFrequency.toFixed(0)} preguntas por día.
+
+` +
           `🎯 ¿Todo bien? Recuerda que la constancia es clave. ¡Vamos paso a paso!`,
         cooldown: 18, // 18 horas
         priority: 'medium'
@@ -163,19 +183,39 @@ export class IntelligentAlertsService {
       const endDate = new Date();
       const startDate = new Date(endDate.getTime() - (days * 24 * 60 * 60 * 1000));
 
-      // Obtener respuestas del período
-      const responses = await prisma.studyresponse.findMany({
-        where: {
-          userid: userId,
-          answeredat: {
-            gte: startDate,
-            lte: endDate
-          }
-        },
-        orderBy: {
-          answeredat: 'asc'
-        }
-      });
+      // Obtener respuestas combinadas de sesiones de estudio y grupo de Telegram
+      const responses = await prisma.$queryRaw`
+        SELECT 
+          userid,
+          questionid,
+          iscorrect,
+          responsetime,
+          answeredat,
+          'study' as source,
+          subject
+        FROM studyresponse 
+        WHERE userid = ${userId} 
+          AND answeredat >= ${startDate} 
+          AND answeredat <= ${endDate}
+          AND answeredat IS NOT NULL
+        
+        UNION ALL
+        
+        SELECT 
+          userid,
+          questionid,
+          iscorrect,
+          responsetime,
+          answeredat,
+          'telegram' as source,
+          NULL as subject
+        FROM telegramresponse 
+        WHERE userid = ${userId} 
+          AND answeredat >= ${startDate} 
+          AND answeredat <= ${endDate}
+        
+        ORDER BY answeredat ASC
+      ` as any[];
 
       if (responses.length === 0) {
         return {
