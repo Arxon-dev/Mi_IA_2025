@@ -75,7 +75,7 @@
     "frequency": "hourly",
     "customMinutes": 60,
     "questionsPerSend": 10,
-    "startHour": 8,
+    "startHour": 7,
     "startMinute": 0,
     "endHour": 22,
     "endMinute": 0
