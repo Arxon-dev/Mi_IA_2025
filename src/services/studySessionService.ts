@@ -536,8 +536,12 @@ export class StudySessionService {
     try {
       console.log(`🎓 [FailedSession] Iniciando sesión de preguntas falladas - Usuario: ${userid}, Materia: ${subject}, Cantidad: ${totalquestions}`);
       
+      // 🔧 FIX: Cuando subject es 'all', usar un límite mayor para obtener preguntas de todas las materias
+      const searchLimit = subject === 'all' ? Math.max(totalquestions, 100) : totalquestions;
+      console.log(`🔍 [FailedSession] Límite de búsqueda: ${searchLimit} (subject: ${subject})`);
+      
       // Obtener preguntas falladas
-      const failedQuestions = await this.getFailedQuestions(userid, subject, totalquestions);
+      const failedQuestions = await this.getFailedQuestions(userid, subject, searchLimit);
       
       if (failedQuestions.length === 0) {
         // 🔍 Verificar si el usuario ha estudiado alguna vez

@@ -568,39 +568,6 @@ model igualdad {
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model iniciativasquejas {
-  id                   String    @id(length: 255) @db.LongText
-  questionnumber       Int       @unique
-  question             String    @db.LongText
-  options              String?   @db.LongText
-  correctanswerindex   Int
-  category             String?   @db.LongText
-  difficulty           String?   @db.LongText
-  isactive             Boolean   @default(true)
-  sendcount            Int       @default(0)
-  lastsuccessfulsendat DateTime?
-  feedback             String?   @db.LongText
-  type                 String?   @db.LongText
-  bloomlevel           String?   @db.LongText
-  updatedat            DateTime
-  title                String?   @db.LongText
-  titlequestionnumber  Int?
-  titlesourcedocument  String?   @db.LongText
-  titlesourcereference String?   @db.LongText
-  titlerawmetadata     String?   @db.LongText
-  sectionid            String?   @db.LongText
-  documentid           String?   @db.LongText
-  sourcesection        String?   @db.LongText
-  lastusedintournament DateTime?
-  tournamentusagecount Int       @default(0)
-  lasttournamentid     String?   @db.LongText
-  createdat            DateTime  @default(now())
-  trial754             String?   @db.Char(1)
-
-  @@map("MisionesInternacionales")
-}
-
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model mdl_adminpresets {
   id            BigInt  @id @default(autoincrement())
   userid        BigInt
@@ -10104,24 +10071,24 @@ model usergoal {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model usernotificationsettings {
-  id                         String    @id(length: 255) @db.LongText
-  userid                     String    @unique(length: 255) @db.LongText
-  graduationnotifications    Boolean   @default(true)
-  milestonenotifications     Boolean   @default(true)
-  remindernotifications      Boolean   @default(true)
-  weeklyreportnotifications  Boolean   @default(true)
-  intelligentalertsnotifications Boolean @default(true)
-  notificationstarthour      Int       @default(8)
-  notificationendhour        Int       @default(22)
-  lastgraduationnotification DateTime?
-  lastremindernotification   DateTime?
-  lastweeklyreport           DateTime?
-  lastintelligentalertsnotification DateTime?
-  reminderdaysthreshold      Int       @default(3)
-  maxnotificationsperday     Int       @default(5)
-  createdat                  DateTime  @default(now())
-  updatedat                  DateTime
-  trial800                   String?   @db.Char(1)
+  id                                String    @id(length: 255) @db.LongText
+  userid                            String    @unique(length: 255) @db.LongText
+  graduationnotifications           Boolean   @default(true)
+  milestonenotifications            Boolean   @default(true)
+  remindernotifications             Boolean   @default(true)
+  weeklyreportnotifications         Boolean   @default(true)
+  notificationstarthour             Int       @default(8)
+  notificationendhour               Int       @default(22)
+  lastgraduationnotification        DateTime?
+  lastremindernotification          DateTime?
+  lastweeklyreport                  DateTime?
+  reminderdaysthreshold             Int       @default(3)
+  maxnotificationsperday            Int       @default(5)
+  createdat                         DateTime  @default(now())
+  updatedat                         DateTime
+  trial800                          String?   @db.Char(1)
+  intelligentalertsnotifications    Boolean?  @default(true)
+  lastintelligentalertsnotification DateTime? @db.DateTime(0)
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -10560,6 +10527,37 @@ model mdl_neuroopositor_user_responses {
   @@index([timecreated], map: "mdl_neuruserresp_tim_ix")
   @@index([userid], map: "mdl_neuruserresp_use_ix")
   @@index([userid, tema_id], map: "mdl_neuruserresp_usetem_ix")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model iniciativasquejas {
+  id                   String    @id(length: 255) @db.LongText
+  questionnumber       Int       @unique
+  question             String    @db.LongText
+  options              String?   @db.LongText
+  correctanswerindex   Int
+  category             String?   @db.LongText
+  difficulty           String?   @db.LongText
+  isactive             Boolean   @default(true)
+  sendcount            Int       @default(0)
+  lastsuccessfulsendat DateTime?
+  feedback             String?   @db.LongText
+  type                 String?   @db.LongText
+  bloomlevel           String?   @db.LongText
+  updatedat            DateTime
+  title                String?   @db.LongText
+  titlequestionnumber  Int?
+  titlesourcedocument  String?   @db.LongText
+  titlesourcereference String?   @db.LongText
+  titlerawmetadata     String?   @db.LongText
+  sectionid            String?   @db.LongText
+  documentid           String?   @db.LongText
+  sourcesection        String?   @db.LongText
+  lastusedintournament DateTime?
+  tournamentusagecount Int       @default(0)
+  lasttournamentid     String?   @db.LongText
+  createdat            DateTime  @default(now())
+  trial754             String?   @db.Char(1)
 }
 
 enum mdl_local_telegram_study_sessions_sessiontype {

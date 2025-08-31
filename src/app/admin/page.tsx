@@ -27,7 +27,8 @@ import {
   CheckCircle,
   AlertCircle,
   Clock,
-  Trophy
+  Trophy,
+  Edit
 } from 'lucide-react';
 
 interface AdminStats {
@@ -365,6 +366,29 @@ export default function AdminPage() {
         <Card className="group hover:shadow-lg transition-shadow duration-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
+              <Edit className="w-5 h-5 text-blue-500" />
+              Administración de Preguntas
+            </CardTitle>
+            <CardDescription>
+              Buscar y editar preguntas de todas las tablas
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Busca, filtra y corrige preguntas de cualquier tabla del sistema
+            </p>
+            <Link href="/admin/questions">
+              <Button className="w-full group-hover:bg-primary/90 transition-colors">
+                Administrar Preguntas
+                <ChevronRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card className="group hover:shadow-lg transition-shadow duration-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
               <Database className="w-5 h-5 text-green-500" />
               Gestión de Preguntas Válidas
             </CardTitle>
@@ -425,4 +449,4 @@ export default function AdminPage() {
       </Card>
     </div>
   );
-} 
+}
