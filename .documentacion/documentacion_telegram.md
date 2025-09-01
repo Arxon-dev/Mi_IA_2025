@@ -17,7 +17,7 @@ Este documento detalla la configuración y los pasos para integrar la funcionali
 3.  **Chat ID del Grupo de Telegram:**
     *   Se utilizará un grupo de Telegram para enviar los cuestionarios.
     *   **Nombre del Grupo de Prueba (Ejemplo):** OpoPrueba
-    *   **Chat ID Obtenido:** `-1002519334308` (Obtenido de la respuesta de `getUpdates` después de enviar un mensaje al grupo con el bot como miembro).
+    *   **Chat ID Obtenido:** `-1002352049779` (Obtenido de la respuesta de `getUpdates` después de enviar un mensaje al grupo con el bot como miembro).
     *   El `chat_id` real y seguro también debería, idealmente, gestionarse a través de variables de entorno o una configuración segura si va a ser fijo (ej. `TELEGRAM_CHAT_ID` en `.env.local`).
 
 ## Pasos de Desarrollo Realizados y Decisiones

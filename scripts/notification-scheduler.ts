@@ -267,7 +267,7 @@ class NotificationScheduler {
         console.log('❌ Error en notificaciones');
       }
     }, {
-      timezone: 'America/Bogota'
+      timezone: 'Europe/Madrid'
     });
 
     this.scheduledTasks.push(task);
@@ -312,7 +312,7 @@ class NotificationScheduler {
       // Ejecutar una sola vez las notificaciones de torneo después del poll
       await this.executeScript('scripts/tournament-notifications.ts', ['--quiet']);
     }, {
-      timezone: 'America/Bogota'
+      timezone: 'Europe/Madrid'
     });
 
     this.scheduledTasks.push(task);
@@ -340,7 +340,7 @@ class NotificationScheduler {
         console.log('⚠️ Error en procesamiento de notificaciones de torneos');
       }
     }, {
-      timezone: 'America/Bogota'
+      timezone: 'Europe/Madrid'
     });
 
     this.scheduledTasks.push(task);
@@ -367,7 +367,7 @@ class NotificationScheduler {
         console.log('⚠️ Detectado problema en el monitoreo del sistema');
       }
     }, {
-      timezone: 'America/Bogota'
+      timezone: 'Europe/Madrid'
     });
 
     this.scheduledTasks.push(task);

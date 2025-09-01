@@ -187,7 +187,7 @@ npx tsx scripts/notification-scheduler.ts
 ```
 
 ### **ZONA HORARIA:**
-- **Por defecto:** America/Bogota
+- **Por defecto:** Europe/Madrid
 - **Configurable en:** `scripts/notification-scheduler.ts`
 
 ---
@@ -224,4 +224,4 @@ npx tsx scripts/notification-scheduler.ts
 ✅ **PROBADO:** Script de testing incluido  
 ✅ **DOCUMENTADO:** Guía completa y ejemplos
 
-**🚀 ¡La funcionalidad está lista para usar!** 
+**🚀 ¡La funcionalidad está lista para usar!**

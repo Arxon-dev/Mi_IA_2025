@@ -2,6 +2,7 @@
 NODE_OPTIONS = "--max-old-space-size=4096"
 NEXT_TELEMETRY_DISABLED = "1"
 NODE_ENV = "production"
+TZ = "Europe/Madrid"
 
 [phases.setup]
 nixPkgs = ["nodejs_18", "npm-9_x", "openssl"]

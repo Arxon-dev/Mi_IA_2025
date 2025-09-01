@@ -61,7 +61,7 @@
 
 **Información configurada:**
 - ✅ Token agregado al .env: `TELEGRAM_BOT_TOKEN=8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs`
-- ✅ Chat ID configurado: `TELEGRAM_CHAT_ID=-1002519334308`
+- ✅ Chat ID configurado: `TELEGRAM_CHAT_ID=-1002352049779`
 - ⚠️ **Token necesita verificación** - El token actual da error "Not Found"
 
 **Pasos completados:**

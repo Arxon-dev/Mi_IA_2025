@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
-const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002519334308';
+const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002352049779';
 
 interface WeeklyRankingUser {
   telegramuserid: string;
@@ -434,7 +434,7 @@ function startWeeklyRankingScheduler(): void {
         console.log('🔔 Ejecutando ranking semanal programado...');
         await generateAndSendWeeklyRanking();
       }, {
-        timezone: "America/Mexico_City"
+        timezone: "Europe/Madrid"
       });
 
       console.log('✅ Weekly Ranking Scheduler iniciado correctamente');
@@ -484,4 +484,4 @@ async function main(): Promise<void> {
 main().catch(error => {
   console.error('💥 Error fatal en Weekly Ranking Scheduler:', error);
   process.exit(1);
-}); 
+});

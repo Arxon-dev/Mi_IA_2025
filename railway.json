@@ -10,6 +10,13 @@
     "restartPolicyType": "ON_FAILURE"
   },
   "environments": {
-    "production": {}
+    "production": {
+      "variables": {
+        "TZ": "Europe/Madrid",
+        "NODE_OPTIONS": "--max-old-space-size=4096",
+        "NEXT_TELEMETRY_DISABLED": "1",
+        "NODE_ENV": "production"
+      }
+    }
   }
 }

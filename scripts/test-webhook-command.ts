@@ -18,7 +18,7 @@ async function testWebhookCommand() {
           username: "testuser"
         },
         chat: {
-          id: -1002519334308,
+          id: -1002352049779,
           type: "supergroup"
         },
         date: Math.floor(Date.now() / 1000),

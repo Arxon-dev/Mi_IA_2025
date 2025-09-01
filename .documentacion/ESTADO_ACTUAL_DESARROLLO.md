@@ -120,7 +120,7 @@ npx tsx scripts/test-bot-commands.ts
 ### 🤖 **Bot de Telegram**
 - **Token:** `8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs`
 - **Grupo:** `@Mi_IA_11_38_Telegram_Moodle`
-- **Chat ID:** `-1002519334308`
+- **Chat ID:** `-1002352049779`
 
 ### 🌐 **Webhook**
 - **Puerto:** 3000

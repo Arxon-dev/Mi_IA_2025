@@ -86,7 +86,7 @@ async function createTournamentNotifications(tournamentId: string, scheduledDate
 async function sendNewTournamentAnnouncement(tournament: any, questionsAssigned: number) {
   try {
     const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8039179482:AAG6bugxwgsmWLVHGoWpE5nih_PQpD3KPBs';
-    const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002519334308';
+    const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002352049779';
     
     const timeUntilStart = new Date(tournament.scheduledDate).getTime() - Date.now();
     const hoursUntilStart = Math.ceil(timeUntilStart / (1000 * 60 * 60));
