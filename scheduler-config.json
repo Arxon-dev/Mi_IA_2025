@@ -58,8 +58,10 @@
   },
   "promotionalNotifications": {
     "enabled": true,
-    "morningTime": "10:00",
     "eveningTime": "18:00",
+    "frequency": "weekly",
+    "dayOfWeek": "friday",
+    "cronExpression": "0 18 * * 5",
     "timezone": "Europe/Madrid"
   },
   "premiumFeaturesNotification": {

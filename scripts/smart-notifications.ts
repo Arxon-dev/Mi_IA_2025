@@ -134,14 +134,14 @@ ${users.slice(0, 3).map(u => `👋 ${u.firstname}`).join(', ')}
   {
     id: 'high_performers',
     name: 'Reconocimiento a top performers',
-    condition: (users) => users.filter(u => u.totalpoints >= 500 && u.level >= 3),
+    condition: (users) => users.filter(u => u.totalpoints >= 5000 && u.level >= 3),
     message: (users) => `👑 <b>HALL OF FAME</b> 👑
 
-Nuestros futuros permanentes con más de 500 puntos:
+Nuestros futuros permanentes con más de 5000 puntos:
 ${users.map(u => `🥇 ${u.firstname} - ${u.totalpoints} pts (Nivel ${u.level})`).join('\n')}
 
 ¡Son un ejemplo para todos! 🌟
-¿Quién más se unirá al club de los 500? 💪`,
+¿Quién más se unirá al club de los 5000? 💪`,
     cooldown: 1440 // 24 horas
   },
   {

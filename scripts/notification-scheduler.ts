@@ -26,6 +26,14 @@ interface SchedulerConfig {
     enabled: boolean;
     intervalMinutes: number;
   };
+  promotionalNotifications?: {
+    enabled: boolean;
+    eveningTime?: string;
+    frequency?: string;
+    dayOfWeek?: string;
+    cronExpression?: string;
+    timezone?: string;
+  };
   premiumFeaturesNotification?: {
     enabled: boolean;
     time: string;
@@ -377,46 +385,42 @@ class NotificationScheduler {
   }
 
   startPromotionalNotificationScheduler() {
+    if (!this.config.promotionalNotifications?.enabled) {
+      console.log('💰 Notificaciones promocionales deshabilitadas');
+      return;
+    }
+
     console.log('💰 Iniciando scheduler de notificaciones promocionales...');
     
-    // Notificación matutina a las 10:00
-    const morningTask = cron.schedule('0 10 * * *', async () => {
-      console.log(`🌅 [${new Date().toLocaleString()}] Enviando notificaciones promocionales matutinas...`);
+    const cronExpression = this.config.promotionalNotifications.cronExpression || '0 18 * * 5'; // Viernes a las 18:00 por defecto
+    const timezone = this.config.promotionalNotifications.timezone || 'Europe/Madrid';
+    
+    // Solo notificación vespertina según configuración
+    const eveningTask = cron.schedule(cronExpression, async () => {
+      console.log(`🌆 [${new Date().toLocaleString()}] Enviando notificaciones promocionales vespertinas...`);
       
-      const result = await this.executeScript('scripts/subscription-promotional-notifications.ts', ['morning']);
+      const result = await this.executeScript('scripts/subscription-promotional-notifications.ts', ['evening']);
       
       if (result.success) {
-        console.log('✅ Notificaciones promocionales matutinas enviadas');
+        console.log('✅ Notificaciones promocionales vespertinas enviadas');
       } else {
-        console.log('❌ Error en notificaciones promocionales matutinas');
+        console.log('❌ Error en notificaciones promocionales vespertinas');
       }
     }, {
-      timezone: 'Europe/Madrid'
+      timezone: timezone
     });
-  
-  // Notificación vespertina a las 18:00
-  const eveningTask = cron.schedule('0 18 * * *', async () => {
-    console.log(`🌆 [${new Date().toLocaleString()}] Enviando notificaciones promocionales vespertinas...`);
     
-    const result = await this.executeScript('scripts/subscription-promotional-notifications.ts', ['evening']);
+    this.scheduledTasks.push(eveningTask);
+    eveningTask.start();
     
-    if (result.success) {
-      console.log('✅ Notificaciones promocionales vespertinas enviadas');
-    } else {
-      console.log('❌ Error en notificaciones promocionales vespertinas');
-    }
-  }, {
-    timezone: 'Europe/Madrid'
-  });
-  
-  this.scheduledTasks.push(morningTask, eveningTask);
-  morningTask.start();
-  eveningTask.start();
-  
-  console.log('💰 Scheduler de notificaciones promocionales iniciado:');
-  console.log('  🌅 Matutinas: 10:00 AM');
-  console.log('  🌆 Vespertinas: 18:00 PM');
-}
+    const frequency = this.config.promotionalNotifications.frequency || 'weekly';
+    const dayOfWeek = this.config.promotionalNotifications.dayOfWeek || 'friday';
+    const eveningTime = this.config.promotionalNotifications.eveningTime || '18:00';
+    
+    console.log('💰 Scheduler de notificaciones promocionales iniciado:');
+    console.log(`  🌆 Vespertinas: ${eveningTime} (${frequency}, ${dayOfWeek})`);
+    console.log(`  🌍 Zona horaria: ${timezone}`);
+  }
 
 startPremiumFeaturesNotificationScheduler() {
   if (!this.config.premiumFeaturesNotification?.enabled) {
@@ -524,9 +528,15 @@ getStatus() {
     console.log(`   🔄 Cada ${this.config.monitoring.intervalMinutes} minutos`);
   }
   
-  console.log(`💰 Notificaciones promocionales: ✅ ACTIVO`);
-  console.log(`   🌅 Matutinas: 10:00 AM (Europe/Madrid)`);
-  console.log(`   🌆 Vespertinas: 18:00 PM (Europe/Madrid)`);
+  const promotionalEnabled = this.config.promotionalNotifications?.enabled ?? false;
+  console.log(`💰 Notificaciones promocionales: ${promotionalEnabled ? '✅ ACTIVO' : '❌ INACTIVO'}`);
+  if (promotionalEnabled) {
+    const frequency = this.config.promotionalNotifications?.frequency || 'weekly';
+    const dayOfWeek = this.config.promotionalNotifications?.dayOfWeek || 'friday';
+    const eveningTime = this.config.promotionalNotifications?.eveningTime || '18:00';
+    const timezone = this.config.promotionalNotifications?.timezone || 'Europe/Madrid';
+    console.log(`   🌆 Vespertinas: ${eveningTime} (${frequency}, ${dayOfWeek}) - ${timezone}`);
+  }
   
   const premiumEnabled = this.config.premiumFeaturesNotification?.enabled ?? false;
   console.log(`🎓 Notificaciones funcionalidades premium: ${premiumEnabled ? '✅ ACTIVO' : '❌ INACTIVO'}`);
