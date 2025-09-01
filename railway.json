@@ -8,15 +8,5 @@
     "numReplicas": 1,
     "sleepApplication": false,
     "restartPolicyType": "ON_FAILURE"
-  },
-  "environments": {
-    "production": {
-      "variables": {
-        "TZ": "Europe/Madrid",
-        "NODE_OPTIONS": "--max-old-space-size=4096",
-        "NEXT_TELEMETRY_DISABLED": "1",
-        "NODE_ENV": "production"
-      }
-    }
   }
 }

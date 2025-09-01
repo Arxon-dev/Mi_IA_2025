@@ -2051,10 +2051,22 @@ export class StudySessionService {
         });
       }
 
-      return stats;
+      // 🔧 FIX: Calcular accuracy para evitar NaN%
+      const accuracy = stats.totalquestions > 0 ? (stats.correctanswers / stats.totalquestions) * 100 : 0;
+      
+      // Retornar stats con accuracy calculada
+      return {
+        ...stats,
+        accuracy: accuracy
+      };
     } catch (error) {
       console.error('Error obteniendo estadísticas de usuario:', error);
-      return { questionscompleted: "[]" };
+      return { 
+        questionscompleted: "[]",
+        totalquestions: 0,
+        correctanswers: 0,
+        accuracy: 0
+      };
     }
   }
 
