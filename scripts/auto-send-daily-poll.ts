@@ -302,6 +302,35 @@ async function getAllQuestionsFromTables(limit: number) {
   return todasLasPreguntas;
 }
 
+// Función para verificar si estamos dentro del horario permitido
+function isWithinScheduledHours(config: SchedulerConfig): boolean {
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  const currentTotalMinutes = currentHour * 60 + currentMinute;
+  
+  const startHour = config.dailyPolls.startHour ?? 7;
+  const startMinute = config.dailyPolls.startMinute ?? 0;
+  const endHour = config.dailyPolls.endHour ?? 22;
+  const endMinute = config.dailyPolls.endMinute ?? 0;
+  
+  const startTotalMinutes = startHour * 60 + startMinute;
+  const endTotalMinutes = endHour * 60 + endMinute;
+  
+  // Si startTime < endTime (mismo día)
+  if (startTotalMinutes < endTotalMinutes) {
+    return currentTotalMinutes >= startTotalMinutes && currentTotalMinutes < endTotalMinutes;
+  }
+  // Si startTime > endTime (cruza medianoche)
+  else if (startTotalMinutes > endTotalMinutes) {
+    return currentTotalMinutes >= startTotalMinutes || currentTotalMinutes < endTotalMinutes;
+  }
+  // Si startTime == endTime (24 horas)
+  else {
+    return true;
+  }
+}
+
 // Función principal para enviar polls diarios
 async function sendDailyPoll() {
   try {
@@ -312,6 +341,22 @@ async function sendDailyPoll() {
     
     if (!config.dailyPolls.enabled) {
       console.log('⏸️  Envío de polls diarios deshabilitado en configuración');
+      return;
+    }
+    
+    // Verificar si estamos dentro del horario permitido
+    if (!isWithinScheduledHours(config)) {
+      const startHour = (config.dailyPolls.startHour ?? 7).toString().padStart(2, '0');
+      const startMinute = (config.dailyPolls.startMinute ?? 0).toString().padStart(2, '0');
+      const endHour = (config.dailyPolls.endHour ?? 22).toString().padStart(2, '0');
+      const endMinute = (config.dailyPolls.endMinute ?? 0).toString().padStart(2, '0');
+      
+      const now = new Date();
+      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      
+      console.log(`⏰ Fuera del horario de envío (${startHour}:${startMinute} - ${endHour}:${endMinute})`);
+      console.log(`🕐 Hora actual: ${currentTime}`);
+      console.log('🚫 Envío de preguntas omitido para respetar horario configurado');
       return;
     }
     
